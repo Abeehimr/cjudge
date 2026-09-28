@@ -26,17 +26,18 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M3 — Task Library · v0.2 · requires M0, M2
 
-- [ ] Add task/PDF storage, immutable revisions, ZIP/pasted cases.
+- [ ] Add tasks with optional Markdown statements, immutable revisions, ZIP/pasted cases.
 - [ ] Implement exact/token checker contracts and scoring configuration.
 - [ ] Add draft validation and publish/review screens.
-- [ ] **Test:** malformed archives, traversal/size limits, checker edge cases, revision immutability, protected files.
+- [ ] **Test:** optional/safe Markdown, malformed archives, traversal/size limits, checker edge cases, revision immutability, protected files.
 
 ## M4 — Labs and Binding · v0.3 · requires M2, M3
 
 - [ ] Add scheduling, enrollment, ordered tasks, and server countdown.
+- [ ] Add multiple lab PDF uploads, protected downloads, and dashboard links.
 - [ ] Add whole-lab extensions, overlap checks, and pre-release reopening.
 - [ ] Add per-lab browser binding, admin release, and strict IP option.
-- [ ] **Test:** time boundaries, hidden statements, overlap races, token loss, IP changes, revoked sessions.
+- [ ] **Test:** multiple PDFs, hidden PDFs/Markdown before start, time boundaries, overlap races, token loss, IP changes, revoked sessions.
 
 ## M5 — Submission Pipeline · v0.4 · requires M1, M4
 

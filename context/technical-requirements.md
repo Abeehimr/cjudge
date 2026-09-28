@@ -10,6 +10,7 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 - Validate the judge container's cgroup delegation, capabilities, and mounts on target Linux before implementation depends on it. Keep required elevated permissions confined to `judge`; never silently enable privileged mode across services. Upstream cautions that containerized isolate may need privileged execution: [isolate installation notes](https://github.com/ioi/isolate/blob/master/isolate.1.txt). Docker service separation does not replace the inner execution sandbox.
 - The scaffold requires Python 3.14+. Verify dependency compatibility before pinning versions.
 - Store metadata in PostgreSQL and artifacts at protected, application-generated paths. Use migrations, timezone-aware timestamps, and decimal/rational-safe score calculations.
+- Associate PDF attachments with labs; store optional task statements as Markdown text. Authorize both by enrollment and lab start time, and include both in lab archives.
 - Preserve immutable sources, revisions, and judge history. Publish accepted submission/job records only when source durability is assured; reconcile orphaned staged files after failures.
 
 ## Transactions and Interfaces
@@ -49,6 +50,7 @@ Compare full permitted stdout before retaining previews. Bound stderr, temporary
 
 - Argon2 password hashing, revocable sessions, HttpOnly binding cookies, HTTPS, CSRF protection, and login rate limits. Trust forwarded IPs only from configured proxies.
 - Validate archive paths, entry types, expanded sizes, and input/answer pairing. Render user content as text; protect PDF delivery with authorization, correct content type, and `nosniff`.
+- Render task Markdown with raw HTML disabled and safe link protocols; do not load remote embedded assets. Preserve escaped rendering for code and diagnostics.
 - Prevent formula execution from untrusted spreadsheet cells. Never log passwords, session tokens, or sensitive test contents.
 - Audit logins and admin actions, including binding/time changes, revisions, deletion/restoration, result release, and exports.
 - Surface worker availability, lease/retry failures, queue delay, rejudge progress, and storage failures with job/attempt identifiers.
@@ -67,6 +69,7 @@ Establish test tooling as components arrive; no runner or coverage threshold exi
 - Incorrect stdout beyond the retained preview still fails checking. Malformed ZIPs and generator failures cannot publish incomplete tasks.
 - Worker crashes recover; stale workers cannot overwrite results. Rejudge publication never mixes revisions, including concurrent arrivals/deletions, and unresolved work blocks release.
 - UI and mark sheets agree; archives include deleted evidence and export never deletes a lab.
+- Multiple lab PDFs display/download correctly; missing task Markdown is valid. Test Markdown HTML/script-link rejection, pre-start access denial, and both statement formats in archives.
 - Core flows work offline, including SSE reconnection. Benchmark the product targets with documented hardware, worker count, endpoint mix, fixtures, and separate timeout-heavy results.
 
 ## Remaining Decisions

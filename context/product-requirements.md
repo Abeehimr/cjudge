@@ -12,13 +12,14 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 
 - Import student roll numbers/names from CSV, generate printable credentials, and support password resets. Keep admin authentication separate.
 - Bind each student's browser per lab. Missing/invalid tokens require admin release even at the same IP; release revokes old sessions. Allow and flag IP changes with a valid token; optional strict mode requires matching IPs.
-- Tasks have a title, PDF, maximum marks, scoring mode, checker, and resource limits. Require at least one case before publication.
+- Tasks have a title, optional Markdown statement, maximum marks, scoring mode, checker, and resource limits. Require at least one case before publication; no per-task PDF is required or stored.
 - Accept paired `N.in`/`N.out` ZIPs, pasted cases, and reviewed output from sandboxed Python/C generators with a reference C solution.
 - Support exact comparison, optional trailing-newline handling, token comparison with optional case/float tolerance, and Python custom checkers. Use reusable tasks with immutable grading revisions pinned to lab assignments.
 
 ## Lab and Submission Rules
 
-- Lifecycle: Draft → Scheduled → Running → Ended → Results released → Archived. Hide statements until start and allow only assigned students to participate.
+- Attach one or more PDFs containing the lab tasks to the lab. Task Markdown statements are optional supplements; leave the statement section hidden when empty.
+- Lifecycle: Draft → Scheduled → Running → Ended → Results released → Archived. Hide lab PDFs and task statements until start and allow only assigned students to participate.
 - Use a common server-authoritative deadline. Allow whole-lab extensions and reopening before first release; never reopen after release, even if results are hidden again.
 - Prevent overlapping labs. Require explicit rescheduling before an extension conflicts with another lab.
 - Accept one `.c` file up to 64 KiB only after complete upload, validation, and durable acceptance strictly before the deadline. Queued judging may finish afterward.
@@ -41,7 +42,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 - Warn before revealing tests used by another scheduled lab. Admin controls release timing; hiding results cannot undo disclosure.
 - Students access only their own private data, apart from the configured scoreboard.
 - CSV/XLSX exports contain roll number, name, per-task marks/pass percentages, total marks, active submission count, and last active submission time. Percentages come from counted submissions.
-- Lab ZIPs include statements, tests, configurations/revisions, all retained sources including deleted attempts, judge history, marks, and audit records. Export does not delete the lab; permanent deletion is a separate action after successful export. ZIPs are not full-server backups.
+- Lab ZIPs include lab PDFs, optional task Markdown statements, tests, configurations/revisions, all retained sources including deleted attempts, judge history, marks, and audit records. Export does not delete the lab; permanent deletion is a separate action after successful export. ZIPs are not full-server backups.
 
 ## Success Targets
 

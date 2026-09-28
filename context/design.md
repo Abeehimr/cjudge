@@ -22,25 +22,35 @@ Suggested backend boundaries: identity, tasks, labs, submissions, judging, resul
 
 ## Screens
 
+Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use a simple light theme, restrained colors, and native form controls. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.
+
 | Student | Admin |
 | --- | --- |
 | Login and binding-block explanation | Accounts, CSV import, credentials, binding release |
-| Lab countdown and ordered tasks | Lab schedule, common deadline, enrollments, progress |
-| PDF, file upload, personal history | Task library, test editor, generation review, revisions |
-| Submission status and released details | Best-to-worst attempts, deleted runs, judging faults |
+| Lab countdown, lab PDF links, and ordered task table | Lab overview, PDF uploads, common deadline, student table, progress |
+| Optional task Markdown, file upload, submission history table | Task library, Markdown textarea/preview, test editor, generation review, revisions |
+| Submission status and released details | Submission filters, best-to-worst attempts, deleted runs, judging faults |
 | Optional solved-task scoreboard | Corrections, release, marks, archive export |
 
 Keep the student path short: read, upload, check status. Explain disabled uploads with the actual reason: closed lab, cooldown, or pending limit. Server checks remain authoritative. Show infrastructure faults separately from student failures.
 
-Use readable layouts, labeled controls, keyboard focus, and text alongside status colors. Render source and diagnostics as escaped monospace text. Bundle assets locally. Detailed colors and branding remain implementation choices.
+Store PDFs on the lab, not individual tasks. List all lab PDFs on the dashboard and link back to them from task pages. Omit empty task statements; render provided Markdown safely. Hide both document types until the lab starts.
+
+Use readable layouts, labeled controls, keyboard-accessible navigation, visible focus, and text alongside status colors. Keep tables usable on narrow screens. Render source and diagnostics as escaped monospace text. Bundle assets locally. Preserve cJudge's grading and visibility rules: student views expose no partial marks or hidden cases before release.
 
 Confirm destructive or grading-changing admin actions and show their effects. Collect required audit reasons. Separate archive download from permanent deletion.
+
+### UI Acceptance Checks
+
+- Student: login → lab PDFs / optional task statement → upload → result; verify multiple PDFs and tasks without Markdown.
+- Admin: task setup → lab management → review → release.
+- Verify keyboard navigation, narrow-screen tables, countdown updates, and role-based visibility.
 
 ## Data Model
 
 - Account, revocable session, and per-lab browser binding.
-- Lab, enrollment, and ordered lab-task assignment.
-- Reusable task, immutable revision, and test cases.
+- Lab with PDF attachments, enrollment, and ordered lab-task assignment.
+- Reusable task with optional Markdown statement, immutable revision, and test cases.
 - Submission with immutable source, acceptance time, and soft-delete metadata.
 - Queue job/attempt with lease identity; judge run and case results tied to a revision.
 - Rejudge batch, audit event, and export metadata.
