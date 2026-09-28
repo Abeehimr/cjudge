@@ -1,0 +1,62 @@
+# Design
+
+Proposed organization for the requirements in [product-requirements.md](product-requirements.md). This is not implemented functionality. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+
+## System
+
+```mermaid
+flowchart LR
+    Browser[Student / admin browser] -->|HTTPS| Nginx[nginx]
+    Nginx --> Assets[Local frontend assets]
+    Nginx --> API[FastAPI and SSE]
+    API --> DB[(PostgreSQL)]
+    API --> Files[(Protected artifacts)]
+    Workers[Judge container: workers] --> DB
+    Workers --> Files
+    Workers --> Sandbox[isolate]
+```
+
+Docker Compose separates `web` (nginx + frontend), `api`, `db`, and `judge` (worker + isolate). The API owns authentication, authorization, lab policy, admission, marks, and release. PostgreSQL holds metadata/jobs; persistent protected volumes hold artifacts. Workers judge asynchronously. Only web ports are public; nginx delivers protected files after authorization. Validate judge-container cgroup permissions before accepting submissions.
+
+Suggested backend boundaries: identity, tasks, labs, submissions, judging, results, and exports. Keep scoring and timing policy separate from HTTP handlers; keep sandbox management in worker-only code.
+
+## Screens
+
+| Student | Admin |
+| --- | --- |
+| Login and binding-block explanation | Accounts, CSV import, credentials, binding release |
+| Lab countdown and ordered tasks | Lab schedule, common deadline, enrollments, progress |
+| PDF, file upload, personal history | Task library, test editor, generation review, revisions |
+| Submission status and released details | Best-to-worst attempts, deleted runs, judging faults |
+| Optional solved-task scoreboard | Corrections, release, marks, archive export |
+
+Keep the student path short: read, upload, check status. Explain disabled uploads with the actual reason: closed lab, cooldown, or pending limit. Server checks remain authoritative. Show infrastructure faults separately from student failures.
+
+Use readable layouts, labeled controls, keyboard focus, and text alongside status colors. Render source and diagnostics as escaped monospace text. Bundle assets locally. Detailed colors and branding remain implementation choices.
+
+Confirm destructive or grading-changing admin actions and show their effects. Collect required audit reasons. Separate archive download from permanent deletion.
+
+## Data Model
+
+- Account, revocable session, and per-lab browser binding.
+- Lab, enrollment, and ordered lab-task assignment.
+- Reusable task, immutable revision, and test cases.
+- Submission with immutable source, acceptance time, and soft-delete metadata.
+- Queue job/attempt with lease identity; judge run and case results tied to a revision.
+- Rejudge batch, audit event, and export metadata.
+
+A submission can have multiple judge runs. Store first-release history separately from current reveal visibility. Exact tables and schemas must be designed before implementation.
+
+## Main Flows
+
+1. **Submit:** receive/validate source, persist safely, enforce deadline/cooldown/backlog atomically, create submission and job, then acknowledge durable acceptance.
+2. **Judge:** claim a lease, compile, execute every case in clean environments, check complete permitted output, and publish results only for the current attempt.
+3. **Correct:** publish a revision, queue all affected active attempts, preserve prior results, and switch official marks together after the replacement batch succeeds. Define concurrent arrivals/deletions explicitly before implementing this transaction.
+4. **Release:** verify lab closure and resolved judging, warn on test reuse, record first release permanently, and enable authorized details.
+5. **Export:** use official marks for sheets and include retained history in archives; never implicitly delete data.
+
+SSE prompts state refresh. Reconnect by fetching authoritative state; a dropped connection does not change grades or deadlines. Never show upload success without a confirmed submission record.
+
+## Delivery Order
+
+Follow [todo.md](todo.md) for module dependencies, milestones, and per-module test gates.
