@@ -2,14 +2,16 @@
 
 ## Project Structure & Module Organization
 
-This repository contains a minimal Python scaffold for cJudge, a planned offline C programming lab judge.
+This repository is building cJudge, an offline C programming lab judge.
 
 - `src/cjudge/`: Python package; `__init__.py` defines the CLI entry point.
+- `frontend/`: React/TypeScript app and component tests.
+- `migrations/`: Alembic migration environment and future revisions.
 - `pyproject.toml`: package metadata, Python requirement, build backend, and console script.
-- `cJudge_plan_v1.md`: proposed requirements, architecture, and milestones.
-- `README.md`: project documentation; expand it as usable features arrive.
+- `context/`: product requirements, design, technical requirements, and module checklist.
+- `README.md`: local setup and checks.
 
-There are no tests, frontend assets, or implemented judging services yet. Treat the architecture in the plan as proposed rather than existing functionality.
+Judging is not implemented yet. Treat the remaining architecture in `context/` as planned functionality.
 
 ## Build, Test, and Development Commands
 
@@ -19,7 +21,10 @@ Use Python 3.14 or newer and uv:
 - `uv run cjudge`: run the console entry point, currently a greeting.
 - `uv build`: build source and wheel distributions.
 
-No test, lint, or formatting commands are configured. Add their dependencies and configuration before documenting them as available.
+- `uv run pytest -q`: run backend tests.
+- `npm run test --prefix frontend`: run frontend tests.
+- `npm run build --prefix frontend`: type-check and build frontend.
+- `docker compose up -d --build`: start M0 services after creating `.env` and local certificates as described in `README.md`.
 
 ## Coding Style & Naming Conventions
 
@@ -29,7 +34,7 @@ Keep modules focused and place application logic inside `src/cjudge/`. Declare d
 
 ## Testing Guidelines
 
-No testing framework or coverage threshold exists yet. When adding substantive behavior, establish tests under `tests/`, using `test_*.py` filenames, and document the chosen runner and command.
+Backend uses pytest under `tests/test_*.py`; frontend uses Vitest under `frontend/src/*.test.tsx`. No coverage threshold is set. Complete the test gate for each module before starting its dependents.
 
 Prioritize grading correctness, deadline boundaries, authorization, and worker recovery as those features arrive. Sandbox integration tests should document required Linux tooling.
 
@@ -38,6 +43,8 @@ Prioritize grading correctness, deadline boundaries, authorization, and worker r
 The sole existing commit uses an imperative, descriptive subject: “Initialize the CJudge project structure and requirements.” Follow that style; no stricter convention is established.
 
 Pull requests should explain the problem, resulting behavior, validation performed, and relevant plan milestone or issue. Include screenshots for UI changes and document configuration or migration requirements.
+
+Work one module at a time. Divide it into small tested commits; stop at each module gate for review. Apply Ponytail and Caveman skills, and consult security-best-practices for new Python/TypeScript code.
 
 ## Security & Configuration
 

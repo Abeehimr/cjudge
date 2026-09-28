@@ -4,14 +4,15 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M0 — Compose Foundation · v0.1
 
-- [ ] Define service contracts, configuration, and artifact ownership.
-- [ ] Add Compose services: `web` (nginx + built frontend), `api`, `db`, and `judge` (worker + isolate).
-- [ ] Configure internal networks, persistent volumes, health checks, migrations, and local HTTPS.
-- [ ] Add Python/frontend test tooling and repeatable Compose test commands.
-- [ ] **Test:** clean startup, migrations, health checks, restart persistence, private service ports.
+- [x] Define service contracts, configuration, and database volume ownership.
+- [x] Add Compose services: `web` (nginx + built frontend), `api`, and `db`.
+- [x] Configure private services, persistent database volume, health checks, migrations, and local HTTPS.
+- [x] Add Python/frontend test tooling and repeatable Compose test commands.
+- [x] **Test:** clean startup, migrations, health checks, restart persistence, private service ports.
 
 ## M1 — Sandbox Runner · v0.2 · requires M0
 
+- [ ] Add the `judge` Compose service and image with isolate.
 - [ ] Prove isolate/cgroup v2 operation inside `judge` on target Linux; document required permissions/mounts.
 - [ ] Add separate compilation, execution, checker, and generator profiles.
 - [ ] Implement runner input/output contract, limits, verdict mapping, and cleanup.
