@@ -6,12 +6,13 @@ This repository is building cJudge, an offline C programming lab judge.
 
 - `src/cjudge/`: Python package; `__init__.py` defines the CLI entry point.
 - `frontend/`: React/TypeScript app and component tests.
+- `judge/`: isolate configuration and container entrypoint.
 - `migrations/`: Alembic migration environment and future revisions.
 - `pyproject.toml`: package metadata, Python requirement, build backend, and console script.
 - `context/`: product requirements, design, technical requirements, and module checklist.
 - `README.md`: local setup and checks.
 
-Judging is not implemented yet. Treat the remaining architecture in `context/` as planned functionality.
+M1 has a standalone sandbox runner. Submission handling, scoring, and most architecture in `context/` remain planned.
 
 ## Build, Test, and Development Commands
 
@@ -25,6 +26,7 @@ Use Python 3.14 or newer and uv:
 - `npm run test --prefix frontend`: run frontend tests.
 - `npm run build --prefix frontend`: type-check and build frontend.
 - `docker compose up -d --build`: start M0 services after creating `.env` and local certificates as described in `README.md`.
+- `docker compose run --rm judge`: run the M1 isolation gate in a temporary container.
 
 ## Coding Style & Naming Conventions
 

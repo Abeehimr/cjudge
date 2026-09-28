@@ -12,12 +12,12 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M1 — Sandbox Runner · v0.2 · requires M0
 
-- [ ] Add the `judge` Compose service and image with isolate.
-- [ ] Prove isolate/cgroup v2 operation inside `judge` on target Linux; document required permissions/mounts.
-- [ ] Add separate compilation, execution, checker, and generator profiles.
-- [ ] Implement runner input/output contract, limits, verdict mapping, and cleanup.
-- [ ] **Test:** valid C, compile errors, crashes, time/memory/output limits, blocked fork/network/answer access, clean state per case.
-- [ ] **Gate:** no submission execution until container isolation tests pass.
+- [x] Add the `judge` Compose service and image with isolate.
+- [x] Prove isolate/cgroup v2 operation inside `judge` on target Linux; document required permissions/mounts.
+- [x] Add separate compilation, execution, checker, and generator profiles.
+- [x] Implement runner input/output contract, limits, verdict mapping, and cleanup.
+- [x] **Test:** valid C, compile errors, crashes, time/memory/output limits, blocked fork/network/answer access, clean state per case.
+- [x] **Gate:** no submission execution until container isolation tests pass.
 
 ## M2 — Identity · v0.2 · requires M0
 
