@@ -1,0 +1,19 @@
+FROM python:3.14-slim
+
+# Pin isolate source; runtime operation needs no network.
+ARG ISOLATE_REV=8f185bb37f3f23e29b33b0c7727c91c13429abe3
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libc6-dev make pkg-config libcap-dev libseccomp-dev git ca-certificates \
+    && git clone https://github.com/ioi/isolate.git /tmp/isolate \
+    && cd /tmp/isolate && git checkout "$ISOLATE_REV" && make isolate \
+    && install -m 0755 isolate /usr/local/bin/isolate \
+    && rm -rf /tmp/isolate /var/lib/apt/lists/*
+
+COPY judge/isolate.conf /usr/local/etc/isolate
+COPY judge/entrypoint.sh /usr/local/bin/judge-entrypoint
+COPY src /app/src
+COPY tests /app/tests
+ENV PYTHONPATH=/app/src
+WORKDIR /app
+ENTRYPOINT ["sh", "/usr/local/bin/judge-entrypoint"]
+CMD ["python", "tests/sandbox_checks.py", "-v"]

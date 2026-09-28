@@ -1,4 +1,23 @@
 services:
+  judge:
+    profiles: [sandbox]
+    build:
+      context: .
+      dockerfile: Dockerfile.judge
+    # Rootful Linux only. The inner isolate process drops to a per-box UID.
+    cgroup: private
+    cap_add: [SYS_ADMIN, SYS_RESOURCE, NET_ADMIN]
+    security_opt: [seccomp=unconfined]
+    network_mode: none
+    mem_limit: 1g
+    memswap_limit: 1g
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /run:rw,nosuid,nodev,size=16m
+      - /tmp:rw,nosuid,nodev,size=16m
+      - /var/local/lib/isolate:rw,nosuid,nodev,size=16m
+
   web:
     build:
       context: .
