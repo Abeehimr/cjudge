@@ -164,10 +164,13 @@ def pdf_checks(admin_id, student_id, revision_id):
 
 
 def api_checks(admin_id, student_id, revision_id):
-    cookies = {'admin': secrets.token_urlsafe(32), 'student': secrets.token_urlsafe(32)}
+    cookies = {role: secrets.token_urlsafe(32) for role in ['admin', 'student', 'outsider']}
     csrf = secrets.token_hex(32)
     with identity.engine().begin() as conn:
-        for role, account_id in [('admin', admin_id), ('student', student_id)]:
+        outsider = uuid4()
+        conn.execute(sa.insert(identity.accounts).values(id=outsider, role='student', roll_number='OUTSIDER',
+            name='Not enrolled', password_hash='unused', encrypted_password=identity.cipher().encrypt(b'unused')))
+        for role, account_id in [('admin', admin_id), ('student', student_id), ('outsider', outsider)]:
             conn.execute(sa.insert(identity.sessions).values(token_hash=identity.token_digest(cookies[role]),
                 account_id=account_id, csrf_token=csrf, expires_at=labs.now(conn) + timedelta(hours=8)))
     with tempfile.TemporaryDirectory() as directory:
@@ -224,6 +227,9 @@ def api_checks(admin_id, student_id, revision_id):
             assert 'HttpOnly' in headers['Set-Cookie'] and 'Secure' in headers['Set-Cookie'] and 'SameSite=lax' in headers['Set-Cookie']
             assert student_view['announcements'][0]['body'] == 'Before start'
             assert 'checker' not in student_view['tasks'][0] and 'cases' not in student_view['tasks'][0]
+            assert call('/labs', role='outsider')[1] == []
+            for suffix in ['', '/pdfs/' + pdf_id, '/events']:
+                assert call(student_path + suffix, role='outsider', binding=binding)[0] == 403
             assert call(student_path, role='student')[0] == 423
             assert call(student_path + '/pdfs/' + pdf_id, role='student', binding=binding)[1] == data
             assert call(path + '/tasks', 'PUT', {'version': lab['version'], 'revision_ids': []})[0] == 409

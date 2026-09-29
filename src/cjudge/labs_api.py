@@ -1,5 +1,6 @@
 """Lab routes with separate admin/student response contracts."""
 from contextlib import contextmanager
+from collections.abc import Iterator
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -162,7 +163,7 @@ class StudentLab(LabSummary):
 
 
 @contextmanager
-def transaction():
+def transaction() -> Iterator[sa.Connection]:
     try:
         with identity.engine().begin() as conn:
             yield conn
@@ -177,13 +178,13 @@ def transaction():
         raise HTTPException(400, str(exc)) from exc
 
 
-def summary(conn, lab, timestamp=None):
+def summary(conn: sa.Connection, lab: dict, timestamp: datetime | None = None) -> dict:
     timestamp = timestamp or labs.now(conn)
     return {key: lab[key] for key in ('id', 'title', 'starts_at', 'ends_at')} | {
         'phase': labs.phase(lab, timestamp), 'server_time': timestamp}
 
 
-def snapshot(conn, lab, enrollment=None):
+def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> dict:
     admin_view = enrollment is None
     assigned = labs.task_rows(conn, lab['id'])
     pdf_query = sa.select(labs.pdfs).where(labs.pdfs.c.lab_id == lab['id'])
@@ -213,7 +214,8 @@ def snapshot(conn, lab, enrollment=None):
     return result
 
 
-def student_access(conn, lab_id, account, request, enter=False):
+def student_access(conn: sa.Connection, lab_id: UUID, account: dict, request: Request,
+                   enter: bool = False) -> tuple[dict, dict, str | None]:
     lab = labs.find(conn, lab_id, shared=True)
     row, token = lab_binding.access(conn, lab, account['id'], request.cookies.get(COOKIE),
         request.cookies.get(lab_binding.cookie_name(lab_id)), lab_binding.client_ip(request), enter=enter)
@@ -378,7 +380,7 @@ def remove_pdf(lab_id: UUID, pdf_id: UUID, version: int = Query(ge=1), actor: di
         return snapshot(conn, lab_files.remove(conn, labs.find(conn, lab_id, version), pdf_id, actor['id']))
 
 
-def pdf_response(data: bytes, pdf_id: UUID):
+def pdf_response(data: bytes, pdf_id: UUID) -> Response:
     return Response(data, media_type='application/pdf', headers={'Cache-Control': 'no-store',
         'X-Content-Type-Options': 'nosniff', 'Content-Disposition': f'attachment; filename="{pdf_id}.pdf"'})
 

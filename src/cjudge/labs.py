@@ -32,7 +32,7 @@ announcements = sa.Table('lab_announcements', metadata,
 
 
 class LabError(ValueError):
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str) -> None:
         super().__init__(message)
         self.status = status
 
