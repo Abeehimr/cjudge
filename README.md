@@ -9,7 +9,7 @@ Requires Docker Compose, OpenSSL, and Node.js for local frontend checks.
 1. Copy `.env.example` to `.env`. Replace `POSTGRES_PASSWORD` with a long random alphanumeric value. Set `CJUDGE_UID` and `CJUDGE_GID` to your `id -u` and `id -g` output.
 2. Run `sh scripts/create-cert.sh localhost`. For a LAN name or IP, pass its certificate subject and SAN list, for example `sh scripts/create-cert.sh cjudge.lab 'DNS:localhost,IP:127.0.0.1,DNS:cjudge.lab'`.
 3. Run `docker compose build api key-init web`. On a fresh installation only, run `docker compose run --rm key-init` to create the student credential key.
-4. Run `docker compose up -d db` and `docker compose run --rm api alembic upgrade head`.
+4. Run `docker compose up -d db`. Once `docker compose exec -T db pg_isready -U cjudge -d cjudge` reports "accepting connections", run `docker compose run --rm api alembic upgrade head`.
 5. On first setup, run `docker compose run --rm api python -m cjudge.identity create-admin` and enter an admin password twice. The admin username is `admin`.
 6. Run `docker compose up -d web` and `sh scripts/smoke.sh`. Open `https://localhost:8443`; trust `certs/server.crt` in lab browsers before real use. The default certificate is self-signed.
 
@@ -24,6 +24,8 @@ Stop services with `docker compose down`. The PostgreSQL volume survives contain
 - Compose: `docker compose config --quiet && docker compose up -d --build web && sh scripts/smoke.sh`
 - Identity gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/identity_gate.py`
 - Task gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/tasks_gate.py`
+
+Compose has no periodic health probes. Run `sh scripts/smoke.sh` when you want a readiness check.
 
 The source of truth for product behavior and implementation modules is in `context/`.
 
