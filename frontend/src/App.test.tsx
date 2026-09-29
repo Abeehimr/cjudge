@@ -28,10 +28,10 @@ test("shows login when session is absent", async () => {
 
 test("student sees own identity after login", async () => {
   const account = { id: "1", role: "student", roll_number: "001A", name: "Ada", csrf_token: "csrf" };
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => account }));
+  vi.stubGlobal("fetch", vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200, json: async () => path.endsWith("/labs") ? [] : account })));
   render(<App />);
   expect(await screen.findByText("Roll number: 001A")).toBeTruthy();
-  expect(screen.getByText("No labs assigned yet.")).toBeTruthy();
+  expect(await screen.findByText("No labs assigned yet.")).toBeTruthy();
 });
 
 test("admin reveals selected credentials only after an explicit action", async () => {

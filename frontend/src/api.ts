@@ -6,7 +6,7 @@ export async function api<T>(path: string, options: RequestInit = {}, csrf?: str
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(typeof data.detail === "string" ? data.detail : `Request failed (${response.status})`);
+    throw Object.assign(new Error(typeof data.detail === "string" ? data.detail : `Request failed (${response.status})`), { status: response.status });
   }
   return response.status === 204 ? undefined as T : response.json();
 }

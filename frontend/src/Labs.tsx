@@ -1,0 +1,279 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { api } from "./api";
+import LabClock, { localDate } from "./LabClock";
+import Statement from "./Statement";
+
+type Summary = { id: string; title: string; starts_at: string | null; ends_at: string | null; phase: string; server_time: string };
+type Pdf = { id: string; name: string; size: number; active?: boolean; replaces_id?: string | null };
+type Message = { id: string; body: string; created_at: string };
+type Student = { id: string; roll_number: string; name: string };
+type Enrollment = Student & { frozen: boolean; freeze_reason: string | null; bound_ip: string | null; last_ip: string | null; ip_changed: boolean; bound_at: string | null };
+type Task = { position: number; revision_id: string; task_id: string; number: number; config: { title: string; statement: string } };
+type AdminLab = Summary & { version: number; strict_ip: boolean; first_released_at: string | null; tasks: Task[]; pdfs: Pdf[]; students: Enrollment[]; announcements: Message[] };
+type PublicTask = { position: number; revision_id: string; title: string; statement: string; maximum_marks: string; cpu_seconds: number; wall_seconds: number; memory_mib: number; stack_mib: number };
+type PublicLab = Summary & { frozen: boolean; tasks: PublicTask[]; pdfs: Pdf[]; announcements: Message[] };
+
+function Announcements({ messages }: { messages: Message[] }) {
+  return <section className="rounded border bg-white p-4"><h2 className="font-semibold">Announcements</h2>
+    {messages.length ? <ul className="space-y-3">{[...messages].reverse().map((message) => <li className="border-t pt-2" key={message.id}>
+      <time className="text-sm">{new Date(message.created_at).toLocaleString()}</time>
+      <p className="whitespace-pre-wrap">{message.body}</p>
+    </li>)}</ul> : <p>No announcements.</p>}
+  </section>;
+}
+
+export function AdminLabs({ csrf }: { csrf: string }) {
+  const [rows, setRows] = useState<Summary[]>([]), [offset, setOffset] = useState(0);
+  const [lab, setLab] = useState<AdminLab | null>(null);
+  const [options, setOptions] = useState<Task[]>([]), [optionOffset, setOptionOffset] = useState(0), [moreOptions, setMoreOptions] = useState(true);
+  const [students, setStudents] = useState<Student[]>([]), [studentId, setStudentId] = useState(""), [search, setSearch] = useState("");
+  const [newTitle, setNewTitle] = useState(""), [title, setTitle] = useState(""), [strict, setStrict] = useState(false);
+  const [taskIds, setTaskIds] = useState<string[]>([]), [taskId, setTaskId] = useState("");
+  const [start, setStart] = useState(localDate(null, 5)), [end, setEnd] = useState(localDate(null, 125)), [reason, setReason] = useState("");
+  const [roll, setRoll] = useState(""), [name, setName] = useState(""), [announcement, setAnnouncement] = useState("");
+  const [message, setMessage] = useState(""), [busy, setBusy] = useState(false);
+  const setupOpen = !!lab && (lab.phase === "Draft" || lab.phase === "Scheduled");
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  async function list(page = offset) { setRows(await api<Summary[]>(`/admin/labs?offset=${page}`)); }
+  useEffect(() => { void list().catch((e) => setMessage(e.message)); }, [offset]);
+  useEffect(() => {
+    void api<Task[]>(`/admin/labs/task-options?offset=${optionOffset}`).then((next) => {
+      setOptions((old) => optionOffset ? [...old, ...next] : next); setMoreOptions(next.length === 100);
+    }).catch((e) => setMessage(e.message));
+  }, [optionOffset]);
+  useEffect(() => { void api<Student[]>("/admin/students").then(setStudents).catch((e) => setMessage(e.message)); }, []);
+  function accept(value: AdminLab) {
+    setLab(value); setTitle(value.title); setStrict(value.strict_ip); setTaskIds(value.tasks.map((t) => t.revision_id));
+    setStart(localDate(value.starts_at, 5)); setEnd(localDate(value.ends_at, 125));
+  }
+  async function reload(id = lab?.id) { if (id) accept(await api<AdminLab>(`/admin/labs/${id}`)); await list(); }
+  async function perform(action: () => Promise<void>) {
+    setBusy(true); setMessage("");
+    try { await action(); } catch (e) { setMessage((e as Error).message); }
+    finally { setBusy(false); }
+  }
+  async function mutate(path: string, method: string, body?: object) {
+    accept(await api<AdminLab>(`/admin/labs/${lab!.id}${path}`, { method, ...(body ? { body: JSON.stringify(body) } : {}) }, csrf));
+    await list();
+  }
+  async function create(e: FormEvent) {
+    e.preventDefault(); await perform(async () => {
+      accept(await api<AdminLab>("/admin/labs", { method: "POST", body: JSON.stringify({ title: newTitle }) }, csrf));
+      setNewTitle(""); setOffset(0); await list(0);
+    });
+  }
+  async function upload(files: File[], replaces?: string) {
+    if (!lab || !files.length) return;
+    if (replaces && !confirm("Replace this PDF? Students receive an announcement during a running lab.")) return;
+    await perform(async () => {
+      let current = lab;
+      for (const file of files) {
+        if (file.size > 20 * 1024 * 1024) throw new Error(`${file.name} exceeds 20 MiB.`);
+        current = await api<AdminLab>(`/admin/labs/${lab.id}/pdfs?version=${current.version}&name=${encodeURIComponent(file.name)}${replaces ? `&replaces=${replaces}` : ""}`,
+          { method: "POST", body: file, headers: { "Content-Type": "application/pdf" } }, csrf);
+        accept(current);
+      }
+    });
+  }
+  async function rosterAction(member: Enrollment, action: "freeze" | "release") {
+    if (action === "release" && !confirm(`Release ${member.roll_number}'s browser? All their login sessions will end.`)) return;
+    const why = prompt(action === "release" ? "Reason for browser release" : `Reason to ${member.frozen ? "unfreeze" : "freeze"} submissions`);
+    if (!why?.trim()) return;
+    await perform(async () => {
+      await api<void>(`/admin/labs/${lab!.id}/students/${member.id}/${action}`, { method: "POST",
+        body: JSON.stringify({ reason: why.trim(), ...(action === "freeze" ? { frozen: !member.frozen } : {}) }) }, csrf);
+      await reload();
+    });
+  }
+  function move(index: number, delta: number) {
+    const next = [...taskIds]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; setTaskIds(next);
+  }
+  return <div className="space-y-4">
+    <h1 className="text-xl font-semibold">Labs</h1>
+    <form onSubmit={create} className="flex flex-wrap gap-2 rounded border bg-white p-4">
+      <label>New lab title <input required maxLength={160} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} /></label><button disabled={busy}>Create lab</button>
+    </form>
+    <section className="overflow-x-auto rounded border bg-white p-4"><table className="w-full text-left text-sm"><thead><tr><th>Lab</th><th>Status</th><th>Start</th><th>Deadline</th></tr></thead>
+      <tbody>{rows.map((row) => <tr className="border-t" key={row.id}><td><button disabled={busy} onClick={() => perform(() => reload(row.id))}>{row.title}</button></td>
+        <td>{row.phase}</td><td>{row.starts_at ? new Date(row.starts_at).toLocaleString() : "—"}</td><td>{row.ends_at ? new Date(row.ends_at).toLocaleString() : "—"}</td></tr>)}</tbody></table>
+      <button disabled={busy || !offset} onClick={() => setOffset(offset - 100)}>Previous labs</button>{" "}
+      <button disabled={busy || rows.length < 100} onClick={() => setOffset(offset + 100)}>Next labs</button>
+    </section>
+    {lab && <>
+      <section className="rounded border bg-white p-4"><div className="flex justify-between"><h2 className="font-semibold">{lab.title} · {lab.phase}</h2>
+        <button disabled={busy} onClick={() => perform(() => reload())}>Refresh lab</button></div>
+        <LabClock serverTime={lab.server_time} start={lab.starts_at} end={lab.ends_at} refresh={() => { void reload().catch((e) => setMessage(e.message)); }} />
+      </section>
+      <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("", "PUT", { version: lab.version, title, strict_ip: strict })); }} className="rounded border bg-white p-4">
+        <fieldset disabled={busy || !setupOpen} className="space-y-2"><legend className="font-semibold">Lab settings</legend>
+          <label className="block">Lab title <input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+          <label className="block"><input type="checkbox" checked={strict} onChange={(e) => setStrict(e.target.checked)} /> Require original client IP</label>
+          <button>Save lab settings</button>
+        </fieldset>
+      </form>
+      <section className="rounded border bg-white p-4"><h2 className="font-semibold">Ordered tasks</h2>
+        <fieldset disabled={busy || !setupOpen} className="space-y-2">
+          <ol>{taskIds.map((id, index) => { const item = options.find((o) => o.revision_id === id) || lab.tasks.find((t) => t.revision_id === id);
+            return <li className="flex flex-wrap items-center gap-2 border-t py-2" key={id}>{index + 1}. {item?.config.title || id} · revision {item?.number}
+              <button disabled={!index} onClick={() => move(index, -1)} aria-label={`Move task ${index + 1} up`}>↑</button>
+              <button disabled={index === taskIds.length - 1} onClick={() => move(index, 1)} aria-label={`Move task ${index + 1} down`}>↓</button>
+              <button onClick={() => setTaskIds(taskIds.filter((value) => value !== id))}>Remove task {index + 1}</button></li>; })}</ol>
+          <label>Published task revision <select value={taskId} onChange={(e) => setTaskId(e.target.value)}><option value="">Select revision</option>
+            {options.map((option) => <option key={option.revision_id} value={option.revision_id}>{option.config.title} · revision {option.number}</option>)}</select></label>{" "}
+          <button disabled={!taskId || taskIds.includes(taskId)} onClick={() => { setTaskIds([...taskIds, taskId]); setTaskId(""); }}>Add task</button>{" "}
+          <button onClick={() => perform(() => mutate("/tasks", "PUT", { version: lab.version, revision_ids: taskIds }))}>Save task order</button>
+        </fieldset>
+        {moreOptions && <button onClick={() => setOptionOffset(optionOffset + 100)}>Load more task revisions</button>}
+      </section>
+      <section className="rounded border bg-white p-4"><h2 className="font-semibold">Schedule ({zone})</h2>
+        {setupOpen ? <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("/schedule", "POST", {
+          version: lab.version, starts_at: new Date(start).toISOString(), ends_at: new Date(end).toISOString(),
+        })); }}><fieldset disabled={busy} className="flex flex-wrap gap-3">
+          <label>Starts at <input type="datetime-local" required value={start} onChange={(e) => setStart(e.target.value)} /></label>
+          <label>Ends at <input type="datetime-local" required value={end} onChange={(e) => setEnd(e.target.value)} /></label>
+          <button>{lab.phase === "Draft" ? "Schedule lab" : "Reschedule lab"}</button>
+          <button type="button" onClick={() => perform(() => mutate("/schedule", "POST", { version: lab.version, ends_at: new Date(end).toISOString() }))}>Start now</button>
+        </fieldset></form> : !lab.first_released_at && <form onSubmit={(e) => { e.preventDefault();
+          if (confirm(`${lab.phase === "Ended" ? "Reopen" : "Extend"} this lab for all students?`)) void perform(async () => {
+            await mutate("/deadline", "POST", { version: lab.version, action: lab.phase === "Ended" ? "reopen" : "extend",
+              ends_at: new Date(end).toISOString(), reason }); setReason("");
+          }); }}><fieldset disabled={busy} className="flex flex-wrap gap-3">
+            <label>New deadline <input type="datetime-local" required value={end} onChange={(e) => setEnd(e.target.value)} /></label>
+            <label>Deadline reason <input required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+            <button>{lab.phase === "Ended" ? "Reopen lab" : "Extend lab"}</button>
+          </fieldset></form>}
+      </section>
+      <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Lab PDFs</h2>
+        <fieldset disabled={busy || lab.phase === "Ended" || !!lab.first_released_at}><label>Upload lab PDFs (up to 10, 20 MiB each)
+          <input className="mt-1 block" type="file" accept=".pdf,application/pdf" multiple onChange={(e) => { void upload(Array.from(e.target.files || [])); e.target.value = ""; }} /></label></fieldset>
+        <ul className="space-y-2">{lab.pdfs.map((pdf) => <li className="flex flex-wrap items-center gap-2" key={pdf.id}>
+          <a download href={`/api/admin/labs/${lab.id}/pdfs/${pdf.id}`}>{pdf.name}</a> <span>{Math.ceil(pdf.size / 1024)} KiB · {pdf.active ? "Current" : "Previous version"}</span>
+          {pdf.active && <><label>Replace {pdf.name}<input type="file" accept=".pdf,application/pdf" disabled={busy || lab.phase === "Ended" || !!lab.first_released_at}
+            onChange={(e) => { if (e.target.files?.[0]) void upload([e.target.files[0]], pdf.id); e.target.value = ""; }} /></label>
+            {setupOpen && <button disabled={busy} onClick={() => { if (confirm(`Remove ${pdf.name} from this lab?`)) void perform(() => mutate(`/pdfs/${pdf.id}?version=${lab.version}`, "DELETE")); }}>Remove PDF</button>}</>}
+        </li>)}</ul>
+      </section>
+      <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Enrollment ({lab.students.length})</h2>
+        <form onSubmit={(e) => { e.preventDefault(); void perform(async () => setStudents(await api<Student[]>(`/admin/students?search=${encodeURIComponent(search)}`))); }} className="flex flex-wrap gap-2">
+          <label>Find student <input value={search} onChange={(e) => setSearch(e.target.value)} maxLength={64} /></label><button disabled={busy}>Search students</button>
+        </form>
+        <fieldset disabled={busy} className="flex flex-wrap gap-2"><label>Existing student <select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
+          <option value="">Select student</option>{students.filter((s) => !lab.students.some((m) => m.id === s.id)).map((s) => <option key={s.id} value={s.id}>{s.roll_number} · {s.name}</option>)}</select></label>
+          <button disabled={!studentId} onClick={() => perform(async () => { await mutate("/students", "POST", { version: lab.version, ids: [studentId] }); setStudentId(""); })}>Enroll selected student</button>
+        </fieldset>
+        <form onSubmit={(e) => { e.preventDefault(); void perform(async () => {
+          await mutate("/students/manual", "POST", { version: lab.version, roll_number: roll, name }); setRoll(""); setName("");
+        }); }}><fieldset disabled={busy} className="flex flex-wrap gap-2">
+          <label>Student roll number <input required maxLength={64} value={roll} onChange={(e) => setRoll(e.target.value)} /></label>
+          <label>Student name <input required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></label><button>Find or create and enroll</button>
+        </fieldset></form>
+        <label>Import roster CSV (roll_number,name)<input type="file" accept=".csv,text/csv" disabled={busy} className="mt-1 block" onChange={(e) => {
+          const file = e.target.files?.[0]; e.target.value = "";
+          if (file) void perform(async () => {
+            const result = await api<{ created: string[]; existing: string[]; name_mismatches: string[] }>(`/admin/labs/${lab.id}/students/import?version=${lab.version}`, { method: "POST", body: file }, csrf);
+            await reload(); setMessage(`${result.created.length} created; ${result.existing.length} existing. Name mismatches: ${result.name_mismatches.join(", ") || "none"}.`);
+          });
+        }} /></label>
+        <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Roll number</th><th>Name</th><th>Browser / IP</th><th>Submissions</th><th>Actions</th></tr></thead>
+          <tbody>{lab.students.map((member) => <tr className="border-t" key={member.id}><td>{member.roll_number}</td><td>{member.name}</td>
+            <td>{member.bound_at ? `Bound · ${member.last_ip}` : "Not bound"}{member.ip_changed && <span className="block">IP changed (original {member.bound_ip})</span>}</td>
+            <td>{member.frozen ? `Frozen · ${member.freeze_reason}` : "Enabled during lab"}</td><td><div className="flex flex-wrap gap-2">
+              <button disabled={busy} onClick={() => rosterAction(member, "freeze")}>{member.frozen ? "Unfreeze" : "Freeze"} {member.roll_number}</button>
+              <button disabled={busy || !member.bound_at} onClick={() => rosterAction(member, "release")}>Release browser {member.roll_number}</button>
+              {setupOpen && <button disabled={busy} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?`)) void perform(() => mutate(`/students/${member.id}?version=${lab.version}`, "DELETE")); }}>Remove student</button>}
+            </div></td></tr>)}</tbody></table></div>
+      </section>
+      <form onSubmit={(e) => { e.preventDefault(); void perform(async () => { await mutate("/announcements", "POST", { body: announcement }); setAnnouncement(""); }); }} className="rounded border bg-white p-4">
+        <label className="block">Message to lab<textarea required maxLength={4000} rows={3} value={announcement} onChange={(e) => setAnnouncement(e.target.value)} className="mt-1 block w-full" /></label>
+        <button disabled={busy}>Post announcement</button>
+      </form>
+      <Announcements messages={lab.announcements} />
+    </>}
+    {message && <p role="status" className="rounded border bg-white p-3">{message}</p>}
+  </div>;
+}
+
+export function StudentLabs({ csrf }: { csrf: string }) {
+  const [rows, setRows] = useState<Summary[]>([]), [selected, setSelected] = useState<Summary | null>(null);
+  const [detail, setDetail] = useState<PublicLab | null>(null), [message, setMessage] = useState(""), [busy, setBusy] = useState(false);
+  const [connection, setConnection] = useState("");
+  async function list() {
+    const next = await api<Summary[]>("/labs"); setRows(next);
+    setSelected((old) => old ? next.find((row) => row.id === old.id) || null : null);
+  }
+  useEffect(() => { void list().catch((e) => setMessage(e.message)); }, []);
+  async function refresh() {
+    if (detail) {
+      try { setDetail(await api<PublicLab>(`/labs/${detail.id}`)); } catch (e) {
+        setMessage((e as Error).message);
+        if ([401, 403, 423].includes((e as Error & { status: number }).status)) setDetail(null);
+      }
+    } else await list().catch((e) => setMessage(e.message));
+  }
+  async function enter() {
+    if (!selected) return;
+    setBusy(true); setMessage("");
+    try { setDetail(await api<PublicLab>(`/labs/${selected.id}/enter`, { method: "POST" }, csrf)); }
+    catch (e) { setMessage((e as Error).message); }
+    finally { setBusy(false); }
+  }
+  useEffect(() => {
+    if (!detail) return;
+    const id = detail.id, controller = new AbortController();
+    let source: EventSource, retry: ReturnType<typeof setTimeout> | undefined, fetching = false, again = false;
+    async function load() {
+      if (fetching) { again = true; return; }
+      fetching = true;
+      try {
+        do {
+          again = false;
+          const value = await api<PublicLab>(`/labs/${id}`, { signal: controller.signal });
+          if (!controller.signal.aborted) setDetail(value);
+        } while (again && !controller.signal.aborted);
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        setMessage((e as Error).message);
+        if ([401, 403, 423].includes((e as Error & { status: number }).status)) { source.close(); setDetail(null); }
+      } finally { fetching = false; }
+    }
+    function connect() {
+      source = new EventSource(`/api/labs/${id}/events`);
+      source.onopen = () => setConnection("Live updates connected");
+      source.onerror = () => setConnection("Updates reconnecting…");
+      source.addEventListener("refresh", () => { void load(); });
+      source.addEventListener("denied", () => { controller.abort(); source.close(); setDetail(null); setMessage("Lab access changed. Sign in or enter again."); });
+      source.addEventListener("reconnect", () => { source.close(); setConnection("Updates reconnecting…"); retry = setTimeout(connect, 3000); });
+    }
+    connect();
+    return () => { controller.abort(); source.close(); if (retry) clearTimeout(retry); setConnection(""); };
+  }, [detail?.id]);
+  return <div className="space-y-4">
+    <h2 className="text-lg font-semibold">Assigned labs</h2>
+    {rows.length ? <div className="overflow-x-auto rounded border bg-white p-4"><table className="w-full text-left"><thead><tr><th>Lab</th><th>Status</th><th>Start</th><th>Deadline</th></tr></thead>
+      <tbody>{rows.map((row) => <tr className="border-t" key={row.id}><td><button disabled={busy} onClick={() => { setSelected(row); setDetail(null); setMessage(""); }}>{row.title}</button></td>
+        <td>{row.phase}</td><td>{new Date(row.starts_at!).toLocaleString()}</td><td>{new Date(row.ends_at!).toLocaleString()}</td></tr>)}</tbody></table></div>
+      : <p>No labs assigned yet.</p>}
+    {selected && <section className="space-y-2 rounded border bg-white p-4"><h2 className="font-semibold">{selected.title}</h2>
+      <LabClock serverTime={detail?.server_time || selected.server_time} start={detail?.starts_at || selected.starts_at} end={detail?.ends_at || selected.ends_at} refresh={() => { void refresh(); }} />
+      {!detail && <><p>Entering binds this browser to the lab. A lost binding requires admin release.</p>
+        <button disabled={busy || selected.phase === "Scheduled"} onClick={enter}>Enter lab</button></>}
+      <button disabled={busy} onClick={() => { void refresh(); }}>Refresh</button>{connection && <p className="text-sm">{connection}</p>}
+    </section>}
+    {detail && <>
+      {detail.frozen && <p role="status" className="rounded border bg-white p-3">Submissions paused by administrator. You can still read lab materials.</p>}
+      <section id="lab-pdfs" className="rounded border bg-white p-4"><h2 className="font-semibold">Lab PDFs</h2>
+        {detail.pdfs.length ? <ul className="space-y-2">{detail.pdfs.map((pdf) => <li key={pdf.id}><a download href={`/api/labs/${detail.id}/pdfs/${pdf.id}`}>{pdf.name}</a></li>)}</ul>
+          : <p>Read the task statements below.</p>}
+      </section>
+      <Announcements messages={detail.announcements} />
+      <section className="space-y-4 rounded border bg-white p-4"><h2 className="font-semibold">Tasks</h2>
+        {detail.tasks.map((task) => <article className="space-y-2 border-t pt-3" key={task.revision_id}>
+          <h3 className="font-semibold">{task.position}. {task.title} · {task.maximum_marks} marks</h3>
+          <p className="text-sm">CPU {task.cpu_seconds}s · Wall {task.wall_seconds}s · Memory {task.memory_mib} MiB</p>
+          <Statement text={task.statement} />
+        </article>)}
+      </section>
+    </>}
+    {message && <p role="status" className="rounded border bg-white p-3">{message}</p>}
+  </div>;
+}

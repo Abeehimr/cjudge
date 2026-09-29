@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { api } from "./api";
 import TaskLibrary from "./TaskLibrary";
+import { AdminLabs, StudentLabs } from "./Labs";
 
 type Session = { id: string; role: "admin" | "student"; roll_number: string | null; name: string; csrf_token: string };
 type Student = { id: string; roll_number: string; name: string };
@@ -12,7 +13,7 @@ export default function App() {
   const [dark, setDark] = useState(() => {
     try { return localStorage.getItem("cjudge-theme") === "dark"; } catch { return false; }
   });
-  const [page, setPage] = useState<"students" | "tasks">("students");
+  const [page, setPage] = useState<"students" | "tasks" | "labs">("students");
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<"student" | "admin">("student");
@@ -120,6 +121,7 @@ export default function App() {
     <main className="mx-auto max-w-5xl p-6">
       {session?.role === "admin" && <nav aria-label="Admin navigation" className="no-print mb-4 flex gap-2">
         <button aria-pressed={page === "students"} onClick={() => setPage("students")}>Students</button>
+        <button aria-pressed={page === "labs"} onClick={() => { setPage("labs"); setCredentials([]); setMessage(""); }}>Labs</button>
         <button aria-pressed={page === "tasks"} onClick={() => { setPage("tasks"); setCredentials([]); setMessage(""); }}>Tasks</button>
       </nav>}
       {loading ? <p role="status">Loading…</p> : !session ? <section className="mx-auto max-w-sm rounded border bg-white p-6">
@@ -141,8 +143,8 @@ export default function App() {
       </section> : session.role === "student" ? <section className="rounded border bg-white p-6">
         <h1 className="text-xl font-semibold">{session.name}</h1>
         <p className="mt-2">Roll number: {session.roll_number}</p>
-        <p className="mt-4">No labs assigned yet.</p>
-      </section> : page === "tasks" ? <TaskLibrary csrf={session.csrf_token} /> : <div className="space-y-6">
+        <div className="mt-4"><StudentLabs csrf={session.csrf_token} /></div>
+      </section> : page === "labs" ? <AdminLabs csrf={session.csrf_token} /> : page === "tasks" ? <TaskLibrary csrf={session.csrf_token} /> : <div className="space-y-6">
         <h1 className="text-xl font-semibold">Students</h1>
         <section className="no-print rounded border bg-white p-4">
           <h2 className="font-semibold">Add student</h2>
