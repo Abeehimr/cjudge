@@ -1,4 +1,5 @@
 import io
+import warnings
 import stat
 import zipfile
 
@@ -10,8 +11,10 @@ from cjudge.task_cases import MAX_FILE, parse_zip, validate_cases
 def zipped(entries):
     output = io.BytesIO()
     with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for name, content in entries:
-            archive.writestr(name, content)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            for name, content in entries:
+                archive.writestr(name, content)
     return output.getvalue()
 
 
@@ -34,6 +37,15 @@ def test_zip_pairing_order_and_binary_content():
         parse_zip(zipped([(symlink, b'/etc/passwd'), ('1.out', b'')]))
     with pytest.raises(ValueError):
         parse_zip(b'not a zip')
+    stored = io.BytesIO()
+    with zipfile.ZipFile(stored, "w", zipfile.ZIP_STORED) as archive:
+        archive.writestr("1.in", b"secret")
+        archive.writestr("1.out", b"ok")
+    corrupted = bytearray(stored.getvalue())
+    location = corrupted.index(b"secret")
+    corrupted[location] = ord("X")
+    with pytest.raises(ValueError):
+        parse_zip(bytes(corrupted))
     with pytest.raises(ValueError):
         validate_cases([(b'', b'')] * 101)
     with pytest.raises(ValueError):

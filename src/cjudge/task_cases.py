@@ -4,6 +4,7 @@ import io
 import re
 import stat
 import zipfile
+import zlib
 
 MAX_FILE = 1024 * 1024
 MAX_TOTAL = 16 * 1024 * 1024
@@ -55,5 +56,5 @@ def parse_zip(payload: bytes) -> list[tuple[bytes, bytes]]:
             cases = [(files[f"{number}.in"], files[f"{number}.out"]) for number in numbers]
             validate_cases(cases)
             return cases
-    except (zipfile.BadZipFile, EOFError, RuntimeError, NotImplementedError) as exc:
+    except (zipfile.BadZipFile, EOFError, RuntimeError, NotImplementedError, zlib.error) as exc:
         raise ValueError("Invalid ZIP archive") from exc
