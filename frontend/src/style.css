@@ -19,3 +19,52 @@
 .statement ol { @apply list-decimal pl-6; }
 .statement a { @apply text-blue-800 underline; }
 .statement blockquote { @apply border-l-4 pl-3; }
+
+input[type="file"] {
+  max-width: 100%;
+  padding: .375rem;
+  border: 1px solid #94a3b8;
+  border-radius: .375rem;
+  background: #fff;
+}
+input[type="file"]::file-selector-button {
+  margin-right: .75rem;
+  padding: .35rem .7rem;
+  border: 1px solid #64748b;
+  border-radius: .25rem;
+  background: #f1f5f9;
+  color: #0f172a;
+  cursor: pointer;
+}
+a[download] {
+  display: inline-block;
+  padding: .25rem .5rem;
+  border: 1px solid #94a3b8;
+  border-radius: .375rem;
+  background: #f8fafc;
+  color: #1e40af;
+  text-decoration: none;
+}
+
+@media screen {
+  .theme-dark { color-scheme: dark; background: #292d32; color: #d0d4d8; }
+  .theme-dark .bg-white { background: #34383e; }
+  .theme-dark .bg-slate-100, .theme-dark .statement pre { background: #383d43; }
+  .theme-dark :is(.border, .border-b, .border-t, .border-slate-300, input, textarea, select, button) { border-color: #5c646d; }
+  .theme-dark :is(input:not([type="checkbox"]):not([type="file"]), textarea, select, button, input[type="file"]) {
+    background: #3d4249;
+    color: #d0d4d8;
+  }
+  .theme-dark input[type="file"]::file-selector-button, .theme-dark a[download] {
+    border-color: #6b747e;
+    background: #4b535b;
+    color: #e0e4e8;
+  }
+  .theme-dark .bg-slate-900, .theme-dark [aria-pressed="true"] { background: #535d67; color: #f1f2f3; }
+  .theme-dark :is(.statement a, a[download]) { color: #c2d1e2; }
+  .theme-dark :is(button, input, textarea, select, a):focus-visible { outline-color: #bed1e5; }
+}
+
+@media print {
+  .theme-dark { background: #fff !important; color: #0f172a !important; }
+}

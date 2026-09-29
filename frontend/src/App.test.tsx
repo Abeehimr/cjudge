@@ -2,7 +2,20 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import App from "./App";
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
+
+test("theme toggle stays selected after reopening the app", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
+  const view = render(<App />);
+  const toggle = screen.getByRole("button", { name: "Dark theme" });
+  fireEvent.click(toggle);
+  expect(localStorage.getItem("cjudge-theme")).toBe("dark");
+  expect(toggle.getAttribute("aria-pressed")).toBe("true");
+  expect(toggle.closest(".theme-dark")).toBeTruthy();
+  view.unmount();
+  render(<App />);
+  expect(screen.getByRole("button", { name: "Light theme" }).getAttribute("aria-pressed")).toBe("true");
+});
 
 test("shows login when session is absent", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
