@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from cjudge.identity_api import router as identity_router
 from cjudge.identity import checked_cipher
+from cjudge.tasks_api import router as tasks_router
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(
@@ -15,6 +16,7 @@ app.add_middleware(
     allowed_hosts=os.getenv("CJUDGE_ALLOWED_HOSTS", "localhost,127.0.0.1").split(","),
 )
 app.include_router(identity_router)
+app.include_router(tasks_router)
 
 
 @app.get("/api/health")
