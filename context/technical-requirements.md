@@ -74,7 +74,7 @@ Establish test tooling as components arrive; no runner or coverage threshold exi
 
 ## Remaining Decisions
 
-Before the relevant component is built, specify checker newline/encoding/case/tolerance/NaN rules; Python helper protocol; generator invocation, seeds, manifest and limits; stderr/temp/ZIP/diagnostic caps; upload idempotency; SSE replay; lease timing; generation scheduling; correction-batch transactions; and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
+M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. Before the relevant component is built, specify Python helper protocol; generator invocation, seeds, manifest and limits; stderr/temp/ZIP/diagnostic caps; upload idempotency; SSE replay; lease timing; generation scheduling; correction-batch transactions; and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
 
 Before deployment, confirm CPU/RAM/disk/OS, representative benchmark fixtures, LAN DHCP/NAT/proxy behavior, HTTPS trust distribution, clock/storage monitoring, retention capacity, and who preserves downloaded archives.
 

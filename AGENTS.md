@@ -12,7 +12,7 @@ This repository is building cJudge, an offline C programming lab judge.
 - `context/`: product requirements, design, technical requirements, and module checklist.
 - `README.md`: local setup and checks.
 
-M1 has a standalone sandbox runner. M2 has global accounts and sessions. Labs, submissions, and scoring remain planned.
+M1 has a standalone sandbox runner. M2 has global accounts and sessions. M3 has admin task drafts and published revisions. Labs and submissions remain planned.
 
 ## Build, Test, and Development Commands
 
@@ -28,6 +28,7 @@ Use Python 3.14 or newer and uv:
 - `docker compose up -d --build web`: start web, API, and database after M2 setup in `README.md`.
 - `docker compose run --rm judge`: run the M1 isolation gate in a temporary container.
 - `docker compose run --rm -v ./tests:/app/tests:ro api python tests/identity_gate.py`: run M2 integration checks.
+- `docker compose run --rm -v ./tests:/app/tests:ro api python tests/tasks_gate.py`: run M3 integration checks.
 
 ## Coding Style & Naming Conventions
 
@@ -37,7 +38,7 @@ Keep modules focused and place application logic inside `src/cjudge/`. Declare d
 
 ## Testing Guidelines
 
-Backend uses pytest under `tests/test_*.py`; frontend uses Vitest under `frontend/src/*.test.tsx`. The real-database M2 gate is `tests/identity_gate.py`. No coverage threshold is set. Complete each module gate before starting its dependents.
+Backend uses pytest under `tests/test_*.py`; frontend uses Vitest under `frontend/src/*.test.tsx`. Real-database gates are `tests/identity_gate.py` (M2) and `tests/tasks_gate.py` (M3). No coverage threshold is set. Complete each module gate before starting its dependents.
 
 Prioritize grading correctness, deadline boundaries, authorization, and worker recovery as those features arrive. Sandbox integration tests should document required Linux tooling.
 
@@ -51,4 +52,4 @@ Work one module at a time. Divide it into small tested commits; stop at each mod
 
 ## Security & Configuration
 
-Never execute submitted student programs directly on the host without sandbox isolation. Implement the planned sandbox boundary before supporting execution. Keep credentials, student submissions, hidden test data, and local environment files out of commits.
+Never execute submitted student programs directly on the host without sandbox isolation. Implement the planned sandbox boundary before supporting execution. Keep credentials, student submissions, hidden test data, and local environment files out of commits. Back up the `task_files` volume with PostgreSQL; task case data is not in the database.

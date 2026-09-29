@@ -1,6 +1,6 @@
 # Design
 
-Proposed organization for the requirements in [product-requirements.md](product-requirements.md). This is not implemented functionality. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Proposed organization for the requirements in [product-requirements.md](product-requirements.md). M0–M3 are implemented; later modules remain planned. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 

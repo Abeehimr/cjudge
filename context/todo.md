@@ -27,10 +27,10 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M3 — Task Library · v0.2 · requires M0, M2
 
-- [ ] Add tasks with optional Markdown statements, immutable revisions, ZIP/pasted cases.
-- [ ] Implement exact/token checker contracts and scoring configuration.
-- [ ] Add draft validation and publish/review screens.
-- [ ] **Test:** optional/safe Markdown, malformed archives, traversal/size limits, checker edge cases, revision immutability, protected files.
+- [x] Add tasks with optional Markdown statements, immutable revisions, ZIP/pasted cases.
+- [x] Implement exact/token checker contracts and scoring configuration.
+- [x] Add draft validation and publish/review screens.
+- [x] **Test:** optional/safe Markdown, malformed archives, traversal/size limits, checker edge cases, revision immutability, protected files.
 
 ## M4 — Labs and Binding · v0.3 · requires M2, M3
 

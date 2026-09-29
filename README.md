@@ -1,6 +1,6 @@
 # cJudge
 
-Offline C lab judge. M0 provides an HTTPS frontend and database. M1 adds an isolated runner. M2 adds global student accounts and login. Labs, submissions, and grading UI are future modules.
+Offline C lab judge. M0 provides an HTTPS frontend and database. M1 adds an isolated runner. M2 adds global student accounts and login. M3 adds an admin task library with immutable grading revisions. Labs and submissions are future modules.
 
 ## Local setup
 
@@ -23,6 +23,7 @@ Stop services with `docker compose down`. The PostgreSQL volume survives contain
 - Frontend: `npm ci --prefix frontend && npm run test --prefix frontend && npm run build --prefix frontend`
 - Compose: `docker compose config --quiet && docker compose up -d --build web && sh scripts/smoke.sh`
 - Identity gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/identity_gate.py`
+- Task gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/tasks_gate.py`
 
 The source of truth for product behavior and implementation modules is in `context/`.
 
@@ -33,6 +34,14 @@ Student accounts are global: each roll number keeps one password across labs. Ad
 Admin password is hash-only. Student passwords are hashed for login and separately encrypted for admin reprints. Keep the `credential_keys` Docker volume with database backups; losing it makes existing student passwords unrecoverable. The API mounts that volume read-only. `key-init` refuses to overwrite an existing key. Never copy the key, password sheets, or `.env` into Git. To reset the admin password, run `docker compose run --rm api python -m cjudge.identity reset-admin`; existing admin sessions are revoked.
 
 Sessions last eight hours. Logout and password resets revoke sessions. Login is rate-limited per account, while nginx allows a shared lab IP burst. Credential responses are not cached. No public registration exists.
+
+## M3 task library
+
+After updating an existing installation, run `docker compose build api web`, then `docker compose run --rm api alembic upgrade head` and `docker compose up -d web`. Under **Admin → Tasks**, create a draft, add pasted cases or a ZIP of flat `N.in`/`N.out` pairs, review settings/cases, and publish a revision. Task statements are optional Markdown; HTML and embedded images do not render. Case downloads are admin-only until lab access exists in M4. No student task view or judging workflow exists yet.
+
+ZIPs are limited to 17 MiB compressed, 16 MiB expanded, 100 paired cases, and 1 MiB per input/answer. Exact checking compares bytes, optionally ignoring one final LF/CRLF. Token checking splits ASCII whitespace, with optional case and finite-number tolerances. `src/cjudge/task_grading.py` defines both comparison and rational scoring for M5. Published revisions retain their original configuration and cases. Draft edits use version checks and may return 409; reload before retrying.
+
+The `task_files` volume contains protected case sets and must be backed up with PostgreSQL. Losing it makes published tests unavailable. Replacing draft cases can leave unreferenced files after interrupted transactions; keep the volume until archive/cleanup support arrives.
 
 ## M1 sandbox checks
 
@@ -61,6 +70,6 @@ Host crash collectors are outside container limits. If `cat /proc/sys/kernel/cor
 
 Worker-only functions live in `src/cjudge/runner.py`: `compile_c(source)` returns an executable on success; `execute(executable, stdin, limits)` runs one fresh case; `run_python(script, profile, files)` isolates checker/generator code. Python authoring protocols remain M7 work. Inputs are bytes and supplied filenames must be plain basenames.
 
-`Result` includes verdict, bounded full stdout, first 64 KiB of stderr, CPU/wall seconds, and peak memory in KiB. `stdout_preview` returns the first 64 KiB. `OK` means execution succeeded; AC/WA comparison arrives in M3. Student failures map to CE/RE/TLE/MLE/OLE. Checker and infrastructure failures raise `SandboxError`, never a student score. MLE requires a confirmed cgroup OOM kill; allocation failure without OOM is handled by the program and may produce RE.
+`Result` includes verdict, bounded full stdout, first 64 KiB of stderr, CPU/wall seconds, and peak memory in KiB. `stdout_preview` returns the first 64 KiB. `OK` means execution succeeded; AC/WA comparison is defined in M3 and wired to judging in M5. Student failures map to CE/RE/TLE/MLE/OLE. Checker and infrastructure failures raise `SandboxError`, never a student score. MLE requires a confirmed cgroup OOM kill; allocation failure without OOM is handled by the program and may produce RE.
 
 Defaults follow `context/technical-requirements.md`. Temporary storage is 64 MiB (128 MiB for compilation), capped at 1,024 inodes. Stderr is capped at 1 MiB; compiler stdout at 1 MiB; checker stdout at 64 KiB. Source is capped at 64 KiB, stdin at 10 MiB, and staged files at 16 MiB. Full output is available for future comparison before preview truncation. One locked sandbox runs at a time; writable state and cgroups are removed after every run.
