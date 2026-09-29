@@ -4,3 +4,18 @@
   .no-print { display: none !important; }
   body { background: white; }
 }
+
+@layer base {
+  button { @apply rounded border border-slate-300 px-3 py-1; }
+  button:disabled { @apply cursor-not-allowed opacity-50; }
+  input:not([type=checkbox]):not([type=file]), textarea, select { @apply rounded border border-slate-300 p-1; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { @apply outline-2 outline-offset-2 outline-blue-700; }
+  td, th { @apply py-2 pr-3; }
+}
+.statement h1, .statement h2, .statement h3 { @apply my-3 text-lg font-semibold; }
+.statement p, .statement pre { @apply my-2; }
+.statement pre { @apply overflow-auto rounded bg-slate-100 p-3; }
+.statement ul { @apply list-disc pl-6; }
+.statement ol { @apply list-decimal pl-6; }
+.statement a { @apply text-blue-800 underline; }
+.statement blockquote { @apply border-l-4 pl-3; }

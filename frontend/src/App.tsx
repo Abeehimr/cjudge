@@ -1,24 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { api } from "./api";
+import TaskLibrary from "./TaskLibrary";
+
 type Session = { id: string; role: "admin" | "student"; roll_number: string | null; name: string; csrf_token: string };
 type Student = { id: string; roll_number: string; name: string };
 type Credential = Student & { password: string };
 type ImportResult = { created: string[]; existing: string[]; name_mismatches: string[] };
 
-async function api<T>(path: string, options: RequestInit = {}, csrf?: string): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    ...options,
-    headers: { ...(options.body instanceof File ? { "Content-Type": "text/csv" } : options.body ? { "Content-Type": "application/json" } : {}),
-      ...(csrf ? { "X-CSRF-Token": csrf } : {}), ...options.headers },
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data.detail || `Request failed (${response.status})`);
-  }
-  return response.status === 204 ? undefined as T : response.json();
-}
-
 export default function App() {
+  const [page, setPage] = useState<"students" | "tasks">("students");
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<"student" | "admin">("student");
@@ -57,7 +48,7 @@ export default function App() {
     if (!session) return;
     try {
       await api<void>("/auth/logout", { method: "POST" }, session.csrf_token);
-      setSession(null); setStudents([]); setSelected([]); setCredentials([]); setMessage("");
+      setSession(null); setPage("students"); setStudents([]); setSelected([]); setCredentials([]); setMessage("");
     } catch (error) { setMessage((error as Error).message); }
   }
 
@@ -117,6 +108,10 @@ export default function App() {
       {session && <button className="rounded border px-3 py-1" onClick={logout}>Log out</button>}
     </header>
     <main className="mx-auto max-w-5xl p-6">
+      {session?.role === "admin" && <nav aria-label="Admin navigation" className="no-print mb-4 flex gap-2">
+        <button aria-pressed={page === "students"} onClick={() => setPage("students")}>Students</button>
+        <button aria-pressed={page === "tasks"} onClick={() => { setPage("tasks"); setCredentials([]); setMessage(""); }}>Tasks</button>
+      </nav>}
       {loading ? <p role="status">Loading…</p> : !session ? <section className="mx-auto max-w-sm rounded border bg-white p-6">
         <h1 className="text-xl font-semibold">Sign in</h1>
         <div className="mt-4 flex gap-2" role="group" aria-label="Account type">
@@ -137,7 +132,7 @@ export default function App() {
         <h1 className="text-xl font-semibold">{session.name}</h1>
         <p className="mt-2">Roll number: {session.roll_number}</p>
         <p className="mt-4">No labs assigned yet.</p>
-      </section> : <div className="space-y-6">
+      </section> : page === "tasks" ? <TaskLibrary csrf={session.csrf_token} /> : <div className="space-y-6">
         <h1 className="text-xl font-semibold">Students</h1>
         <section className="no-print rounded border bg-white p-4">
           <h2 className="font-semibold">Add student</h2>
