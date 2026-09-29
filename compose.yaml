@@ -61,6 +61,7 @@ services:
       CJUDGE_PUBLIC_ORIGIN: ${CJUDGE_PUBLIC_ORIGIN:-https://localhost:8443}
     volumes:
       - credential_keys:/var/lib/cjudge:ro
+      - task_files:/var/lib/cjudge-tasks
     depends_on:
       db:
         condition: service_healthy
@@ -83,3 +84,4 @@ services:
 volumes:
   postgres_data:
   credential_keys:
+  task_files:
