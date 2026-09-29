@@ -1,6 +1,6 @@
 # Technical Requirements
 
-Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. These are planned requirements, not existing services.
+Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M4 are implemented; later module requirements remain planned.
 
 ## Stack and Storage
 
@@ -18,7 +18,10 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 - Enforce active-lab exclusion, acceptance time, cooldown, pending limits, deletion/restoration, and release gates under concurrency.
 - Use authenticated API contracts for accounts, tasks, labs, submissions, results, operations, and exports. Define schemas, stable error codes, and upload retry/idempotency before implementation.
 - Separate student/admin response models; never send hidden data for browser-side filtering. Authorize PDFs, downloads, and SSE as well as ordinary API calls.
-- SSE reconnection refreshes authoritative state. Define event identity/replay explicitly.
+- Lab SSE carries invalidations via one PostgreSQL LISTEN connection per API process. Reconnect with an authoritative snapshot; coalesce notifications, revalidate revoked sessions, and send keepalives without database polling.
+- Anchor countdowns to server time and monotonic elapsed client time. Refresh on phase boundaries and tab visibility; no recurring health probes.
+- Use PostgreSQL range exclusion for nonoverlapping schedules, lab row locks/version checks for setup, and enrollment locks for binding and freeze policy. Submission admission in M5 must reuse these locks and policy.
+- Limit lab PDFs to 10 active files, 20 MiB each; announcements to 4,000 characters; assignments to 100 revisions. Bindings last one year; default strict-IP mode off. Retain PDF versions in `lab_files`, with attachment/no-store/nosniff delivery.
 - Preserve previous official results during rejudge; publish replacement results/marks atomically. Handle concurrent submissions, new corrections, and deletion/restoration in the batch protocol.
 
 ## Judging and Recovery
@@ -59,7 +62,7 @@ Compare full permitted stdout before retaining previews. Bound stderr, temporary
 
 ## Release Checks
 
-Establish test tooling as components arrive; no runner or coverage threshold exists yet. Verify:
+Use pytest, Vitest, and disposable-database module gates; no coverage threshold is set. Verify:
 
 - Best score survives later compile errors; ties, half-up rounding, deletion/restoration, and pending-versus-zero behave correctly.
 - Completed upload exactly at the deadline fails; earlier accepted work counts after the deadline. Concurrent requests cannot bypass cooldown/backlog limits.
@@ -74,7 +77,7 @@ Establish test tooling as components arrive; no runner or coverage threshold exi
 
 ## Remaining Decisions
 
-M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. Before the relevant component is built, specify Python helper protocol; generator invocation, seeds, manifest and limits; stderr/temp/ZIP/diagnostic caps; upload idempotency; SSE replay; lease timing; generation scheduling; correction-batch transactions; and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
+M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. Before the relevant component is built, specify Python helper protocol; generator invocation, seeds, manifest and limits; stderr/temp/ZIP/diagnostic caps; upload idempotency; submission SSE contracts; lease timing; generation scheduling; correction-batch transactions; and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
 
 Before deployment, confirm CPU/RAM/disk/OS, representative benchmark fixtures, LAN DHCP/NAT/proxy behavior, HTTPS trust distribution, clock/storage monitoring, retention capacity, and who preserves downloaded archives.
 

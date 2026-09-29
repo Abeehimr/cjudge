@@ -1,6 +1,6 @@
 # Product Requirements
 
-Source of truth for cJudge v1 product behavior. Planned functionality; the repository currently contains a Python scaffold. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
+Source of truth for cJudge v1 product behavior. M0–M4 are implemented; subsequent modules remain planned. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
 
 ## Scope
 
@@ -18,8 +18,12 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 
 ## Lab and Submission Rules
 
-- Attach one or more PDFs containing the lab tasks to the lab. Task Markdown statements are optional supplements; leave the statement section hidden when empty.
+- Attach PDFs containing the lab tasks to the lab; PDFs are optional only when every assigned task has nonempty Markdown. Leave empty statement sections hidden. During a running lab, PDF additions/replacements automatically announce the change; retain previous PDFs for admin access.
 - Lifecycle: Draft → Scheduled → Running → Ended → Results released → Archived. Hide lab PDFs and task statements until start and allow only assigned students to participate.
+- Freeze task assignments and enrollment removals at start; allow late enrollment additions.
+- Require explicit Enter lab to bind the browser, including after the lab ends.
+- Admin may freeze/unfreeze new submissions per student and lab with an audit reason; retain materials access and prior accepted work. Unfreezing adds no time.
+- Admin posts plain-text announcements; enrolled students can read the full history after start.
 - Use a common server-authoritative deadline. Allow whole-lab extensions and reopening before first release; never reopen after release, even if results are hidden again.
 - Prevent overlapping labs. Require explicit rescheduling before an extension conflicts with another lab.
 - Accept one `.c` file up to 64 KiB only after complete upload, validation, and durable acceptance strictly before the deadline. Queued judging may finish afterward.

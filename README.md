@@ -1,6 +1,6 @@
 # cJudge
 
-Offline C lab judge. M0 provides an HTTPS frontend and database. M1 adds an isolated runner. M2 adds global student accounts and login. M3 adds an admin task library with immutable grading revisions. Labs and submissions are future modules.
+Offline C lab judge. M0 provides an HTTPS frontend and database. M1 adds an isolated runner. M2 adds global student accounts and login. M3 adds an admin task library with immutable grading revisions. M4 adds labs, browser binding, protected PDFs, and live announcements. Submissions remain M5.
 
 ## Local setup
 
@@ -24,6 +24,7 @@ Stop services with `docker compose down`. The PostgreSQL volume survives contain
 - Compose: `docker compose config --quiet && docker compose up -d --build web && sh scripts/smoke.sh`
 - Identity gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/identity_gate.py`
 - Task gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/tasks_gate.py`
+- Lab gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/labs_gate.py`
 
 Compose has no periodic health probes. Run `sh scripts/smoke.sh` when you want a readiness check.
 
@@ -31,7 +32,7 @@ The source of truth for product behavior and implementation modules is in `conte
 
 ## M2 accounts
 
-Student accounts are global: each roll number keeps one password across labs. Admin can add students manually or import UTF-8 CSV with `roll_number,name` headers, up to 1 MiB/1,000 rows. Existing roll numbers keep their name/password; name mismatches are reported. Admin can edit names, reveal/print selected credentials, and reset student passwords. Students cannot change passwords. Lab enrollment follows in M4.
+Student accounts are global: each roll number keeps one password across labs. Admin can add students manually or import UTF-8 CSV with `roll_number,name` headers, up to 1 MiB/1,000 rows. Existing roll numbers keep their name/password; name mismatches are reported. Admin can edit names, reveal/print selected credentials, and reset student passwords. Students cannot change passwords. Enroll global accounts from Admin → Labs.
 
 Admin password is hash-only. Student passwords are hashed for login and separately encrypted for admin reprints. Keep the `credential_keys` Docker volume with database backups; losing it makes existing student passwords unrecoverable. The API mounts that volume read-only. `key-init` refuses to overwrite an existing key. Never copy the key, password sheets, or `.env` into Git. To reset the admin password, run `docker compose run --rm api python -m cjudge.identity reset-admin`; existing admin sessions are revoked.
 
@@ -39,11 +40,23 @@ Sessions last eight hours. Logout and password resets revoke sessions. Login is 
 
 ## M3 task library
 
-After updating an existing installation, run `docker compose build api web`, then `docker compose run --rm api alembic upgrade head` and `docker compose up -d web`. Under **Admin → Tasks**, create a draft, add pasted cases or a ZIP of flat `N.in`/`N.out` pairs, review settings/cases, and publish a revision. Task statements are optional Markdown; HTML and embedded images do not render. Case downloads are admin-only until lab access exists in M4. No student task view or judging workflow exists yet.
+After updating an existing installation, run `docker compose build api web`, then `docker compose run --rm api alembic upgrade head` and `docker compose up -d web`. Under **Admin → Tasks**, create a draft, add pasted cases or a ZIP of flat `N.in`/`N.out` pairs, review settings/cases, and publish a revision. Task statements are optional Markdown; HTML and embedded images do not render. Case downloads remain admin-only; lab students see statements and public resource limits. Judging remains M5.
 
 ZIPs are limited to 17 MiB compressed, 16 MiB expanded, 100 paired cases, and 1 MiB per input/answer. Exact checking compares bytes, optionally ignoring one final LF/CRLF. Token checking splits ASCII whitespace, with optional case and finite-number tolerances. `src/cjudge/task_grading.py` defines both comparison and rational scoring for M5. Published revisions retain their original configuration and cases. Draft edits use version checks and may return 409; reload before retrying.
 
 The `task_files` volume contains protected case sets and must be backed up with PostgreSQL. Losing it makes published tests unavailable. Replacing draft cases can leave unreferenced files after interrupted transactions; keep the volume until archive/cleanup support arrives.
+
+## M4 labs
+
+Upgrade with `docker compose build api web`, `docker compose run --rm api alembic upgrade head`, then `docker compose up -d web`.
+
+Under **Admin → Labs**, create a lab, assign ordered published revisions, enroll students, and upload lab PDFs. Schedule a future start or choose **Start now**. At least one task/student is required; PDFs may be omitted only when every task has a Markdown statement. Overlapping lab windows are rejected. Task assignments and enrollment removals close at start; late additions remain available.
+
+Students select their assigned lab and explicitly **Enter lab** after start. This binds the browser; missing cookies require admin release even at the same IP. Release revokes all that student's sessions. Strict IP matching defaults off; otherwise IP changes are allowed and flagged. Browser binding remains required after the lab ends.
+
+Test announcements and PDF replacement with a student tab open: SSE refreshes materials and deadlines. Previous PDFs remain admin-only. Test **Freeze/Unfreeze**, browser release, whole-lab extension, and pre-release reopening; reasons are audited. Freeze affects future submission admission in M5, while materials stay readable. No upload/judging screen exists yet.
+
+Back up `lab_files` with PostgreSQL. PDFs have immutable UUID paths, up to 10 active files of 20 MiB each. Interrupted transactions may leave unreferenced files; retain the volume until cleanup support arrives. API owns this volume as UID/GID 10001; if an older image initialized it as root, run `docker compose run --rm --user root api chown 10001:10001 /var/lib/cjudge-labs` before use.
 
 ## M1 sandbox checks
 

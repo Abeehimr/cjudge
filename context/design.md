@@ -1,6 +1,6 @@
 # Design
 
-Proposed organization for the requirements in [product-requirements.md](product-requirements.md). M0–M3 are implemented; later modules remain planned. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Proposed organization for the requirements in [product-requirements.md](product-requirements.md). M0–M4 are implemented; later modules remain planned. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -22,7 +22,7 @@ Suggested backend boundaries: identity, tasks, labs, submissions, judging, resul
 
 ## Screens
 
-Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use a simple light theme, restrained colors, and native form controls. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.
+Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use light and muted grey dark themes, restrained colors, and native form controls. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.
 
 | Student | Admin |
 | --- | --- |
@@ -49,7 +49,7 @@ Confirm destructive or grading-changing admin actions and show their effects. Co
 ## Data Model
 
 - Account, revocable session, and per-lab browser binding.
-- Lab with PDF attachments, enrollment, and ordered lab-task assignment.
+- Lab with versioned PDF attachments, announcements, frozen/bound enrollment, and ordered pinned task revisions.
 - Reusable task with optional Markdown statement, immutable revision, and test cases.
 - Submission with immutable source, acceptance time, and soft-delete metadata.
 - Queue job/attempt with lease identity; judge run and case results tied to a revision.

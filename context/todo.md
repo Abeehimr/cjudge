@@ -6,9 +6,9 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 - [x] Define service contracts, configuration, and database volume ownership.
 - [x] Add Compose services: `web` (nginx + built frontend), `api`, and `db`.
-- [x] Configure private services, persistent database volume, health checks, migrations, and local HTTPS.
+- [x] Configure private services, persistent database volume, migrations, and local HTTPS.
 - [x] Add Python/frontend test tooling and repeatable Compose test commands.
-- [x] **Test:** clean startup, migrations, health checks, restart persistence, private service ports.
+- [x] **Test:** clean startup, migrations, manual readiness checks, restart persistence, private service ports.
 
 ## M1 — Sandbox Runner · v0.2 · requires M0
 
@@ -34,11 +34,12 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M4 — Labs and Binding · v0.3 · requires M2, M3
 
-- [ ] Add scheduling, enrollment, ordered tasks, and server countdown.
-- [ ] Add multiple lab PDF uploads, protected downloads, and dashboard links.
-- [ ] Add whole-lab extensions, overlap checks, and pre-release reopening.
-- [ ] Add per-lab browser binding, admin release, and strict IP option.
-- [ ] **Test:** multiple PDFs, hidden PDFs/Markdown before start, time boundaries, overlap races, token loss, IP changes, revoked sessions.
+- [x] Add scheduling, enrollment, ordered tasks, and server countdown.
+- [x] Add multiple lab PDF uploads, protected downloads, and dashboard links.
+- [x] Add whole-lab extensions, overlap checks, and pre-release reopening.
+- [x] Add per-lab browser binding, admin release, and strict IP option.
+- [x] Add audited per-student freeze/unfreeze and live announcements.
+- [x] **Test:** multiple PDFs, hidden PDFs/Markdown before start, time boundaries, overlap races, token loss, IP changes, revoked sessions.
 
 ## M5 — Submission Pipeline · v0.4 · requires M1, M4
 
