@@ -198,37 +198,42 @@ def parse_csv(payload: bytes) -> list[tuple[str, str]]:
         raise ValueError("CSV must be valid UTF-8 CSV") from exc
 
 
-def import_students(rows: list[tuple[str, str]], actor_id: UUID) -> dict:
+def import_student_rows(conn: sa.Connection, rows: list[tuple[str, str]]) -> dict:
+    """Find/create accounts inside the caller's transaction (including lab enrollment)."""
     created: list[str] = []
     existing: list[str] = []
     mismatched: list[str] = []
-    with engine().begin() as conn:
-        active = checked_cipher(conn)
-        for roll, name in rows:
-            present = conn.execute(sa.select(accounts.c.id, accounts.c.name)
-                                   .where(accounts.c.roll_number == roll)).first()
-            if present:
-                existing.append(roll)
-                if present.name != name:
-                    mismatched.append(roll)
+    active = checked_cipher(conn)
+    for roll, name in rows:
+        present = conn.execute(sa.select(accounts.c.id, accounts.c.name)
+                               .where(accounts.c.roll_number == roll)).first()
+        if present:
+            existing.append(roll)
+            if present.name != name:
+                mismatched.append(roll)
+        else:
+            # RETURNING distinguishes a new row from a concurrent conflict.
+            inserted = conn.execute(pg_insert(accounts).values(
+                id=uuid4(), role="student", roll_number=roll, name=name,
+                password_hash=hash_password(password := generate_password()),
+                encrypted_password=active.encrypt(password.encode()),
+            ).on_conflict_do_nothing(index_elements=[accounts.c.roll_number])
+              .returning(accounts.c.id)).scalar_one_or_none()
+            if inserted:
+                created.append(roll)
             else:
-                # RETURNING distinguishes a new row from a concurrent conflict.
-                inserted = conn.execute(pg_insert(accounts).values(
-                    id=uuid4(), role="student", roll_number=roll, name=name,
-                    password_hash=hash_password(password := generate_password()),
-                    encrypted_password=active.encrypt(password.encode()),
-                ).on_conflict_do_nothing(index_elements=[accounts.c.roll_number])
-                  .returning(accounts.c.id)).scalar_one_or_none()
-                if inserted:
-                    created.append(roll)
-                else:
-                    existing.append(roll)
-                    present = conn.execute(sa.select(accounts.c.name).where(accounts.c.roll_number == roll)).scalar_one()
-                    if present != name:
-                        mismatched.append(roll)
-        audit(conn, "students_imported", actor_id, detail={"created": len(created), "existing": len(existing),
-                                                          "name_mismatches": len(mismatched)})
+                existing.append(roll)
+                present = conn.execute(sa.select(accounts.c.name).where(accounts.c.roll_number == roll)).scalar_one()
+                if present != name:
+                    mismatched.append(roll)
     return {"created": created, "existing": existing, "name_mismatches": mismatched}
+
+
+def import_students(rows: list[tuple[str, str]], actor_id: UUID) -> dict:
+    with engine().begin() as conn:
+        result = import_student_rows(conn, rows)
+        audit(conn, "students_imported", actor_id, detail={key: len(value) for key, value in result.items()})
+        return result
 
 
 def token_digest(token: str) -> str:

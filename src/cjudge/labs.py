@@ -145,3 +145,49 @@ def overlap_error(exc: IntegrityError) -> LabError:
     if getattr(exc.orig, 'sqlstate', None) == '23P01':
         return LabError(409, 'Lab time overlaps another lab; reschedule the other lab first')
     raise exc
+
+
+def enroll(conn: sa.Connection, lab: dict, ids: list[UUID], actor: UUID) -> dict:
+    from sqlalchemy.dialects.postgresql import insert
+    if len(ids) != len(set(ids)):
+        raise LabError(400, 'Duplicate student selection')
+    found = conn.execute(sa.select(identity.accounts.c.id).where(identity.accounts.c.id.in_(ids),
+                                                               identity.accounts.c.role == 'student')).all()
+    if len(found) != len(ids):
+        raise LabError(404, 'Student not found')
+    if ids:
+        for key in ids:
+            conn.execute(insert(enrollments).values(lab_id=lab['id'], account_id=key).on_conflict_do_nothing())
+    return changed(conn, lab, actor, 'lab_students_added')
+
+
+def import_roster(conn: sa.Connection, lab: dict, rows: list[tuple[str, str]], actor: UUID) -> dict:
+    result = identity.import_student_rows(conn, rows)
+    ids = list(conn.execute(sa.select(identity.accounts.c.id).where(
+        identity.accounts.c.roll_number.in_([roll for roll, _ in rows]))).scalars())
+    enroll(conn, lab, ids, actor)
+    return result
+
+
+def enrollment(conn: sa.Connection, lab_id: UUID, account_id: UUID) -> dict:
+    row = conn.execute(sa.select(enrollments).where(enrollments.c.lab_id == lab_id,
+                      enrollments.c.account_id == account_id).with_for_update()).mappings().first()
+    if not row:
+        raise LabError(403, 'Not enrolled in this lab')
+    return dict(row)
+
+
+def remove_student(conn: sa.Connection, lab: dict, account_id: UUID, actor: UUID) -> dict:
+    setup_open(lab, now(conn))
+    enrollment(conn, lab['id'], account_id)
+    conn.execute(sa.delete(enrollments).where(enrollments.c.lab_id == lab['id'], enrollments.c.account_id == account_id))
+    return changed(conn, lab, actor, 'lab_student_removed')
+
+
+def freeze(conn: sa.Connection, lab: dict, account_id: UUID, frozen: bool, reason: str, actor: UUID) -> None:
+    enrollment(conn, lab['id'], account_id)
+    conn.execute(sa.update(enrollments).where(enrollments.c.lab_id == lab['id'], enrollments.c.account_id == account_id)
+                 .values(frozen=frozen, freeze_reason=reason if frozen else None))
+    identity.audit(conn, 'lab_student_frozen' if frozen else 'lab_student_unfrozen', actor, account_id,
+                   detail={'lab_id': str(lab['id']), 'reason': reason})
+    notify(conn, lab_id=lab['id'], account_id=account_id)

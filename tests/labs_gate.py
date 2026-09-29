@@ -55,6 +55,33 @@ def core_checks():
     return admin_id, student_id, revision_id
 
 
+def roster_checks(admin_id, student_id, revision_id):
+    with identity.engine().begin() as conn:
+        a = labs.create(conn, 'Roster', False, admin_id)
+        b = labs.create(conn, 'Other roster', False, admin_id)
+        result = labs.import_roster(conn, a, [('GATE', 'Different'), ('LATE', 'Late Student')], admin_id)
+        assert result == {'created': ['LATE'], 'existing': ['GATE'], 'name_mismatches': ['GATE']}
+        assert conn.execute(sa.select(identity.accounts.c.name).where(identity.accounts.c.id == student_id)).scalar_one() == 'Student'
+        labs.enroll(conn, b, [student_id], admin_id)
+        labs.freeze(conn, a, student_id, True, 'Review', admin_id)
+        assert labs.enrollment(conn, a['id'], student_id)['frozen']
+        assert not labs.enrollment(conn, b['id'], student_id)['frozen']
+        labs.freeze(conn, a, student_id, False, 'Resolved', admin_id)
+        assert not labs.enrollment(conn, a['id'], student_id)['frozen']
+        timestamp = labs.now(conn)
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == a['id']).values(
+            starts_at=timestamp - timedelta(days=2), ends_at=timestamp - timedelta(days=1)))
+        current = labs.find(conn, a['id'])
+        labs.enroll(conn, current, [student_id], admin_id)
+        try:
+            labs.remove_student(conn, current, student_id, admin_id)
+        except labs.LabError as exc:
+            assert exc.status == 409
+        else:
+            raise AssertionError('Late removal allowed')
+    print('PASS: account reuse, atomic enrollment, name mismatch, late additions, freeze isolation')
+
+
 def main():
     database = 'lab_gate_' + secrets.token_hex(8)
     root_url = sa.make_url(os.environ['DATABASE_URL'])
@@ -64,7 +91,8 @@ def main():
     os.environ['DATABASE_URL'] = root_url.set(database=database).render_as_string(hide_password=False)
     try:
         command.upgrade(Config('alembic.ini'), 'head')
-        core_checks()
+        actors = core_checks()
+        roster_checks(*actors)
     finally:
         identity.engine().dispose()
         identity.engine.cache_clear()
