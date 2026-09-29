@@ -16,7 +16,7 @@ def publish(conn: sa.Connection, *, lab_id: UUID | None = None, account_id: UUID
 
 
 class EventHub:
-    def __init__(self):
+    def __init__(self) -> None:
         self.clients: dict[asyncio.Queue, tuple[str, str]] = {}
         self.available = False
 
@@ -40,7 +40,7 @@ class EventHub:
         finally:
             self.clients.pop(queue, None)
 
-    async def listen(self):
+    async def listen(self) -> None:
         delay = 1
         url = sa.make_url(os.environ['DATABASE_URL']).set(drivername='postgresql').render_as_string(hide_password=False)
         while True:
@@ -51,7 +51,12 @@ class EventHub:
                     self.refresh()  # Reconcile updates missed during a listener outage.
                     delay = 1
                     async for note in conn.notifies():
-                        payload = json.loads(note.payload)
+                        try:
+                            payload = json.loads(note.payload)
+                        except ValueError:
+                            continue
+                        if not isinstance(payload, dict):
+                            continue
                         self.refresh(payload.get('lab_id'), payload.get('account_id'))
             except (psycopg.Error, OSError):
                 logging.getLogger(__name__).warning('Lab event listener disconnected; retrying')
