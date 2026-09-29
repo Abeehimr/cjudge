@@ -3,6 +3,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 import os
 import secrets
+import tempfile
+from pathlib import Path
 from uuid import uuid4
 
 from alembic import command
@@ -10,7 +12,7 @@ from alembic.config import Config
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
-from cjudge import identity, labs, tasks, lab_binding
+from cjudge import identity, labs, tasks, lab_binding, lab_files
 
 
 def core_checks():
@@ -121,6 +123,40 @@ def binding_checks(admin_id, student_id, revision_id):
     print('PASS: ended-lab binding, token loss, IP flags, strict IP, release and revoked-session fencing')
 
 
+def pdf_checks(admin_id, student_id, revision_id):
+    with tempfile.TemporaryDirectory() as directory:
+        lab_files.FILES = Path(directory)
+        data = b'%PDF-1.7\nexample\n%%EOF\n'
+        with identity.engine().begin() as conn:
+            lab = labs.create(conn, 'PDFs', False, admin_id)
+            lab = lab_files.upload(conn, lab, data, 'Lab one.pdf', admin_id)
+            lab = lab_files.upload(conn, lab, data, 'Lab two.pdf', admin_id)
+            originals = list(conn.execute(sa.select(labs.pdfs.c.id).where(labs.pdfs.c.lab_id == lab['id'])).scalars())
+            assert len(originals) == 2
+            timestamp = labs.now(conn)
+            conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab['id']).values(
+                starts_at=timestamp - timedelta(minutes=20), ends_at=timestamp + timedelta(minutes=20)))
+            lab = labs.find(conn, lab['id'])
+            lab_files.upload(conn, lab, data, 'Updated.pdf', admin_id, originals[0])
+            assert conn.execute(sa.select(sa.func.count()).select_from(labs.announcements).where(
+                labs.announcements.c.lab_id == lab['id'])).scalar_one() == 1
+            assert lab_files.read(conn, lab['id'], originals[0], active_only=False) == data
+            try:
+                lab_files.read(conn, lab['id'], originals[0], active_only=True)
+            except labs.LabError as exc:
+                assert exc.status == 404
+            else:
+                raise AssertionError('Superseded PDF visible to student')
+            (Path(directory) / f'{originals[1]}.pdf').unlink()
+            try:
+                lab_files.read(conn, lab['id'], originals[1], active_only=False)
+            except labs.LabError as exc:
+                assert exc.status == 503
+            else:
+                raise AssertionError('Missing PDF silently accepted')
+    print('PASS: multiple PDFs, retained versions, automatic update notice, active-only download, storage faults')
+
+
 def main():
     database = 'lab_gate_' + secrets.token_hex(8)
     root_url = sa.make_url(os.environ['DATABASE_URL'])
@@ -133,6 +169,7 @@ def main():
         actors = core_checks()
         roster_checks(*actors)
         binding_checks(*actors)
+        pdf_checks(*actors)
     finally:
         identity.engine().dispose()
         identity.engine.cache_clear()

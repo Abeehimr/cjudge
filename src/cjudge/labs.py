@@ -98,6 +98,13 @@ def set_tasks(conn: sa.Connection, lab: dict, ids: list[UUID], actor: UUID) -> d
                         .where(tasks.revisions.c.id.in_(ids))).all()
     if len(rows) != len(ids) or len({row.task_id for row in rows}) != len(ids):
         raise LabError(400, 'Select distinct published tasks; each revision must exist')
+    if lab['starts_at'] is not None:
+        if not ids:
+            raise LabError(400, 'Scheduled lab needs at least one task')
+        has_pdf = conn.execute(sa.select(pdfs.c.id).where(pdfs.c.lab_id == lab['id'], pdfs.c.active).limit(1)).first()
+        configs = conn.execute(sa.select(tasks.revisions.c.config).where(tasks.revisions.c.id.in_(ids))).scalars()
+        if not has_pdf and any(not config['statement'].strip() for config in configs):
+            raise LabError(400, 'Scheduled lab needs a PDF or Markdown for every task')
     conn.execute(sa.delete(assignments).where(assignments.c.lab_id == lab['id']))
     if ids:
         conn.execute(sa.insert(assignments), [{'lab_id': lab['id'], 'position': pos, 'revision_id': key}
@@ -180,6 +187,9 @@ def enrollment(conn: sa.Connection, lab_id: UUID, account_id: UUID) -> dict:
 def remove_student(conn: sa.Connection, lab: dict, account_id: UUID, actor: UUID) -> dict:
     setup_open(lab, now(conn))
     enrollment(conn, lab['id'], account_id)
+    if lab['starts_at'] and conn.execute(sa.select(sa.func.count()).select_from(enrollments).where(
+            enrollments.c.lab_id == lab['id'])).scalar_one() == 1:
+        raise LabError(400, 'Scheduled lab needs at least one student')
     conn.execute(sa.delete(enrollments).where(enrollments.c.lab_id == lab['id'], enrollments.c.account_id == account_id))
     return changed(conn, lab, actor, 'lab_student_removed')
 

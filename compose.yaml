@@ -50,6 +50,7 @@ services:
     volumes:
       - credential_keys:/var/lib/cjudge:ro
       - task_files:/var/lib/cjudge-tasks
+      - lab_files:/var/lib/cjudge-labs
     depends_on: [db]
 
   key-init:
@@ -66,3 +67,4 @@ volumes:
   postgres_data:
   credential_keys:
   task_files:
+  lab_files:
