@@ -212,14 +212,14 @@ def import_students(rows: list[tuple[str, str]], actor_id: UUID) -> dict:
                 if present.name != name:
                     mismatched.append(roll)
             else:
-                # Concurrent imports race at this unique key; retry once as existing.
-                with conn.begin_nested():
-                    result = conn.execute(pg_insert(accounts).values(
-                        id=uuid4(), role="student", roll_number=roll, name=name,
-                        password_hash=hash_password(password := generate_password()),
-                        encrypted_password=active.encrypt(password.encode()),
-                    ).on_conflict_do_nothing(index_elements=[accounts.c.roll_number]))
-                if result.rowcount:
+                # RETURNING distinguishes a new row from a concurrent conflict.
+                inserted = conn.execute(pg_insert(accounts).values(
+                    id=uuid4(), role="student", roll_number=roll, name=name,
+                    password_hash=hash_password(password := generate_password()),
+                    encrypted_password=active.encrypt(password.encode()),
+                ).on_conflict_do_nothing(index_elements=[accounts.c.roll_number])
+                  .returning(accounts.c.id)).scalar_one_or_none()
+                if inserted:
                     created.append(roll)
                 else:
                     existing.append(roll)
