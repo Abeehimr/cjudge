@@ -58,6 +58,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://cjudge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/cjudge
       CJUDGE_ALLOWED_HOSTS: ${CJUDGE_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      CJUDGE_PUBLIC_ORIGIN: ${CJUDGE_PUBLIC_ORIGIN:-https://localhost:8443}
+    volumes:
+      - credential_keys:/var/lib/cjudge:ro
     depends_on:
       db:
         condition: service_healthy
@@ -67,5 +70,16 @@ services:
       timeout: 3s
       retries: 10
 
+  key-init:
+    profiles: [setup]
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    user: root
+    volumes:
+      - credential_keys:/var/lib/cjudge
+    command: ["python", "-m", "cjudge.identity", "init-key"]
+
 volumes:
   postgres_data:
+  credential_keys:
