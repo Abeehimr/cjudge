@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
-from cjudge import identity, tasks
+from cjudge import identity, tasks, events
 
 metadata = identity.metadata
 labs = sa.Table('labs', metadata,
@@ -65,9 +65,7 @@ def setup_open(lab: dict, timestamp: datetime) -> None:
 
 
 def notify(conn: sa.Connection, *, lab_id: UUID | None = None, account_id: UUID | None = None) -> None:
-    import json
-    conn.execute(sa.select(sa.func.pg_notify('cjudge_events', json.dumps(
-        {'lab_id': str(lab_id) if lab_id else None, 'account_id': str(account_id) if account_id else None}))))
+    events.publish(conn, lab_id=lab_id, account_id=account_id)
 
 
 def changed(conn: sa.Connection, lab: dict, actor: UUID, action: str, **values) -> dict:
@@ -129,7 +127,8 @@ def schedule(conn: sa.Connection, lab: dict, start: datetime | None, end: dateti
 
 
 def deadline(conn: sa.Connection, lab: dict, end: datetime, action: str, reason: str, actor: UUID) -> dict:
-    state, timestamp = phase(lab, now(conn)), now(conn)
+    timestamp = now(conn)
+    state = phase(lab, timestamp)
     if lab['first_released_at'] is not None:
         raise LabError(409, 'Deadlines cannot change after first results release')
     if action == 'extend' and state != 'Running' or action == 'reopen' and state != 'Ended':

@@ -21,6 +21,7 @@ from argon2.exceptions import VerifyMismatchError, VerificationError
 from cryptography.fernet import Fernet, InvalidToken
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from cjudge.events import publish
 
 
 KEY_FILE = Path("/var/lib/cjudge/credentials.key")
@@ -161,6 +162,7 @@ def reset_admin(password: str) -> None:
         admin = conn.execute(sa.select(accounts.c.id).where(accounts.c.role == "admin")).scalar_one()
         conn.execute(sa.update(accounts).where(accounts.c.id == admin).values(password_hash=hash_password(password)))
         conn.execute(sa.delete(sessions).where(sessions.c.account_id == admin))
+        publish(conn, account_id=admin)
         audit(conn, "admin_password_reset", subject_id=admin)
 
 

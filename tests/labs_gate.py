@@ -229,6 +229,26 @@ def api_checks(admin_id, student_id, revision_id):
             assert call(path + '/tasks', 'PUT', {'version': lab['version'], 'revision_ids': []})[0] == 409
             assert call(path + '/students/' + str(student_id), 'DELETE')[0] == 422
             assert call(path + '/students/' + str(student_id) + '?version=' + str(lab['version']), 'DELETE')[0] == 409
+            def open_events():
+                return urlopen(Request('http://127.0.0.1:8012/api' + student_path + '/events', headers={
+                    'Cookie': 'cjudge_session=' + cookies['student'] + '; ' + binding,
+                    'X-Real-IP': '192.0.2.1'}), timeout=10)
+            def read_event(stream):
+                lines = []
+                while True:
+                    line = stream.readline()
+                    if not line or line == b'\n':
+                        return b''.join(lines)
+                    lines.append(line)
+            stream = open_events()
+            assert 'text/event-stream' in stream.headers['Content-Type']
+            assert b'event: refresh' in read_event(stream)
+            assert call(path + '/announcements', 'POST', {'body': 'Live notice'})[0] == 200
+            assert b'event: refresh' in read_event(stream)
+            assert call(student_path, role='student', binding=binding)[1]['announcements'][-1]['body'] == 'Live notice'
+            stream.close()
+            stream = open_events()
+            assert b'event: refresh' in read_event(stream)
             freeze_path = path + '/students/' + str(student_id) + '/freeze'
             assert call(freeze_path, 'POST', {'frozen': True, 'reason': 'Review'})[0] == 204
             assert call(student_path, role='student', binding=binding)[1]['frozen']
@@ -254,6 +274,14 @@ def api_checks(admin_id, student_id, revision_id):
             assert status == 200
             assert call(path + '/students/' + str(student_id) + '/release', 'POST', {'reason': 'Replace browser'})[0] == 204
             assert call(student_path + '/enter', 'POST', role='student')[0] == 401
+            for _ in range(20):
+                event = read_event(stream)
+                if b'event: denied' in event:
+                    break
+            else:
+                raise AssertionError('Revoked live connection stayed authorized')
+            stream.close()
+            print('PASS: live announcements, reconnect refresh, bounded invalidations, revoked SSE access')
             print('PASS: HTTP roles/CSRF, pre-start secrecy, PDF authorization, freeze, setup locks, extensions/reopen/release guards')
         finally:
             service.terminate()

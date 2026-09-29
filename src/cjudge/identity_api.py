@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from starlette.concurrency import run_in_threadpool
 
 from cjudge import identity as store
+from cjudge.events import publish
 
 
 router = APIRouter(prefix="/api")
@@ -140,6 +141,7 @@ def logout(request: Request, response: Response, account: dict = Depends(write_g
         conn.execute(sa.delete(store.sessions).where(
             store.sessions.c.token_hash == store.token_digest(request.cookies[COOKIE])))
         store.audit(conn, "logout", actor_id=account["id"])
+        publish(conn, account_id=account["id"])
     response.delete_cookie(COOKIE, path="/")
     no_store(response)
 
@@ -240,6 +242,7 @@ def reset_student(account_id: UUID, response: Response, account: dict = Depends(
                 password_hash=store.hash_password(password),
                 encrypted_password=cipher.encrypt(password.encode())))
             conn.execute(sa.delete(store.sessions).where(store.sessions.c.account_id == account_id))
+            publish(conn, account_id=account_id)
             store.audit(conn, "student_password_reset", account["id"], account_id)
         no_store(response)
         return {**row, "password": password}

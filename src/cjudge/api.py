@@ -8,10 +8,11 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from cjudge.identity_api import router as identity_router
 from cjudge.identity import checked_cipher
+from cjudge.events import lifespan
 from cjudge.tasks_api import router as tasks_router
 from cjudge.labs_api import admin_router as labs_admin, student_router as labs_student
 
-app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=os.getenv("CJUDGE_ALLOWED_HOSTS", "localhost,127.0.0.1").split(","),

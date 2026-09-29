@@ -204,9 +204,12 @@ def snapshot(conn, lab, enrollment=None):
             students=[dict(row) for row in roster], tasks=[{'position': row['position'], 'revision_id': row['id'],
                 'task_id': row['task_id'], 'number': row['number'], 'config': row['config']} for row in assigned])
     else:
-        result.update(frozen=enrollment['frozen'], tasks=[{'position': row['position'], 'revision_id': row['id'],
-            **{key: TaskConfig.model_validate(row['config']).model_dump(mode='json')[key]
-               for key in PublicTask.model_fields if key not in ('position', 'revision_id')}} for row in assigned])
+        public_tasks = []
+        for row in assigned:
+            config = TaskConfig.model_validate(row['config']).model_dump(mode='json')
+            public_tasks.append({'position': row['position'], 'revision_id': row['id'],
+                **{key: config[key] for key in PublicTask.model_fields if key not in ('position', 'revision_id')}})
+        result.update(frozen=enrollment['frozen'], tasks=public_tasks)
     return result
 
 
@@ -433,3 +436,55 @@ def student_pdf(lab_id: UUID, pdf_id: UUID, request: Request, account: dict = De
     with transaction() as conn:
         student_access(conn, lab_id, account, request)
         return pdf_response(lab_files.read(conn, lab_id, pdf_id, active_only=True), pdf_id)
+
+
+@student_router.get('/{lab_id}/events')
+async def lab_events(lab_id: UUID, request: Request, account: dict = Depends(student)):
+    import asyncio
+    import time
+    from starlette.responses import StreamingResponse
+    from cjudge.events import hub
+    from cjudge.identity_api import same_origin
+    # EventSource sends Origin for cross-origin requests; same-origin clients may omit it.
+    if request.headers.get('origin') is not None:
+        same_origin(request)
+    def authorize():
+        with transaction() as conn:
+            student_access(conn, lab_id, account, request)
+            return conn.execute(sa.select(identity.sessions.c.expires_at).where(
+                identity.sessions.c.token_hash == identity.token_digest(request.cookies[COOKIE]))).scalar_one()
+    expires = await run_in_threadpool(authorize)
+    if not hub.available:
+        raise HTTPException(503, 'Live connection unavailable; reconnect shortly')
+    if len(hub.clients) >= 512 or sum(member == str(account['id']) for _, member in hub.clients.values()) >= 5:
+        raise HTTPException(429, 'Too many live connections; close another lab tab')
+    # Subscription registration precedes initial refresh, closing the snapshot/subscription gap.
+    remaining = max(0, (expires - identity.now()).total_seconds())
+    expires_clock = time.monotonic() + remaining
+    async def stream():
+        try:
+            async with hub.subscribe(lab_id, account['id']) as queue:
+                yield 'event: refresh\ndata: {}\n\n'
+                while not await request.is_disconnected():
+                    remaining = expires_clock - time.monotonic()
+                    if remaining <= 0:
+                        yield 'event: denied\ndata: {"detail":"Login required"}\n\n'
+                        return
+                    try:
+                        await asyncio.wait_for(queue.get(), timeout=min(25, remaining))
+                    except TimeoutError:
+                        yield ': keepalive\n\n'  # No database query or process spawning.
+                        continue
+                    if not hub.available:
+                        yield 'event: reconnect\ndata: {}\n\n'
+                        return
+                    try:
+                        await run_in_threadpool(authorize)
+                    except HTTPException:
+                        yield 'event: denied\ndata: {"detail":"Lab access changed; sign in or enter again"}\n\n'
+                        return
+                    yield 'event: refresh\ndata: {}\n\n'
+        except RuntimeError:
+            yield 'event: reconnect\ndata: {}\n\n'
+    return StreamingResponse(stream(), media_type='text/event-stream', headers={'Cache-Control': 'no-store',
+        'X-Accel-Buffering': 'no', 'X-Content-Type-Options': 'nosniff'})
