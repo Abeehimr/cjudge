@@ -10,7 +10,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 
 ## Accounts and Tasks
 
-- Import student roll numbers/names from CSV, generate printable credentials, and support password resets. Keep admin authentication separate.
+- Keep one global account and unique credentials per student across labs. Create accounts manually or from CSV; retain existing credentials and flag name mismatches. Admin can reprint credentials and reset student passwords. Keep admin authentication separate. Enroll accounts into labs in M4.
 - Bind each student's browser per lab. Missing/invalid tokens require admin release even at the same IP; release revokes old sessions. Allow and flag IP changes with a valid token; optional strict mode requires matching IPs.
 - Tasks have a title, optional Markdown statement, maximum marks, scoring mode, checker, and resource limits. Require at least one case before publication; no per-task PDF is required or stored.
 - Accept paired `N.in`/`N.out` ZIPs, pasted cases, and reviewed output from sandboxed Python/C generators with a reference C solution.

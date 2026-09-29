@@ -12,7 +12,7 @@ This repository is building cJudge, an offline C programming lab judge.
 - `context/`: product requirements, design, technical requirements, and module checklist.
 - `README.md`: local setup and checks.
 
-M1 has a standalone sandbox runner. Submission handling, scoring, and most architecture in `context/` remain planned.
+M1 has a standalone sandbox runner. M2 has global accounts and sessions. Labs, submissions, and scoring remain planned.
 
 ## Build, Test, and Development Commands
 
@@ -25,8 +25,9 @@ Use Python 3.14 or newer and uv:
 - `uv run pytest -q`: run backend tests.
 - `npm run test --prefix frontend`: run frontend tests.
 - `npm run build --prefix frontend`: type-check and build frontend.
-- `docker compose up -d --build`: start M0 services after creating `.env` and local certificates as described in `README.md`.
+- `docker compose up -d --build web`: start web, API, and database after M2 setup in `README.md`.
 - `docker compose run --rm judge`: run the M1 isolation gate in a temporary container.
+- `docker compose run --rm -v ./tests:/app/tests:ro api python tests/identity_gate.py`: run M2 integration checks.
 
 ## Coding Style & Naming Conventions
 
@@ -36,13 +37,13 @@ Keep modules focused and place application logic inside `src/cjudge/`. Declare d
 
 ## Testing Guidelines
 
-Backend uses pytest under `tests/test_*.py`; frontend uses Vitest under `frontend/src/*.test.tsx`. No coverage threshold is set. Complete the test gate for each module before starting its dependents.
+Backend uses pytest under `tests/test_*.py`; frontend uses Vitest under `frontend/src/*.test.tsx`. The real-database M2 gate is `tests/identity_gate.py`. No coverage threshold is set. Complete each module gate before starting its dependents.
 
 Prioritize grading correctness, deadline boundaries, authorization, and worker recovery as those features arrive. Sandbox integration tests should document required Linux tooling.
 
 ## Commit & Pull Request Guidelines
 
-The sole existing commit uses an imperative, descriptive subject: “Initialize the CJudge project structure and requirements.” Follow that style; no stricter convention is established.
+Use imperative, descriptive commit subjects, as in recent module commits. No stricter convention is established.
 
 Pull requests should explain the problem, resulting behavior, validation performed, and relevant plan milestone or issue. Include screenshots for UI changes and document configuration or migration requirements.
 

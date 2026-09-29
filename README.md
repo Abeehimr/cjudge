@@ -1,6 +1,6 @@
 # cJudge
 
-Offline C lab judge. M0 provides an HTTPS frontend and a database-backed API readiness check. M1 adds an isolated runner. Login, submissions, and grading UI are future modules.
+Offline C lab judge. M0 provides an HTTPS frontend and database. M1 adds an isolated runner. M2 adds global student accounts and login. Labs, submissions, and grading UI are future modules.
 
 ## Local setup
 
@@ -8,11 +8,12 @@ Requires Docker Compose, OpenSSL, and Node.js for local frontend checks.
 
 1. Copy `.env.example` to `.env`. Replace `POSTGRES_PASSWORD` with a long random alphanumeric value. Set `CJUDGE_UID` and `CJUDGE_GID` to your `id -u` and `id -g` output.
 2. Run `sh scripts/create-cert.sh localhost`. For a LAN name or IP, pass its certificate subject and SAN list, for example `sh scripts/create-cert.sh cjudge.lab 'DNS:localhost,IP:127.0.0.1,DNS:cjudge.lab'`.
-3. Run `docker compose up -d --build`.
-4. Run `docker compose exec api alembic upgrade head` and `sh scripts/smoke.sh`.
-5. Open `https://localhost:8443`; trust `certs/server.crt` in the lab browsers before real use. The default certificate is self-signed.
+3. Run `docker compose build api key-init web`. On a fresh installation only, run `docker compose run --rm key-init` to create the student credential key.
+4. Run `docker compose up -d db` and `docker compose run --rm api alembic upgrade head`.
+5. On first setup, run `docker compose run --rm api python -m cjudge.identity create-admin` and enter an admin password twice. The admin username is `admin`.
+6. Run `docker compose up -d web` and `sh scripts/smoke.sh`. Open `https://localhost:8443`; trust `certs/server.crt` in lab browsers before real use. The default certificate is self-signed.
 
-Only localhost ports 8080 and 8443 are published. To serve a LAN, change the web port bindings, add the LAN hostname to `CJUDGE_ALLOWED_HOSTS`, and create a certificate with that hostname/IP in its SAN list. Keep `api` and `db` private.
+Only localhost ports 8080 and 8443 are published. To serve a LAN, change web port bindings, add the LAN hostname to `CJUDGE_ALLOWED_HOSTS`, set `CJUDGE_PUBLIC_ORIGIN` to the exact browser origin (including port), and create a certificate with that hostname/IP in its SAN list. Keep `api` and `db` private.
 
 Stop services with `docker compose down`. The PostgreSQL volume survives container recreation; `docker compose down --volumes` deletes it.
 
@@ -20,9 +21,18 @@ Stop services with `docker compose down`. The PostgreSQL volume survives contain
 
 - Backend: `uv sync --locked && uv run pytest -q`
 - Frontend: `npm ci --prefix frontend && npm run test --prefix frontend && npm run build --prefix frontend`
-- Compose: `docker compose config --quiet && docker compose up -d --build && sh scripts/smoke.sh`
+- Compose: `docker compose config --quiet && docker compose up -d --build web && sh scripts/smoke.sh`
+- Identity gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/identity_gate.py`
 
 The source of truth for product behavior and implementation modules is in `context/`.
+
+## M2 accounts
+
+Student accounts are global: each roll number keeps one password across labs. Admin can add students manually or import UTF-8 CSV with `roll_number,name` headers, up to 1 MiB/1,000 rows. Existing roll numbers keep their name/password; name mismatches are reported. Admin can edit names, reveal/print selected credentials, and reset student passwords. Students cannot change passwords. Lab enrollment follows in M4.
+
+Admin password is hash-only. Student passwords are hashed for login and separately encrypted for admin reprints. Keep the `credential_keys` Docker volume with database backups; losing it makes existing student passwords unrecoverable. The API mounts that volume read-only. `key-init` refuses to overwrite an existing key. Never copy the key, password sheets, or `.env` into Git. To reset the admin password, run `docker compose run --rm api python -m cjudge.identity reset-admin`; existing admin sessions are revoked.
+
+Sessions last eight hours. Logout and password resets revoke sessions. Login is rate-limited per account, while nginx allows a shared lab IP burst. Credential responses are not cached. No public registration exists.
 
 ## M1 sandbox checks
 

@@ -21,9 +21,9 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M2 — Identity · v0.2 · requires M0
 
-- [ ] Add admin/student sessions, password hashing, CSRF, and rate limits.
-- [ ] Add CSV import, credentials sheet, password reset, and audit records.
-- [ ] **Test:** role separation, session revocation, malformed/duplicate imports, protected routes.
+- [x] Add admin/student sessions, password hashing, CSRF, and rate limits.
+- [x] Add CSV import, credentials sheet, password reset, and audit records.
+- [x] **Test:** role separation, session revocation, malformed/duplicate imports, protected routes.
 
 ## M3 — Task Library · v0.2 · requires M0, M2
 

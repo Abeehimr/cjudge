@@ -171,6 +171,8 @@ def main():
             conn.execute(sa.delete(store.sessions).where(store.sessions.c.account_id.in_(ids)))
             conn.execute(sa.delete(store.audit_events).where(sa.or_(store.audit_events.c.actor_id.in_(ids),
                                                                     store.audit_events.c.subject_id.in_(ids))))
+            conn.execute(sa.delete(store.audit_events).where(
+                store.audit_events.c.detail["identifier"].as_string() == f"student:TESTUNKNOWN{suffix}"))
             conn.execute(sa.delete(store.accounts).where(store.accounts.c.id.in_(ids)))
             conn.execute(sa.delete(store.login_attempts).where(store.login_attempts.c.identifier.in_(attempt_keys)))
 
