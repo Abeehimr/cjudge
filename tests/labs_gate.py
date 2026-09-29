@@ -10,7 +10,7 @@ from alembic.config import Config
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
-from cjudge import identity, labs, tasks
+from cjudge import identity, labs, tasks, lab_binding
 
 
 def core_checks():
@@ -82,6 +82,45 @@ def roster_checks(admin_id, student_id, revision_id):
     print('PASS: account reuse, atomic enrollment, name mismatch, late additions, freeze isolation')
 
 
+def binding_checks(admin_id, student_id, revision_id):
+    session = secrets.token_urlsafe(32)
+    with identity.engine().begin() as conn:
+        timestamp = labs.now(conn)
+        conn.execute(sa.insert(identity.sessions).values(token_hash=identity.token_digest(session), account_id=student_id,
+                    csrf_token='csrf', expires_at=timestamp + timedelta(hours=8)))
+        lab = labs.create(conn, 'Binding', False, admin_id)
+        labs.enroll(conn, lab, [student_id], admin_id)
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab['id']).values(
+            starts_at=timestamp - timedelta(hours=2), ends_at=timestamp - timedelta(hours=1)))
+        lab = labs.find(conn, lab['id'])
+        _, token = lab_binding.access(conn, lab, student_id, session, None, '192.0.2.1', enter=True)
+        assert token
+        for missing in [None, 'wrong']:
+            try:
+                lab_binding.access(conn, lab, student_id, session, missing, '192.0.2.1', enter=True)
+            except labs.LabError as exc:
+                assert exc.status == 423
+            else:
+                raise AssertionError('Missing binding accepted')
+        row, _ = lab_binding.access(conn, lab, student_id, session, token, '192.0.2.2')
+        assert row['ip_changed'] and row['bound_ip'] == '192.0.2.1'
+        strict = {**lab, 'strict_ip': True}
+        try:
+            lab_binding.access(conn, strict, student_id, session, token, '192.0.2.2')
+        except labs.LabError as exc:
+            assert exc.status == 423
+        else:
+            raise AssertionError('Strict IP accepted changed address')
+        lab_binding.release(conn, lab, student_id, 'New browser', admin_id)
+        try:
+            lab_binding.access(conn, lab, student_id, session, None, '192.0.2.1', enter=True)
+        except labs.LabError as exc:
+            assert exc.status == 401
+        else:
+            raise AssertionError('Revoked session rebound')
+    print('PASS: ended-lab binding, token loss, IP flags, strict IP, release and revoked-session fencing')
+
+
 def main():
     database = 'lab_gate_' + secrets.token_hex(8)
     root_url = sa.make_url(os.environ['DATABASE_URL'])
@@ -93,6 +132,7 @@ def main():
         command.upgrade(Config('alembic.ini'), 'head')
         actors = core_checks()
         roster_checks(*actors)
+        binding_checks(*actors)
     finally:
         identity.engine().dispose()
         identity.engine.cache_clear()
