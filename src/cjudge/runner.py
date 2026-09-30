@@ -275,7 +275,7 @@ def execute(executable: bytes, stdin: bytes = b"", limits: Limits | None = None)
 
 def run_python(script: bytes, profile: Profile, files: dict[str, bytes] | None = None,
                args: tuple[str, ...] = (), limits: Limits | None = None) -> Result:
-    """M1 isolation primitive; checker/generator protocols arrive in M7."""
+    """Bounded Python primitive for worker-only checker/generator protocols."""
     if profile not in (Profile.CHECKER, Profile.GENERATOR):
         raise ValueError("Python requires checker or generator profile")
     if not isinstance(script, bytes) or not 0 < len(script) <= SOURCE_BYTES:

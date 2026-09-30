@@ -25,7 +25,7 @@ test("generation preserves exact seeds, requires review confirmation, and escape
   fireEvent.click(screen.getByRole("button", { name: "Start generation" }));
   expect(await screen.findByText("Generation complete: 1/1 cases · draft 1")).toBeTruthy();
   expect(fetchMock).toHaveBeenCalledWith("/api/admin/tasks/task/generation", expect.objectContaining({
-    body: '{"version":1,"config":{"language":"python","generator":"print(1)","reference":"int main(){}","seed":9223372036854775807,"count":1}}',
+    body: '{"version":1,"config":{"language":"python","generator":"print(1)","reference":"int main(){}","count":1,"seed":9223372036854775807}}',
     headers: expect.objectContaining({ "X-CSRF-Token": "csrf" }),
   }));
   expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeTruthy();

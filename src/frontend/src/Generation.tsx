@@ -4,7 +4,7 @@ import { useAdminEvents } from "./Isolates";
 
 type Config = { language: "python" | "c"; generator: string; reference: string; seed: string; count: number };
 type Job = { id: string; base_version: number; state: string; progress: number; diagnostic: string;
-  config: { count: number; seed: string }; cases: { number: number; seed: string; input_size: number; answer_size: number }[] };
+  config: { count: number; seed: string; generator?: string; reference?: string }; source_sha256?: Record<string, string>; cases: { number: number; seed: string; input_size: number; answer_size: number }[] };
 
 export default function Generation({ taskId, version, csrf, disabled, applied, onDirty }: {
   taskId: string; version: number; csrf: string; disabled: boolean; applied: () => Promise<void>; onDirty: (dirty: boolean) => void;
@@ -29,7 +29,8 @@ export default function Generation({ taskId, version, csrf, disabled, applied, o
     void perform(async () => {
       // Keep all signed 64-bit seeds exact in JSON, without JavaScript number rounding.
       if (!/^\d+$/.test(config.seed) || BigInt(config.seed) > 9223372036854775807n) throw new Error("Seed must be a nonnegative signed 64-bit integer.");
-      const body = JSON.stringify({ version, config: { ...config, seed: "SEED_INTEGER" } }).replace('"SEED_INTEGER"', BigInt(config.seed).toString());
+      const { seed, ...program } = config;
+      const body = JSON.stringify({ version, config: program }).slice(0, -2) + `,"seed":${BigInt(seed)}}}`;
       setJob(await api<Job>(base, { method: "POST", body }, csrf));
       setConfig({ ...config, generator: "", reference: "" });
     });
@@ -64,6 +65,7 @@ export default function Generation({ taskId, version, csrf, disabled, applied, o
       <button>Start generation</button>
     </fieldset></form>
     {job && <div className="space-y-2"><p role="status">Generation {job.state}: {job.progress}/{job.config.count} cases · draft {job.base_version}</p>
+      <details><summary>Generation source and provenance</summary>{(["generator", "reference"] as const).map((part) => <div key={part}><h3>{part} · SHA-256 {job.source_sha256?.[part] || "Unavailable"}</h3><pre className="max-h-64 overflow-auto whitespace-pre-wrap border p-2">{job.config[part]}</pre></div>)}</details>
       {job.diagnostic && <pre className="notice notice-danger max-h-64 overflow-auto whitespace-pre-wrap">{job.diagnostic}</pre>}
       <table className="w-full text-left text-sm"><thead><tr><th>Case</th><th>Seed</th><th>Input bytes</th><th>Answer bytes</th><th>Preview</th></tr></thead>
         <tbody>{job.cases.map((entry) => <tr key={entry.number}><td>{entry.number}</td><td>{entry.seed}</td><td>{entry.input_size}</td><td>{entry.answer_size}</td><td>

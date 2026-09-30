@@ -1,11 +1,12 @@
 """Admin-only staged generation. Applying cases never publishes a revision."""
+import hashlib
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 import sqlalchemy as sa
 from starlette.concurrency import run_in_threadpool
 
-from cjudge import authoring as store, identity
+from cjudge import authoring as store, identity, runner
 from cjudge.identity.api import admin, admin_write, no_store
 from cjudge.tasks.api import VersionInput, find_task, json_input, update_cases
 from cjudge.tasks.authoring import GenerationConfig
@@ -29,7 +30,9 @@ def output(conn: sa.Connection, row: dict) -> dict:
     entries = conn.execute(sa.select(store.cases).where(store.cases.c.job_id == row['id'])
                            .order_by(store.cases.c.number)).mappings().all()
     return dict(row) | {'config': row['config'] | {'seed': str(row['config']['seed'])},
-                        'cases': [dict(entry) | {'seed': str(entry['seed'])} for entry in entries]}
+                        'cases': [dict(entry) | {'seed': str(entry['seed'])} for entry in entries],
+                        'source_sha256': {part: hashlib.sha256(row['config'][part].encode()).hexdigest()
+                                          for part in ('generator', 'reference')}}
 
 
 @router.get('/{task_id}/generation')
@@ -75,7 +78,10 @@ def preview(task_id: UUID, job_id: UUID, number: int, part: str):
             store.cases.c.number == number)).mappings().first()
         if not row:
             raise HTTPException(404, 'Case not found')
-        payload = store.read(job_id, row['artifact_id'], part)
+        try:
+            payload = store.read(job_id, row['artifact_id'], part)
+        except (OSError, runner.SandboxError) as exc:
+            raise HTTPException(503, 'Generation artifacts unavailable') from exc
     return Response(payload, media_type='application/octet-stream', headers={
         'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
         'Content-Disposition': f'attachment; filename="{number}.{part}"'})
@@ -93,7 +99,10 @@ async def change(task_id: UUID, job_id: UUID, action: str, request: Request, act
             if action == 'apply':
                 if row['state'] != 'complete' or row['base_version'] != task['version']:
                     raise HTTPException(409, 'Apply requires a complete job and unchanged draft')
-                pairs = store.staged_cases(conn, job_id)
+                try:
+                    pairs = store.staged_cases(conn, job_id)
+                except (OSError, runner.SandboxError) as exc:
+                    raise HTTPException(503, 'Generation artifacts unavailable') from exc
                 if len(pairs) != row['config']['count']:
                     raise HTTPException(409, 'Generation is incomplete')
                 result = update_cases(conn, task, pairs, actor)

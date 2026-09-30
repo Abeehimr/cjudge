@@ -7,10 +7,11 @@ import secrets
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from alembic import command
 from alembic.config import Config
@@ -158,10 +159,21 @@ def exercise(directory: str) -> None:
             status, live_job = call(base + '/generation', 'POST', {'version': 2, 'config': live_config})
             assert status == 201
             # Existing reviewed cases remain publishable while independent generation runs.
-            assert call(base, 'PUT', {'version': 2, 'config': {'title': 'Edited during generation'}})[0] == 200
-            assert call(base + '/publish', 'POST', {'version': 3})[0] == 201
+            checker_config = {'title': 'Edited during generation', 'checker': {'kind': 'python',
+                'source': 'if read_output() == read_answer(): accept()\nreject()'}}
+            assert call(base, 'PUT', {'version': 2, 'config': checker_config})[0] == 200
+            status, published = call(base + '/publish', 'POST', {'version': 3})
+            assert status == 201
+            from cjudge.submissions import files
+            from cjudge.judging.worker import judge
+            os.environ['CJUDGE_SUBMISSION_FILES'] = directory
+            for source, verdict in ((REFERENCE.encode(), 'AC'), (b'int main(){}', 'Failed')):
+                source_id = uuid4(); files.save(source_id, source)
+                accepted = {'id': source_id, 'revision_id': UUID(published['id']), 'size': len(source),
+                            'sha256': files.validate('main.c', source)}
+                assert judge(accepted, threading.Event())['verdict'] == verdict
             process = subprocess.Popen(['python', '-c', 'from cjudge.judging.worker import work; work(0)'],
-                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                       stdout=subprocess.DEVNULL)
             try:
                 for _ in range(300):
                     current = call(base + '/generation/' + live_job['id'])[1]
@@ -172,16 +184,19 @@ def exercise(directory: str) -> None:
                 process.kill(); process.wait(timeout=10)
                 saved = current['progress']
                 with identity.engine().begin() as conn:
-                    conn.execute(sa.update(attempts).where(attempts.c.finished_at.is_(None)).values(
+                    # Wait for the killed worker's last transaction before expiring its current lease.
+                    stopped_job = conn.execute(sa.select(jobs).where(jobs.c.id == UUID(live_job['id']))
+                        .with_for_update()).mappings().one()
+                    conn.execute(sa.update(attempts).where(attempts.c.id == stopped_job['attempt_id']).values(
                         lease_until=labs.now(conn) - timedelta(seconds=1)))
                 process = subprocess.Popen(['python', '-c', 'from cjudge.judging.worker import work; work(0)'],
-                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                           stdout=subprocess.DEVNULL)
                 for _ in range(400):
                     current = call(base + '/generation/' + live_job['id'])[1]
                     if current['state'] == 'complete': break
                     assert process.poll() is None, 'Recovery worker crashed'
                     time.sleep(.05)
-                else: raise AssertionError('Worker did not resume generation')
+                else: raise AssertionError(f'Worker did not resume generation: {current["state"]}, progress={current["progress"]}, diagnostic={current["diagnostic"]}')
                 assert current['progress'] == 6 and len(current['cases']) == 6 and saved >= 1
                 assert call(base + '/generation/' + live_job['id'] + '/apply', 'POST', {'version': 3})[0] == 409
                 cache = list((Path(directory) / live_job['id']).glob('*.reference'))
