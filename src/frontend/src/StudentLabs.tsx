@@ -81,7 +81,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
     return () => { controller.abort(); source.close(); if (retry) clearTimeout(retry); setConnection(''); };
   }, [detail?.id]);
   useUnsaved(busy || Object.values(drafts).some((draft) => !!draft.file || !!draft.pending));
-  const task = detail?.tasks.find((item) => item.revision_id === revisionId);
+  const task = detail?.tasks.find((item) => item.revision_id === revisionId || item.previous_revision_ids?.includes(revisionId || ''));
   if ((!route && !listRoute) || parts.length > 2 || !['overview', 'tasks', 'submissions'].includes(section) ||
       section === 'overview' && parts.length > 0 || section === 'tasks' && !revisionId || section === 'submissions' && parts.length > 1 || [404, 422].includes(failure) || detail && revisionId && !task) return <NotFound />;
   return <div className="space-y-4">
@@ -116,12 +116,13 @@ export function StudentLabs({ csrf }: { csrf: string }) {
             <Link to={`/labs/${detail.id}/tasks/${item.revision_id}`}>{item.position}. {item.title}</Link> · {item.maximum_marks} marks
           </li>)}</ul></section></>}
         {task && <section className="space-y-3 rounded border bg-white p-4"><h2 className="text-lg font-semibold">{task.position}. {task.title} · {task.maximum_marks} marks</h2>
+          {task.revision_id !== revisionId && <p className="notice notice-warning">Task corrected. New uploads use the current revision; unconfirmed uploads retain their original retry key.</p>}
           <p>CPU {task.cpu_seconds}s · Wall {task.wall_seconds}s · Memory {task.memory_mib} MiB · Stack {task.stack_mib} MiB</p>
           <Statement text={task.statement} />
           <nav aria-label="Task navigation" className="flex flex-wrap gap-3">{detail.tasks.map((item) => <NavLink key={item.revision_id} className="nav-link" to={`/labs/${detail.id}/tasks/${item.revision_id}`}>{item.position}. {item.title}</NavLink>)}</nav>
         </section>}
         {(task || section === 'submissions') && <StudentSubmissions key={revisionId || 'history'} labId={detail.id} tasks={detail.tasks} admission={detail.admission} csrf={csrf} refresh={refresh}
-          revisionId={revisionId} draft={drafts[revisionId || ''] || { file: null, pending: null }} setDraft={(draft) => setDrafts((old) => ({ ...old, [revisionId || '']: draft }))} />}
+          revisionId={task?.revision_id} draft={drafts[revisionId || ''] || { file: null, pending: null }} setDraft={(draft) => setDrafts((old) => ({ ...old, [revisionId || '']: draft }))} />}
       </>}
     </>}
     {message && <p role="alert" className="notice notice-danger">{message}</p>}

@@ -6,6 +6,7 @@ import Statement from "./Statement";
 import { AdminSubmissionDetail, AdminSubmissions, CompilerFeedback } from "./AdminSubmissions";
 import { Announcements, type Summary, type AdminLab, type Enrollment, type Student, type Task } from "./Lab";
 import { NotFound, useOffset, useUnsaved } from "./navigation";
+import { Marks, Corrections } from "./Marks";
 
 export function AdminLabs({ csrf }: { csrf: string }) {
   const [rows, setRows] = useState<Summary[]>([]);
@@ -106,13 +107,14 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     const next = [...taskIds]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; setTaskIds(next);
   }
   const member = lab?.students.find((item) => item.id === studentId);
-  const task = lab?.tasks.find((item) => item.revision_id === revisionId);
+  const task = lab?.tasks.find((item) => item.revision_id === revisionId || item.previous_revision_ids?.includes(revisionId || ''));
   const [feedbackDirty, setFeedbackDirty] = useState(false);
+  const [correctionDirty, setCorrectionDirty] = useState(false);
   useEffect(() => {
     if (lab && lab.id === labId) accept(lab, true);
     setRoll(""); setName(""); setReason(""); setAnnouncement("");
   }, [section, studentId, revisionId]);
-  const dirty = busy || feedbackDirty || !!newTitle || (!!lab && (section === 'overview' && (title !== lab.title || strict !== lab.strict_ip ||
+  const dirty = busy || feedbackDirty || correctionDirty || !!newTitle || (!!lab && (section === 'overview' && (title !== lab.title || strict !== lab.strict_ip ||
     start !== dateInput(lab.starts_at, 5) || end !== dateInput(lab.ends_at, 125) || !!reason || !!announcement) ||
     section === 'tasks' && !revisionId && JSON.stringify(taskIds) !== JSON.stringify(lab.tasks.map((t) => t.revision_id)) ||
     section === 'students' && (!!roll || !!name)));
@@ -241,7 +243,9 @@ export function AdminLabs({ csrf }: { csrf: string }) {
         <p>{task.config.maximum_marks} marks · CPU {task.config.cpu_seconds}s · Wall {task.config.wall_seconds}s · Memory {task.config.memory_mib} MiB</p>
         <Statement text={task.config.statement} /><p><Link to={`/admin/tasks/${task.task_id}?revision=${task.revision_id}`}>View library revision and cases</Link></p>
       </section>}
-      {submissionId && <AdminSubmissionDetail key={submissionId} labId={lab.id} submissionId={submissionId} />}
+      {(section === 'overview' || studentId || task) && <Marks labId={lab.id} accountId={studentId} taskId={task?.task_id} />}
+      {task && <Corrections key={task.task_id} lab={lab} task={task} csrf={csrf} refreshLab={() => reload()} onDirty={setCorrectionDirty} />}
+      {submissionId && <AdminSubmissionDetail key={submissionId} labId={lab.id} submissionId={submissionId} csrf={csrf} released={!!lab.first_released_at} />}
       {(!submissionId && section === 'submissions' || studentId || revisionId) && <AdminSubmissions key={`${lab.id}/${studentId || revisionId || 'all'}`} labId={lab.id} csrf={csrf}
         tasks={lab.tasks.map((t) => ({ revision_id: t.revision_id, title: t.config.title }))} students={lab.students} accountId={studentId} revisionId={revisionId} />}
     </>}

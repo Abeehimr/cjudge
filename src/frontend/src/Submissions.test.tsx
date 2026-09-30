@@ -24,7 +24,7 @@ test('admin submission detail renders untrusted source and outputs as text', asy
     cases: [{ number: 1, verdict: 'WA', cpu_seconds: .1, wall_seconds: .2, memory_kib: 1024,
       stdin: '<svg onload=alert(1)>', stdout: '<img src=x onerror=alert(1)>', stderr: 'diagnostic', stdout_truncated: true, stderr_truncated: false }],
   }) }));
-  const { container } = renderRoute(<AdminSubmissionDetail labId="lab" submissionId="submission" />, '/admin/labs/lab/submissions/submission');
+  const { container } = renderRoute(<AdminSubmissionDetail labId="lab" submissionId="submission" csrf="csrf" />, '/admin/labs/lab/submissions/submission');
   expect(await screen.findByText(source)).toBeTruthy();
   expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeTruthy();
   expect(screen.getByText('<svg onload=alert(1)>')).toBeTruthy();

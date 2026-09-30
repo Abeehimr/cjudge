@@ -67,18 +67,18 @@ test('admin student page isolates controls and filters history to the student', 
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/students/student/freeze', expect.objectContaining({
     method: 'POST', body: JSON.stringify({ reason: 'Review required', frozen: true }), headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }),
   })));
-  expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/submissions?offset=0&account_id=student', expect.anything());
+  expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/submissions?offset=0&account_id=student&order=best', expect.anything());
   expect(screen.queryByText('Save lab settings')).toBeNull();
   expect(screen.queryByLabelText('Student roll number')).toBeNull();
 });
 
 test('admin overview does not load account options, task options, or submissions', async () => {
   live(); const lab = { ...summary, version: 1, strict_ip: false, first_released_at: null, compiler_feedback: 'short', tasks: [], pdfs: [], students: [], announcements: [] };
-  const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => lab });
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200, json: async () => path.endsWith('/marks') ? [] : lab }));
   vi.stubGlobal('fetch', fetchMock);
   renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab');
   expect(await screen.findByRole('button', { name: 'Save lab settings' })).toBeTruthy();
-  expect(fetchMock.mock.calls.every(([path]) => path === '/api/admin/labs/lab')).toBe(true);
+  expect(fetchMock.mock.calls.every(([path]) => ['/api/admin/labs/lab', '/api/admin/labs/lab/marks'].includes(path))).toBe(true);
   expect(screen.queryByRole('heading', { name: 'Enrollment (0)' })).toBeNull();
 });
 
@@ -121,7 +121,7 @@ test('unconfirmed source and retry key survive navigation within the lab', async
 
 test('lab navigation blocks dirty settings; refresh preserves typed settings', async () => {
   live(); const lab = { ...summary, phase: 'Draft', starts_at: null, ends_at: null, version: 1, strict_ip: false, first_released_at: null, tasks: [], pdfs: [], students: [], announcements: [] };
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => lab }));
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200, json: async () => path.endsWith('/marks') ? [] : lab })));
   const confirm = vi.fn().mockReturnValue(false); vi.stubGlobal('confirm', confirm);
   const { router } = renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab');
   const title = await screen.findByLabelText('Lab title');
@@ -159,7 +159,7 @@ test('removing enrollment from student detail returns to the roster with one con
   const confirm = vi.fn().mockReturnValue(true); vi.stubGlobal('confirm', confirm);
   vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string, options: RequestInit) => {
     if (options.method === 'DELETE') lab = { ...lab, students: [] };
-    return Promise.resolve({ ok: true, status: 200, json: async () => path.startsWith('/api/admin/labs/lab') && !path.includes('/submissions') ? lab : [] });
+    return Promise.resolve({ ok: true, status: 200, json: async () => path.startsWith('/api/admin/labs/lab') && !path.includes('/submissions') && !path.endsWith('/marks') ? lab : [] });
   }));
   const { router } = renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students/student');
   fireEvent.click(await screen.findByRole('button', { name: 'Remove student' }));
