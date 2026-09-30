@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import App from "./App";
+
+beforeEach(() => { history.replaceState(null, "", "/"); });
 
 afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
 
@@ -25,7 +27,7 @@ test("student sees own identity after login", async () => {
   const account = { id: "1", role: "student", roll_number: "001A", name: "Ada", csrf_token: "csrf" };
   vi.stubGlobal("fetch", vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200, json: async () => path.endsWith("/labs") ? [] : account })));
   render(<App />);
-  expect(await screen.findByText("Roll number: 001A")).toBeTruthy();
+  expect(await screen.findByText(/Roll number: 001A/)).toBeTruthy();
   expect(await screen.findByText("No labs assigned yet.")).toBeTruthy();
 });
 
@@ -39,6 +41,7 @@ test("admin reveals selected credentials only after an explicit action", async (
       : [{ ...student, password: "PRIVATE-PASS" }],
   }));
   vi.stubGlobal("fetch", fetchMock);
+  history.replaceState(null, "", "/admin/students");
   render(<App />);
   expect(await screen.findByText("001A")).toBeTruthy();
   expect(screen.queryByText("PRIVATE-PASS")).toBeNull();
@@ -83,8 +86,27 @@ test.each(["student", "admin"])("unified %s login opens the correct view and log
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   const logout = await screen.findByRole("button", { name: "Log out" });
   if (role === "admin") expect(screen.getByRole("navigation", { name: "Admin navigation" })).toBeTruthy();
-  else expect(screen.getByText("Roll number: 001A")).toBeTruthy();
+  else expect(screen.getByText(/Roll number: 001A/)).toBeTruthy();
   fireEvent.click(logout);
   expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
   expect(fetchMock).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST", headers: { "X-CSRF-Token": "csrf" } }));
+});
+
+test("restores an admin deep link after login and returns to login on session expiry", async () => {
+  history.replaceState(null, "", "/admin/isolates");
+  vi.stubGlobal("EventSource", class extends EventTarget { close = vi.fn(); });
+  const admin = { id: "admin", role: "admin", name: "Admin", csrf_token: "csrf" };
+  vi.stubGlobal("fetch", vi.fn().mockImplementation((path: string) => Promise.resolve({
+    ok: !path.endsWith("/auth/session"), status: path.endsWith("/auth/session") ? 401 : 200,
+    json: async () => path.endsWith("/login") ? admin : { configured: 1, healthy: 0, working: 0, server_time: new Date().toISOString(), workers: [] },
+  })));
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("Username or roll number"), { target: { value: "admin" } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(await screen.findByRole("heading", { name: "Isolates" })).toBeTruthy();
+  expect(location.pathname).toBe("/admin/isolates");
+  fireEvent(window, new Event("cjudge-session-expired"));
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
+  expect(location.pathname).toBe("/admin/isolates");
 });

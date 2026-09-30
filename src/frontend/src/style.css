@@ -55,3 +55,7 @@ a[download] {
   .notice, .notice-danger, .notice-warning { background: white; color: black; border-color: #64748b; }
 }
 input[type="file"]::file-selector-button:hover { background: #dbeafe; border-color: #93c5fd; }
+
+.nav-link { @apply inline-block rounded border border-blue-200 bg-blue-50 px-3 py-1 text-blue-900; }
+.nav-link:hover, .nav-link[aria-current="page"] { @apply border-blue-300 bg-blue-100 underline underline-offset-4; }
+a:not([download]):not(.nav-link) { @apply text-blue-800 underline underline-offset-2; }

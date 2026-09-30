@@ -1,185 +1,80 @@
 import { useEffect, useState, type FormEvent } from "react";
-
+import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, NavLink, useLocation, useNavigate } from "react-router";
 import { api } from "./api";
+import Accounts from "./Accounts";
 import TaskLibrary from "./TaskLibrary";
 import { AdminLabs, StudentLabs } from "./Labs";
 import Isolates from "./Isolates";
+import { NotFound } from "./navigation";
 
 type Session = { id: string; role: "admin" | "student"; roll_number: string | null; name: string; csrf_token: string };
-type Student = { id: string; roll_number: string; name: string };
-type Credential = Student & { password: string };
-type ImportResult = { created: string[]; existing: string[]; name_mismatches: string[] };
 
-export default function App() {
-  const [page, setPage] = useState<"students" | "tasks" | "labs" | "isolates">("students");
+function Screen() {
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [signingIn, setSigningIn] = useState(false);
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [students, setStudents] = useState<Student[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [credentials, setCredentials] = useState<Credential[]>([]);
-  const [roll, setRoll] = useState("");
-  const [name, setName] = useState("");
-  const [message, setMessageText] = useState("");
-  const [messageError, setMessageError] = useState(false);
-  function setMessage(text: string) { setMessageError(false); setMessageText(text); }
-  function showError(text: string) { setMessageError(true); setMessageText(text); }
-
+  const [loading, setLoading] = useState(true), [signingIn, setSigningIn] = useState(false);
+  const [identifier, setIdentifier] = useState(""), [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const location = useLocation(), navigate = useNavigate();
   useEffect(() => {
     const controller = new AbortController();
-    api<Session>("/auth/session", { signal: controller.signal })
-      .then(setSession).catch(() => {}).finally(() => setLoading(false));
-    return () => controller.abort();
+    api<Session>("/auth/session", { signal: controller.signal }).then(setSession).catch(() => {})
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    const expired = () => { setSession(null); setError("Login expired. Sign in again."); };
+    window.addEventListener("cjudge-session-expired", expired);
+    return () => { controller.abort(); window.removeEventListener("cjudge-session-expired", expired); };
   }, []);
-
-  useEffect(() => {
-    if (session?.role === "admin") api<Student[]>("/admin/students")
-      .then(setStudents).catch((error) => showError(error.message));
-  }, [session]);
-
   async function login(event: FormEvent) {
-    event.preventDefault();
-    if (signingIn) return;
-    setSigningIn(true); setMessage("");
-    const username = identifier.trim();
-    const role = username.toLowerCase() === "admin" ? "admin" : "student";
+    event.preventDefault(); if (signingIn) return;
+    setSigningIn(true); setError("");
+    const username = identifier.trim(), role = username.toLowerCase() === "admin" ? "admin" : "student";
     try {
-      const account = await api<Session>(`/auth/${role}/login`, {
-        method: "POST", body: JSON.stringify({ identifier: username, password }),
-      });
+      const account = await api<Session>(`/auth/${role}/login`, { method: "POST", body: JSON.stringify({ identifier: username, password }) });
       setPassword(""); setIdentifier(""); setSession(account);
-    } catch (error) { showError((error as Error).message); }
+      const prefix = account.role === "admin" ? "/admin/" : "/labs";
+      if (!location.pathname.startsWith(prefix)) navigate(account.role === "admin" ? "/admin/labs" : "/labs", { replace: true });
+    } catch (e) { setError((e as Error).message); }
     finally { setSigningIn(false); }
   }
-
   async function logout() {
     if (!session) return;
-    try {
-      await api<void>("/auth/logout", { method: "POST" }, session.csrf_token);
-      setSession(null); setPage("students"); setStudents([]); setSelected([]); setCredentials([]); setMessage("");
-    } catch (error) { showError((error as Error).message); }
+    try { await api("/auth/logout", { method: "POST" }, session.csrf_token); setSession(null); setError(""); navigate("/login", { replace: true }); }
+    catch (e) { setError((e as Error).message); }
   }
-
-  async function addStudent(event: FormEvent) {
-    event.preventDefault();
-    try {
-      const student = await api<Student>("/admin/students", {
-        method: "POST", body: JSON.stringify({ roll_number: roll, name }),
-      }, session!.csrf_token);
-      setStudents((rows) => [...rows, student].sort((a, b) => a.roll_number.localeCompare(b.roll_number)));
-      setRoll(""); setName(""); setMessage(`${student.roll_number} created. Select account to show credentials.`);
-    } catch (error) { showError((error as Error).message); }
-  }
-
-  async function importFile(file?: File) {
-    if (!file) return;
-    setCredentials([]);
-    try {
-      const result = await api<ImportResult>("/admin/students/import", { method: "POST", body: file }, session!.csrf_token);
-      setStudents(await api<Student[]>("/admin/students"));
-      setMessage(`${result.created.length} created; ${result.existing.length} existing. Name mismatches: ${result.name_mismatches.join(", ") || "none"}.`);
-    } catch (error) { showError((error as Error).message); }
-  }
-
-  async function showCredentials() {
-    try {
-      setCredentials(await api<Credential[]>("/admin/students/credentials", {
-        method: "POST", body: JSON.stringify({ ids: selected }),
-      }, session!.csrf_token));
-      setMessage("");
-    } catch (error) { showError((error as Error).message); }
-  }
-
-  async function resetStudent(student: Student) {
-    if (!confirm(`Reset password for ${student.roll_number}? Existing sessions will end.`)) return;
-    try {
-      setCredentials([await api<Credential>(`/admin/students/${student.id}/reset`, { method: "POST" }, session!.csrf_token)]);
-      setMessage("Password reset. Print or save new credential now.");
-    } catch (error) { showError((error as Error).message); }
-  }
-
-  async function renameStudent(student: Student) {
-    const updatedName = prompt(`Name for ${student.roll_number}`, student.name);
-    if (updatedName === null) return;
-    try {
-      const updated = await api<Student>(`/admin/students/${student.id}`, {
-        method: "PATCH", body: JSON.stringify({ name: updatedName }),
-      }, session!.csrf_token);
-      setStudents((rows) => rows.map((row) => row.id === updated.id ? updated : row));
-      setCredentials([]); setMessage("Name updated.");
-    } catch (error) { showError((error as Error).message); }
-  }
-
+  const home = session?.role === "admin" ? "/admin/labs" : "/labs";
+  const wrongRole = session && (session.role === "student" ? location.pathname.startsWith("/admin/") : location.pathname === "/labs" || location.pathname.startsWith("/labs/"));
   return <div className="min-h-screen bg-slate-100 text-slate-900">
-    <header className="no-print flex items-center justify-between border-b border-slate-300 bg-white px-6 py-3">
-      <strong>cJudge</strong>
-      <div className="flex gap-2">
-        {session && <button className="rounded border px-3 py-1" onClick={logout}>Log out</button>}
-      </div>
+    <header className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-slate-300 bg-white px-6 py-3">
+      <strong>cJudge</strong>{session && <div className="flex items-center gap-3"><span>{session.name}{session.roll_number && ` · Roll number: ${session.roll_number}`}</span>
+        <button onClick={logout}>Log out</button></div>}
     </header>
-    <main className="mx-auto max-w-5xl p-6">
-      {session?.role === "admin" && <nav aria-label="Admin navigation" className="no-print mb-4 flex gap-2">
-        <button aria-pressed={page === "students"} onClick={() => setPage("students")}>Students</button>
-        <button aria-pressed={page === "labs"} onClick={() => { setPage("labs"); setCredentials([]); setMessage(""); }}>Labs</button>
-        <button aria-pressed={page === "tasks"} onClick={() => { setPage("tasks"); setCredentials([]); setMessage(""); }}>Tasks</button>
-        <button aria-pressed={page === "isolates"} onClick={() => { setPage("isolates"); setCredentials([]); setMessage(""); }}>Isolates</button>
-      </nav>}
+    <main className="mx-auto max-w-6xl p-6">
       {loading ? <p role="status">Loading…</p> : !session ? <section className="mx-auto max-w-sm rounded border bg-white p-6">
-        <h1 className="text-xl font-semibold">Sign in</h1>
-        <form className="mt-4 grid gap-3" onSubmit={login}>
-          <label>Username or roll number<input className="mt-1 w-full rounded border p-2" required
-            autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} /></label>
-          <label>Password<input className="mt-1 w-full rounded border p-2" type="password" required autoComplete="current-password"
-            value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-          <button disabled={signingIn} className="rounded p-2">{signingIn ? "Signing in…" : "Sign in"}</button>
-        </form>
-      </section> : session.role === "student" ? <section className="rounded border bg-white p-6">
-        <h1 className="text-xl font-semibold">{session.name}</h1>
-        <p className="mt-2">Roll number: {session.roll_number}</p>
-        <div className="mt-4"><StudentLabs csrf={session.csrf_token} /></div>
-      </section> : page === "isolates" ? <Isolates /> : page === "labs" ? <AdminLabs csrf={session.csrf_token} /> : page === "tasks" ? <TaskLibrary csrf={session.csrf_token} /> : <div className="space-y-6">
-        <h1 className="text-xl font-semibold">Students</h1>
-        <section className="no-print rounded border bg-white p-4">
-          <h2 className="font-semibold">Add student</h2>
-          <form className="mt-3 flex flex-wrap gap-2" onSubmit={addStudent}>
-            <label>Roll number <input className="ml-1 rounded border p-2" required value={roll} onChange={(event) => setRoll(event.target.value)} /></label>
-            <label>Name <input className="ml-1 rounded border p-2" required value={name} onChange={(event) => setName(event.target.value)} /></label>
-            <button className="rounded px-3 py-2">Add</button>
-          </form>
-          <label className="mt-4 block">Import CSV (roll_number,name)
-            <input className="mt-1 block" type="file" accept=".csv,text/csv"
-              onChange={(event) => { void importFile(event.target.files?.[0]); event.target.value = ""; }} />
-          </label>
-        </section>
-        <section className="no-print overflow-x-auto rounded border bg-white p-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-semibold">Global accounts ({students.length})</h2>
-            <button className="rounded border px-3 py-1 disabled:opacity-50" disabled={!selected.length} onClick={showCredentials}>Show selected credentials</button>
-          </div>
-          <table className="mt-3 w-full text-left text-sm"><thead><tr className="border-b">
-            <th><input type="checkbox" aria-label="Select all students" checked={students.length > 0 && selected.length === students.length}
-              onChange={(event) => setSelected(event.target.checked ? students.map((student) => student.id) : [])} /></th>
-            <th className="p-2">Roll number</th><th className="p-2">Name</th><th className="p-2">Actions</th>
-          </tr></thead><tbody>{students.map((student) => <tr className="border-b" key={student.id}>
-            <td><input type="checkbox" aria-label={`Select ${student.roll_number}`} checked={selected.includes(student.id)}
-              onChange={(event) => setSelected((ids) => event.target.checked ? [...ids, student.id] : ids.filter((id) => id !== student.id))} /></td>
-            <td className="p-2">{student.roll_number}</td><td className="p-2">{student.name}</td>
-            <td className="p-2"><button className="mr-3 underline" onClick={() => renameStudent(student)}>Edit name</button>
-              <button className="underline" onClick={() => resetStudent(student)}>Reset password</button></td>
-          </tr>)}</tbody></table>
-        </section>
-        {credentials.length > 0 && <section className="rounded border bg-white p-4">
-          <div className="no-print flex justify-between"><h2 className="font-semibold">Credential sheet</h2>
-            <div><button className="mr-3 underline" onClick={() => print()}>Print</button>
-              <button className="underline" onClick={() => setCredentials([])}>Hide</button></div></div>
-          <table className="mt-3 w-full text-left text-sm"><thead><tr className="border-b"><th>Roll number</th><th>Name</th><th>Password</th></tr></thead>
-            <tbody>{credentials.map((entry) => <tr className="border-b" key={entry.id}><td className="py-2">{entry.roll_number}</td>
-              <td>{entry.name}</td><td className="font-mono">{entry.password}</td></tr>)}</tbody></table>
-        </section>}
+        <h1 className="text-xl font-semibold">Sign in</h1><form className="mt-4 grid gap-3" onSubmit={login}>
+          <label>Username or roll number<input className="mt-1 w-full" required autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} /></label>
+          <label>Password<input className="mt-1 w-full" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          <button disabled={signingIn}>{signingIn ? "Signing in…" : "Sign in"}</button>
+        </form></section> : <div key={session.id}>
+        <nav aria-label={session.role === "admin" ? "Admin navigation" : "Student navigation"} className="no-print mb-4 flex flex-wrap gap-2">
+          {session.role === "admin" ? <>{[["labs", "Labs"], ["students", "Students"], ["tasks", "Task Library"], ["isolates", "Isolates"]].map(([path, title]) =>
+            <NavLink key={path} className="nav-link" to={`/admin/${path}`}>{title}</NavLink>)}</> : <NavLink className="nav-link" to="/labs">Labs</NavLink>}
+        </nav>
+        {wrongRole ? <Navigate to={home} replace /> : <Routes>
+          <Route path="/" element={<Navigate to={home} replace />} />
+          <Route path="/login" element={<Navigate to={home} replace />} />
+          <Route path="/admin/students" element={<Accounts csrf={session.csrf_token} />} />
+          <Route path="/admin/tasks/*" element={<TaskLibrary csrf={session.csrf_token} />} />
+          <Route path="/admin/labs/*" element={<AdminLabs csrf={session.csrf_token} />} />
+          <Route path="/admin/isolates" element={<Isolates />} />
+          <Route path="/labs/*" element={<StudentLabs csrf={session.csrf_token} />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>}
       </div>}
-      {message && <p role={messageError ? "alert" : "status"} className={`no-print mt-4 notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
+      {error && <p role="alert" className="mt-4 notice notice-danger">{error}</p>}
     </main>
   </div>;
+}
+
+export default function App() {
+  const [router] = useState(() => createBrowserRouter([{ path: "*", element: <Screen /> }]));
+  return <RouterProvider router={router} />;
 }

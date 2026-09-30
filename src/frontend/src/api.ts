@@ -5,6 +5,7 @@ export async function api<T>(path: string, options: RequestInit = {}, csrf?: str
       ...(csrf ? { "X-CSRF-Token": csrf } : {}), ...options.headers },
   });
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith("/auth/")) window.dispatchEvent(new Event("cjudge-session-expired"));
     const data = await response.json().catch(() => ({}));
     throw Object.assign(new Error(typeof data.detail === "string" ? data.detail : data.detail?.message || `Request failed (${response.status})`),
       { status: response.status, code: data.detail?.code, retry_at: data.detail?.retry_at });
