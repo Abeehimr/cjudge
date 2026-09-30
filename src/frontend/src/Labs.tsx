@@ -192,7 +192,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
         <button disabled={busy}>Post announcement</button>
       </form>
       <Announcements messages={lab.announcements} />
-      <AdminSubmissions key={lab.id} labId={lab.id} csrf={csrf} feedback={lab.compiler_feedback} />
+      <AdminSubmissions key={lab.id} labId={lab.id} csrf={csrf} feedback={lab.compiler_feedback} refreshLab={() => reload()} />
     </>}
     {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
   </div>;

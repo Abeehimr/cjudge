@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { StudentSubmissions } from "./Submissions";
+import { AdminSubmissions, StudentSubmissions } from "./Submissions";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const admission = { allowed: true, reason: "", code: "", pending: 0, retry_at: null, server_time: "2026-09-30T00:00:00Z" };
@@ -36,4 +36,16 @@ test("pending limit disables new uploads with its reason", async () => {
   fireEvent.change(screen.getByLabelText(/C file/), { target: { files: [new File(["x"], "main.c")] } });
   await waitFor(() => expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true));
   expect(screen.getByText(/Three submissions are pending/)).toBeTruthy();
+});
+
+test("saving feedback refreshes the parent lab version before further edits", async () => {
+  vi.stubGlobal("EventSource", class extends EventTarget { close = vi.fn(); });
+  vi.stubGlobal("fetch", vi.fn().mockImplementation((path: string, options: RequestInit) => Promise.resolve({
+    ok: true, status: options.method === "PUT" ? 204 : 200, json: async () => [],
+  })));
+  const refreshLab = vi.fn().mockResolvedValue(undefined);
+  render(<AdminSubmissions labId="lab" csrf="csrf" feedback="short" refreshLab={refreshLab} />);
+  fireEvent.change(screen.getByLabelText("Student compiler feedback"), { target: { value: "none" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save compiler feedback" }));
+  await waitFor(() => expect(refreshLab).toHaveBeenCalledTimes(1));
 });

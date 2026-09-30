@@ -74,7 +74,7 @@ export function StudentSubmissions({ labId, tasks, admission, csrf, refresh }: {
   </section>;
 }
 
-export function AdminSubmissions({ labId, csrf, feedback }: { labId: string; csrf: string; feedback?: string }) {
+export function AdminSubmissions({ labId, csrf, feedback, refreshLab }: { labId: string; csrf: string; feedback?: string; refreshLab: () => Promise<void> }) {
   const [rows, setRows] = useState<AdminSubmission[]>([]), [offset, setOffset] = useState(0), [error, setError] = useState("");
   const [mode, setMode] = useState(feedback || "short");
   async function refresh() {
@@ -89,7 +89,7 @@ export function AdminSubmissions({ labId, csrf, feedback }: { labId: string; csr
     catch (e) { setError((e as Error).message); }
   }
   async function saveFeedback() {
-    try { await api(`/admin/labs/${labId}/compiler-feedback`, { method: "PUT", body: JSON.stringify({ mode }) }, csrf); setError(""); }
+    try { await api(`/admin/labs/${labId}/compiler-feedback`, { method: "PUT", body: JSON.stringify({ mode }) }, csrf); await refreshLab(); setError(""); }
     catch (e) { setError((e as Error).message); }
   }
   return <section className="space-y-3 rounded border bg-white p-4">
