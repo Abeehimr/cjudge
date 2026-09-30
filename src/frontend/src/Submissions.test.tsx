@@ -3,7 +3,7 @@ import { useState, type ComponentProps } from "react";
 import { renderRoute } from "./testRouter";
 import { afterEach, expect, test, vi } from "vitest";
 import { StudentSubmissions, type UploadDraft } from "./Submissions";
-import { AdminSubmissions, CompilerFeedback } from "./AdminSubmissions";
+import { AdminSubmissionDetail, AdminSubmissions, CompilerFeedback } from "./AdminSubmissions";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const admission = { allowed: true, reason: "", code: "", pending: 0, retry_at: null, server_time: "2026-09-30T00:00:00Z" };
@@ -12,6 +12,25 @@ function Upload(props: Omit<ComponentProps<typeof StudentSubmissions>, 'draft' |
   return <StudentSubmissions {...props} revisionId="revision" draft={draft} setDraft={setDraft} />;
 }
 const tasks = [{ revision_id: "revision", title: "Sum" }];
+
+test('admin submission detail renders untrusted source and outputs as text', async () => {
+  vi.stubGlobal('EventSource', class extends EventTarget { close = vi.fn(); });
+  const source = '<script>alert(1)</script>';
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({
+    id: 'submission', filename: 'main.c', source, size: 26, status: 'Failed', account_id: 'student',
+    roll_number: '001', name: 'Ada', revision_id: 'revision', accepted_at: admission.server_time,
+    client_ip: '192.0.2.1', client_mac: null, attempt_count: 1, passed: 0, total: 1,
+    score_numerator: '0', score_denominator: '1', compiler_feedback: null,
+    cases: [{ number: 1, verdict: 'WA', cpu_seconds: .1, wall_seconds: .2, memory_kib: 1024,
+      stdout: '<img src=x onerror=alert(1)>', stderr: 'diagnostic', stdout_truncated: true, stderr_truncated: false }],
+  }) }));
+  const { container } = renderRoute(<AdminSubmissionDetail labId="lab" submissionId="submission" />, '/admin/labs/lab/submissions/submission');
+  expect(await screen.findByText(source)).toBeTruthy();
+  expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeTruthy();
+  expect(container.querySelector('script, img')).toBeNull();
+  expect(screen.getByText('Standard output (truncated)')).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Download original source' }).getAttribute('href')).toBe('/api/admin/labs/lab/submissions/submission/source');
+});
 
 test("unconfirmed upload retries identical source with the same idempotency key", async () => {
   let attempts = 0;

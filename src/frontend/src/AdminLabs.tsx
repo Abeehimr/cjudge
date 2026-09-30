@@ -3,7 +3,7 @@ import { Link, NavLink, useMatch, useNavigate, useSearchParams } from "react-rou
 import { api } from "./api";
 import LabClock, { localDate } from "./LabClock";
 import Statement from "./Statement";
-import { AdminSubmissions, CompilerFeedback } from "./AdminSubmissions";
+import { AdminSubmissionDetail, AdminSubmissions, CompilerFeedback } from "./AdminSubmissions";
 import { Announcements, type Summary, type AdminLab, type Enrollment, type Student, type Task } from "./Lab";
 import { NotFound, useOffset, useUnsaved } from "./navigation";
 
@@ -13,6 +13,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   const route = useMatch("/admin/labs/:labId/*"), listRoute = useMatch("/admin/labs"), navigate = useNavigate();
   const labId = route?.params.labId, parts = (route?.params["*"] || "").split("/").filter(Boolean);
   const section = parts[0] || "overview", studentId = section === "students" ? parts[1] : undefined, revisionId = section === "tasks" ? parts[1] : undefined;
+  const submissionId = section === "submissions" ? parts[1] : undefined;
   const [params, setParams] = useSearchParams();
   const rosterSearch = params.get("search") || "";
   const [destination, setDestination] = useState<string | null>(null);
@@ -117,7 +118,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     section === 'students' && (!!roll || !!name)));
   useUnsaved(dirty);
   if ((!route && !listRoute) || parts.length > 2 || !['overview', 'students', 'tasks', 'submissions'].includes(section) ||
-      section === 'overview' && parts.length > 0 || section === 'submissions' && parts.length > 1 || [404, 422].includes(failure) || lab && (studentId && !member || revisionId && !task)) return <NotFound />;
+      section === 'overview' && parts.length > 0 || [404, 422].includes(failure) || lab && (studentId && !member || revisionId && !task)) return <NotFound />;
   return <div className="space-y-4">
     <h1 className="text-xl font-semibold">{labId ? lab?.title || "Lab" : "Labs"}</h1>
     {!labId && <><form onSubmit={create} className="flex flex-wrap gap-2 rounded border bg-white p-4">
@@ -240,10 +241,10 @@ export function AdminLabs({ csrf }: { csrf: string }) {
         <p>{task.config.maximum_marks} marks · CPU {task.config.cpu_seconds}s · Wall {task.config.wall_seconds}s · Memory {task.config.memory_mib} MiB</p>
         <Statement text={task.config.statement} /><p><Link to={`/admin/tasks/${task.task_id}?revision=${task.revision_id}`}>View library revision and cases</Link></p>
       </section>}
-      {(section === 'submissions' || studentId || revisionId) && <AdminSubmissions key={`${lab.id}/${studentId || revisionId || 'all'}`} labId={lab.id} csrf={csrf}
+      {submissionId && <AdminSubmissionDetail key={submissionId} labId={lab.id} submissionId={submissionId} />}
+      {(!submissionId && section === 'submissions' || studentId || revisionId) && <AdminSubmissions key={`${lab.id}/${studentId || revisionId || 'all'}`} labId={lab.id} csrf={csrf}
         tasks={lab.tasks.map((t) => ({ revision_id: t.revision_id, title: t.config.title }))} students={lab.students} accountId={studentId} revisionId={revisionId} />}
     </>}
     {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
   </div>;
 }
-

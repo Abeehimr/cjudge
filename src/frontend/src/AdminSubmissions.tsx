@@ -8,6 +8,9 @@ type Submission = { id: string; revision_id: string; filename: string; accepted_
   compiler_feedback: string | null; compiler_truncated: boolean };
 type AdminSubmission = Submission & { account_id: string; roll_number: string; name: string; attempt_count: number; fault: string | null;
   client_ip: string; client_mac: string | null; passed: number | null; total: number | null };
+type SubmissionDetail = AdminSubmission & { size: number; source: string; score_numerator: string | null; score_denominator: string | null;
+  cases: { number: number; verdict: string; cpu_seconds: number; wall_seconds: number; memory_kib: number;
+    stdout: string; stderr: string; stdout_truncated: boolean; stderr_truncated: boolean }[] };
 type Task = { revision_id: string; title: string };
 type Student = { id: string; roll_number: string; name: string };
 export function CompilerFeedback({ labId, csrf, feedback, refreshLab, onDirty }: { labId: string; csrf: string; feedback?: string;
@@ -62,7 +65,7 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
       <tbody>{rows.map((row) => <tr className="border-t align-top" key={row.id}><td>{new Date(row.accepted_at).toLocaleString()}</td>
         <td><Link to={`/admin/labs/${labId}/students/${row.account_id}`}>{row.roll_number} · {row.name}</Link></td>
         <td><Link to={`/admin/labs/${labId}/tasks/${row.revision_id}`}>{tasks.find((task) => task.revision_id === row.revision_id)?.title || row.revision_id}</Link></td>
-        <td><a download href={`/api/admin/labs/${labId}/submissions/${row.id}/source`}>{row.filename}</a></td><td><span className="submission-status" data-status={row.status}>{row.status}</span>
+        <td><Link to={`/admin/labs/${labId}/submissions/${row.id}`}>{row.filename}</Link></td><td><span className="submission-status" data-status={row.status}>{row.status}</span>
           {row.compiler_feedback && <details><summary>Compiler feedback</summary><pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></details>}
           {row.compiler_truncated && <p>Compiler feedback truncated.</p>}</td>
         <td>{row.attempt_count}</td><td>{row.client_ip}<br />{row.client_mac || "MAC unavailable"}</td><td>{row.fault || "—"}
@@ -70,5 +73,44 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
     </table>{!rows.length && <p>No submissions.</p>}</div>
     <div className="flex gap-2"><button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>Newer submissions</button>
       <button disabled={rows.length < 100} onClick={() => setOffset(offset + 100)}>Older submissions</button></div>
+  </section>;
+}
+
+export function AdminSubmissionDetail({ labId, submissionId }: { labId: string; submissionId: string }) {
+  const [row, setRow] = useState<SubmissionDetail | null>(null), [error, setError] = useState("");
+  const latest = useRef(0);
+  async function refresh() {
+    const request = ++latest.current;
+    try { const value = await api<SubmissionDetail>(`/admin/labs/${labId}/submissions/${submissionId}`);
+      if (request === latest.current) { setRow(value); setError(""); } }
+    catch (e) { if (request === latest.current) { setRow(null); setError((e as Error).message); } }
+  }
+  const connection = useAdminEvents(refresh);
+  useEffect(() => { setRow(null); void refresh(); return () => { latest.current++; }; }, [labId, submissionId]);
+  return <section className="space-y-3 rounded border bg-white p-4">
+    <h2 className="font-semibold">Submission {submissionId}</h2>
+    <p>{connection}</p><button onClick={() => { void refresh(); }}>Refresh submission</button>
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
+    {!row && !error && <p role="status">Loading submission…</p>}
+    {row && <>
+      <p><Link to={`/admin/labs/${labId}/students/${row.account_id}`}>{row.roll_number} · {row.name}</Link>{" · "}
+        <Link to={`/admin/labs/${labId}/tasks/${row.revision_id}`}>Task</Link></p>
+      <p><span className="submission-status" data-status={row.status}>{row.status}</span> · Accepted {new Date(row.accepted_at).toLocaleString()} · {row.attempt_count} judging attempts</p>
+      <p>IP: {row.client_ip} · MAC: {row.client_mac || "Unavailable"}</p>
+      {row.passed !== null && <p>Cases passed: {row.passed}/{row.total} · Score: {row.score_numerator}/{row.score_denominator}</p>}
+      {row.fault && <p className="notice notice-danger">{row.fault}</p>}
+      <h3 className="font-semibold">Source: {row.filename} ({row.size} bytes)</h3>
+      <a download href={`/api/admin/labs/${labId}/submissions/${row.id}/source`}>Download original source</a>
+      <pre className="overflow-x-auto rounded border bg-slate-50 p-3"><code>{row.source}</code></pre>
+      {row.compiler_feedback && <><h3 className="font-semibold">Compiler feedback</h3><pre className="overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></>}
+      {row.compiler_truncated && <p>Compiler feedback truncated.</p>}
+      <h3 className="font-semibold">Case results</h3>
+      {!row.cases.length && <p>No case results available.</p>}
+      {row.cases.map((item) => <details className="rounded border p-3" key={item.number}>
+        <summary>Case {item.number}: {item.verdict} · CPU {item.cpu_seconds}s · Wall {item.wall_seconds}s · Memory {item.memory_kib} KiB</summary>
+        <h4>Standard output{item.stdout_truncated ? " (truncated)" : ""}</h4><pre className="overflow-x-auto whitespace-pre-wrap">{item.stdout || "(empty)"}</pre>
+        <h4>Standard error{item.stderr_truncated ? " (truncated)" : ""}</h4><pre className="overflow-x-auto whitespace-pre-wrap">{item.stderr || "(empty)"}</pre>
+      </details>)}
+    </>}
   </section>;
 }
