@@ -74,6 +74,8 @@ class Result:
     wall_seconds: float
     memory_kib: int
     executable: bytes | None = None
+    stderr_truncated: bool = False
+    stdout_truncated: bool = False
 
     @property
     def stdout_preview(self) -> bytes:
@@ -112,6 +114,19 @@ BOX = Path("/var/local/lib/isolate/0/box")
 CGROUP = Path("/run/cjudge-cgroup/box-0")
 META = Path("/run/cjudge.meta")
 ISOLATE = ["/usr/local/bin/isolate", "--cg", "--box-id=0"]
+LOCK = Path('/run/cjudge-runner-0.lock')
+
+
+def configure_box(box_id: int) -> None:
+    """Assign one box per worker process, before any sandbox work starts."""
+    if type(box_id) is not int or not 0 <= box_id < 32:
+        raise ValueError('Box ID must be between 0 and 31')
+    global BOX, CGROUP, META, ISOLATE, LOCK
+    BOX = Path(f'/var/local/lib/isolate/{box_id}/box')
+    CGROUP = Path(f'/run/cjudge-cgroup/box-{box_id}')
+    META = Path(f'/run/cjudge-{box_id}.meta')
+    LOCK = Path(f'/run/cjudge-runner-{box_id}.lock')
+    ISOLATE = ['/usr/local/bin/isolate', '--cg', f'--box-id={box_id}']
 
 
 def _control(command: list[str]) -> str:
@@ -136,8 +151,7 @@ def _cleanup() -> None:
 def _sandbox(limits: Limits) -> Iterator[None]:
     if os.geteuid() != 0 or not Path("/run/cjudge-cgroup/cgroup.controllers").is_file():
         raise SandboxError("Run only inside the configured judge container")
-    # ponytail: one serialized box per container; allocate locked box IDs when M5 needs concurrency.
-    with open("/run/cjudge-runner.lock", "w") as lock:
+    with LOCK.open('w') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
@@ -159,10 +173,10 @@ def _sandbox(limits: Limits) -> Iterator[None]:
             _cleanup()
 
 
-def _collect(command: list[str], stdin: bytes, limits: Limits) -> tuple[int, bytes, bytes, bool]:
+def _collect(command: list[str], stdin: bytes, limits: Limits) -> tuple[int, bytes, bytes, set[str]]:
     buffers = {"stdout": bytearray(), "stderr": bytearray()}
     caps = {"stdout": limits.stdout_bytes, "stderr": limits.stderr_bytes}
-    exceeded = False
+    exceeded: set[str] = set()
     with tempfile.TemporaryFile() as input_file, selectors.DefaultSelector() as selector:
         input_file.write(stdin)
         input_file.seek(0)
@@ -184,9 +198,10 @@ def _collect(command: list[str], stdin: bytes, limits: Limits) -> tuple[int, byt
                             continue
                         remaining = caps[key.data] - len(buffers[key.data])
                         buffers[key.data].extend(chunk[:remaining])
-                        if len(chunk) > remaining and not exceeded:
-                            exceeded = True
-                            process.terminate()
+                        if len(chunk) > remaining:
+                            if not exceeded:
+                                process.terminate()
+                            exceeded.add(key.data)
                 code = process.wait(timeout=max(0.1, deadline - time.monotonic()))
             finally:
                 if process.poll() is None:
@@ -226,7 +241,7 @@ def _run(profile: Profile, command: list[str], files: dict[str, bytes],
                     "--env=TMPDIR=/tmp", "--env=LC_ALL=C", "--run", "--", *command]
             code, stdout, stderr, exceeded = _collect(args, stdin, limits)
             metadata = dict(line.split(":", 1) for line in META.read_text().splitlines())
-            verdict = verdict_for(metadata, code, profile, exceeded)
+            verdict = verdict_for(metadata, code, profile, bool(exceeded))
             executable = None
             if profile == Profile.COMPILE and verdict == "OK":
                 # Never follow a sandbox-created symlink or read a special file as root.
@@ -238,7 +253,9 @@ def _run(profile: Profile, command: list[str], files: dict[str, bytes],
                     executable = binary.read(10 * 1024 * 1024)
             return Result(verdict, stdout, stderr[:PREVIEW_BYTES],
                           float(metadata["time"]), float(metadata["time-wall"]),
-                          int(metadata["cg-mem"]), executable)
+                          int(metadata["cg-mem"]), executable,
+                          len(stderr) > PREVIEW_BYTES or 'stderr' in exceeded,
+                          'stdout' in exceeded or len(stdout) > PREVIEW_BYTES)
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
         raise SandboxError("Sandbox execution or cleanup failed") from exc
 
