@@ -21,9 +21,8 @@ test("shows login when session is absent", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
   render(<App />);
   expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
-  expect(screen.getByLabelText("Roll number")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Admin" }));
-  expect(screen.getByLabelText("Username")).toBeTruthy();
+  expect(screen.getByLabelText("Username or roll number")).toBeTruthy();
+  expect(screen.queryByRole("group", { name: "Account type" })).toBeNull();
 });
 
 test("student sees own identity after login", async () => {
@@ -55,4 +54,21 @@ test("admin reveals selected credentials only after an explicit action", async (
   }));
   fireEvent.click(screen.getByRole("button", { name: "Hide" }));
   expect(screen.queryByText("PRIVATE-PASS")).toBeNull();
+});
+
+ test.each([["  AdMiN  ", "admin", "AdMiN"], [" 001a ", "student", "001a"]])("unified login routes %s and prevents duplicate submission", async (input, role, identifier) => {
+  let complete!: (value: unknown) => void;
+  const fetchMock = vi.fn().mockImplementation((path: string) => path.endsWith("/login")
+    ? new Promise((resolve) => { complete = resolve; })
+    : Promise.resolve({ ok: false, json: async () => ({}) }));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("Username or roll number"), { target: { value: input } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong" } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  expect((screen.getByRole("button", { name: "Signing in…" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(fetchMock).toHaveBeenCalledWith(`/api/auth/${role}/login`, expect.objectContaining({ body: JSON.stringify({ identifier, password: "wrong" }) }));
+  complete({ ok: false, status: 401, json: async () => ({ detail: "Invalid credentials" }) });
+  expect(await screen.findByText("Invalid credentials")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Sign in" }) as HTMLButtonElement).disabled).toBe(false);
 });

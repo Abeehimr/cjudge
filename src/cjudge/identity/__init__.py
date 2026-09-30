@@ -107,6 +107,8 @@ def normalize_roll(value: str) -> str:
     roll = value.strip().upper()
     if not re.fullmatch(r"[A-Z0-9][A-Z0-9._/-]{0,63}", roll):
         raise ValueError("Roll number must use 1–64 letters, digits, '.', '_', '/' or '-'")
+    if roll == "ADMIN":
+        raise ValueError("ADMIN is reserved for the administrator")
     return roll
 
 

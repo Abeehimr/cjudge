@@ -16,7 +16,7 @@ export default function App() {
   const [page, setPage] = useState<"students" | "tasks" | "labs">("students");
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<"student" | "admin">("student");
+  const [signingIn, setSigningIn] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
@@ -43,13 +43,18 @@ export default function App() {
   }, [session]);
 
   async function login(event: FormEvent) {
-    event.preventDefault(); setMessage("");
+    event.preventDefault();
+    if (signingIn) return;
+    setSigningIn(true); setMessage("");
+    const username = identifier.trim();
+    const role = username.toLowerCase() === "admin" ? "admin" : "student";
     try {
       const account = await api<Session>(`/auth/${role}/login`, {
-        method: "POST", body: JSON.stringify({ identifier, password }),
+        method: "POST", body: JSON.stringify({ identifier: username, password }),
       });
       setPassword(""); setIdentifier(""); setSession(account);
     } catch (error) { setMessage((error as Error).message); }
+    finally { setSigningIn(false); }
   }
 
   async function logout() {
@@ -126,19 +131,12 @@ export default function App() {
       </nav>}
       {loading ? <p role="status">Loading…</p> : !session ? <section className="mx-auto max-w-sm rounded border bg-white p-6">
         <h1 className="text-xl font-semibold">Sign in</h1>
-        <div className="mt-4 flex gap-2" role="group" aria-label="Account type">
-          {(["student", "admin"] as const).map((option) => <button key={option} type="button"
-            className={`rounded border px-3 py-1 ${role === option ? "bg-slate-900 text-white" : ""}`}
-            aria-pressed={role === option} onClick={() => { setRole(option); setMessage(""); }}>
-            {option === "student" ? "Student" : "Admin"}
-          </button>)}
-        </div>
         <form className="mt-4 grid gap-3" onSubmit={login}>
-          <label>{role === "student" ? "Roll number" : "Username"}<input className="mt-1 w-full rounded border p-2" required
+          <label>Username or roll number<input className="mt-1 w-full rounded border p-2" required
             autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} /></label>
           <label>Password<input className="mt-1 w-full rounded border p-2" type="password" required autoComplete="current-password"
             value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-          <button className="rounded bg-slate-900 p-2 text-white">Sign in</button>
+          <button disabled={signingIn} className="rounded bg-slate-900 p-2 text-white">{signingIn ? "Signing in…" : "Sign in"}</button>
         </form>
       </section> : session.role === "student" ? <section className="rounded border bg-white p-6">
         <h1 className="text-xl font-semibold">{session.name}</h1>

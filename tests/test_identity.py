@@ -16,6 +16,10 @@ def test_global_rolls_and_csv_validation() -> None:
     ):
         with pytest.raises(ValueError):
             identity.parse_csv(payload)
+    with pytest.raises(ValueError, match="reserved"):
+        identity.normalize_roll(" admin ")
+    with pytest.raises(ValueError, match="reserved"):
+        identity.parse_csv(b"roll_number,name\nAdMiN,Student\n")
     with pytest.raises(ValueError):
         identity.normalize_name("bad\nname")
     with pytest.raises(ValueError):
