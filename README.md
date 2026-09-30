@@ -1,10 +1,10 @@
 # cJudge
 
-Offline C lab judge. M0 provides an HTTPS frontend and database. M1 adds an isolated runner. M2 adds global student accounts and login. M3 adds an admin task library with immutable grading revisions. M4 adds labs, browser binding, protected PDFs, and live announcements. Submissions remain M5.
+Offline C lab judge. M0–M4 provide HTTPS, isolation, accounts, tasks, and labs. M5 adds durable C submissions, fair asynchronous judging, a configurable sandbox pool, and an admin Isolates panel. Marks/rejudge and release/export remain later modules.
 
 ## Repository layout
 
-- `src/cjudge/`: backend, grouped into `identity/`, `tasks/`, and `labs/` packages; `api.py` assembles routes and `runner.py` provides the sandbox runner.
+- `src/cjudge/`: backend feature packages `identity/`, `tasks/`, `labs/`, `submissions/`, and `judging/`; `api.py` assembles routes and `runner.py` provides the sandbox runner.
 - `src/frontend/`: React app, package configuration, and component tests.
 - `deploy/`: nginx configuration and judge entrypoint/isolate configuration.
 - `tests/`, `migrations/`, `scripts/`, `context/`: backend checks, schema revisions, local operations, and requirements.
@@ -34,6 +34,7 @@ Stop services with `docker compose down`. The PostgreSQL volume survives contain
 - Identity gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/identity_gate.py`
 - Task gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/tasks_gate.py`
 - Lab gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/labs_gate.py`
+- Submission admission gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/submissions_gate.py`
 
 Compose has no periodic health probes. Run `sh scripts/smoke.sh` when you want a readiness check.
 
@@ -53,7 +54,7 @@ Sessions last eight hours. Logout and password resets revoke sessions. Login is 
 
 ## M3 task library
 
-After updating an existing installation, run `docker compose build api web`, then `docker compose run --rm api alembic upgrade head` and `docker compose up -d web`. Under **Admin → Tasks**, create a draft, add pasted cases or a ZIP of flat `N.in`/`N.out` pairs, review settings/cases, and publish a revision. Task statements are optional Markdown; HTML and embedded images do not render. Case downloads remain admin-only; lab students see statements and public resource limits. Judging remains M5.
+After updating an existing installation, run `docker compose build api web`, then `docker compose run --rm api alembic upgrade head` and `docker compose up -d web`. Under **Admin → Tasks**, create a draft, add pasted cases or a ZIP of flat `N.in`/`N.out` pairs, review settings/cases, and publish a revision. Task statements are optional Markdown; HTML and embedded images do not render. Case downloads remain admin-only; lab students see statements and public resource limits.
 
 ZIPs are limited to 17 MiB compressed, 16 MiB expanded, 100 paired cases, and 1 MiB per input/answer. Exact checking compares bytes, optionally ignoring one final LF/CRLF. Token checking splits ASCII whitespace, with optional case and finite-number tolerances. `src/cjudge/tasks/grading.py` defines both comparison and rational scoring for M5. Published revisions retain their original configuration and cases. Draft edits use version checks and may return 409; reload before retrying.
 
@@ -67,7 +68,7 @@ Under **Admin → Labs**, create a lab, assign ordered published revisions, enro
 
 Students select their assigned lab and explicitly **Enter lab** after start. This binds the browser; missing cookies require admin release even at the same IP. Release revokes all that student's sessions. Strict IP matching defaults off; otherwise IP changes are allowed and flagged. Browser binding remains required after the lab ends.
 
-Test announcements and PDF replacement with a student tab open: SSE refreshes materials and deadlines. Previous PDFs remain admin-only. Test **Freeze/Unfreeze**, browser release, whole-lab extension, and pre-release reopening; reasons are audited. Freeze affects future submission admission in M5, while materials stay readable. No upload/judging screen exists yet.
+Test announcements and PDF replacement with a student tab open: SSE refreshes materials and deadlines. Previous PDFs remain admin-only. Test **Freeze/Unfreeze**, browser release, whole-lab extension, and pre-release reopening; reasons are audited. Freeze blocks new submissions while materials stay readable.
 
 Back up `lab_files` with PostgreSQL. PDFs have immutable UUID paths, up to 10 active files of 20 MiB each. Interrupted transactions may leave unreferenced files; retain the volume until cleanup support arrives. API owns this volume as UID/GID 10001; if an older image initialized it as root, run `docker compose run --rm --user root api chown 10001:10001 /var/lib/cjudge-labs` before use.
 
@@ -86,9 +87,9 @@ The gate checks C11/libm compilation, compile errors, crashes, CPU/wall/memory/o
 
 ### Permissions and deployment
 
-Only `judge` receives `SYS_ADMIN`, `SYS_RESOURCE`, `NET_ADMIN` (to bring up the sandbox's loopback interface), and an unconfined **outer** seccomp profile; isolate applies its own syscall restrictions inside each sandbox. The service is not privileged, exposes no ports, mounts no host directories or Docker socket, and receives no application credentials. Its root filesystem is read-only, with a 1 GiB memory ceiling and no swap.
+Only the standalone `judge` and runtime `worker` receive `SYS_ADMIN`, `SYS_RESOURCE`, `NET_ADMIN` (to bring up the sandbox's loopback interface), and an unconfined **outer** seccomp profile; isolate applies its own syscall restrictions inside each sandbox. Neither is privileged, publishes ports, or mounts the Docker socket. The standalone gate has no application credentials/network; the runtime worker accesses PostgreSQL through an internal network. Submitted programs receive neither database credentials nor artifact mounts. Both root filesystems are read-only, with no swap.
 
-The entrypoint mounts the container's private cgroup v2 namespace, moves itself into `manager`, and enables CPU/memory/PID controllers. It never mounts the host cgroup tree. Inner programs use UID/GID 60000 with no capabilities. Compilation may spawn 32 processes; other profiles allow one. Run one judge container at a time: parallel containers need distinct UID ranges before M5 scaling.
+The entrypoint mounts the container's private cgroup v2 namespace, moves itself into `manager`, and enables CPU/memory/PID controllers. It never mounts the host cgroup tree. Inner programs use distinct UID/GIDs starting at 60000 with no capabilities. Compilation may spawn 32 processes; other profiles allow one. Run one worker container; scale its internal pool. Stop it before running standalone isolation/judging gates, which reuse the same UID range.
 
 Use `docker compose run`, not `exec`: moving the container's main process enables controller delegation, but Docker cannot insert an exec process into the now-internal cgroup. No host configuration is changed by setup. If mounts or controller delegation fail, fix the host policy; there is no unsandboxed fallback. See [upstream isolate installation guidance](https://www.ucw.cz/isolate/isolate.1.html).
 
@@ -100,4 +101,26 @@ Worker-only functions live in `src/cjudge/runner.py`: `compile_c(source)` return
 
 `Result` includes verdict, bounded full stdout, first 64 KiB of stderr, CPU/wall seconds, and peak memory in KiB. `stdout_preview` returns the first 64 KiB. `OK` means execution succeeded; AC/WA comparison is defined in M3 and wired to judging in M5. Student failures map to CE/RE/TLE/MLE/OLE. Checker and infrastructure failures raise `SandboxError`, never a student score. MLE requires a confirmed cgroup OOM kill; allocation failure without OOM is handled by the program and may produce RE.
 
-Defaults follow `context/technical-requirements.md`. Temporary storage is 64 MiB (128 MiB for compilation), capped at 1,024 inodes. Stderr is capped at 1 MiB; compiler stdout at 1 MiB; checker stdout at 64 KiB. Source is capped at 64 KiB, stdin at 10 MiB, and staged files at 16 MiB. Full output is available for future comparison before preview truncation. One locked sandbox runs at a time; writable state and cgroups are removed after every run.
+Defaults follow `context/technical-requirements.md`. Temporary storage is 64 MiB (128 MiB for compilation), capped at 1,024 inodes. Stderr is capped at 1 MiB; compiler stdout at 1 MiB; checker stdout at 64 KiB. Source is capped at 64 KiB, stdin at 10 MiB, and staged files at 16 MiB. Checking uses full permitted output before preview truncation. Each worker owns a locked sandbox; writable state and cgroups are removed after every run.
+
+## M5 submissions and sandbox pool
+
+Upgrade with `docker compose build api web worker`, then `docker compose run --rm api alembic upgrade head` and `docker compose --profile judging up -d web worker`. Database migrations must finish before starting workers. If an older image initialized the new volume as root, run `docker compose run --rm --user root api chown 10001:10001 /var/lib/cjudge-submissions` once.
+
+Set `.env` values `CJUDGE_SANDBOX_INSTANCES=2` and `CJUDGE_JUDGE_MEMORY_LIMIT=2g` for two workers. Defaults are one worker and 1 GiB. Allow at least 768 MiB per instance and leave CPU/RAM headroom for other services; startup rejects insufficient memory. Recreate both API and worker after changing the count: `docker compose --profile judging up -d --force-recreate api worker`. Do not scale worker containers with `--scale`.
+
+Students enter a running lab, select a task, and upload one nonempty `.c` file up to 64 KiB. Cooldown is 30 seconds across tasks; at most three submissions may be pending. An unconfirmed upload retains its idempotency key for **Retry upload**, including after closure. Accepted records and IP remain immutable. MAC displays as unavailable until a trusted LAN integration exists.
+
+Workers compile once and run every case independently. Students see opaque status and configured compiler feedback, not partial marks or hidden cases. Admin → Labs shows submissions, protected source downloads, and audited retries for delayed judging. Three infrastructure attempts exhaust the automatic budget; unresolved faults never become student zeros. Admin → Isolates shows configured/healthy/working counts, heartbeats, current work, and sanitized faults. Startup checks prove each sandbox works; 10-second busy and 30-second idle heartbeats establish liveness. SSE refreshes views; no recurring sandbox or HTTP health probes run.
+
+Back up `submission_files` together with PostgreSQL and task/lab volumes. Workers mount source/task volumes read-only. Remove unreferenced source artifacts with `docker compose run --rm api python -m cjudge.submissions.files`; its database lock prevents racing accepted uploads. It never removes referenced evidence.
+
+Run the end-to-end gate with the runtime worker stopped:
+
+```sh
+CJUDGE_JUDGE_MEMORY_LIMIT=2g docker compose run --rm -e CJUDGE_SANDBOX_INSTANCES=2 \
+  -v ./tests:/app/tests:ro -v ./migrations:/app/migrations:ro \
+  -v ./alembic.ini:/app/alembic.ini:ro worker python -u tests/judging_gate.py
+```
+
+The gate uses a disposable database and temporary artifacts. It checks all verdicts, recovery after killing a worker, deadline admission, secrecy, feedback policy, and admin SSE revocation. On September 30, 2026, Ryzen 5 7430U (6 cores/12 threads), 15 GiB RAM, Linux/cgroup v2, two workers capped at 2 GiB: 150 integer-sum submissions with ten cases each uploaded in 1.30 seconds and finished in 17.83 seconds. This simple fixture is not the full M9 performance acceptance test; timeout-heavy behavior is tested separately for correctness.

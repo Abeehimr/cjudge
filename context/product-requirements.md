@@ -1,6 +1,6 @@
 # Product Requirements
 
-Source of truth for cJudge v1 product behavior. M0–M4 are implemented; subsequent modules remain planned. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
+Source of truth for cJudge v1 product behavior. M0–M5 are implemented; subsequent modules remain planned. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
 
 ## Scope
 
@@ -29,6 +29,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 - Accept one `.c` file up to 64 KiB only after complete upload, validation, and durable acceptance strictly before the deadline. Queued judging may finish afterward.
 - Save each accepted submission's client IP and MAC address when available from a trusted LAN source. Admin review shows these values and flags changes across a student's submissions within the lab as possible PC switches, not proof. Missing MAC values display as unavailable and do not block submission.
 - Enforce a 30-second cooldown across tasks and at most three pending submissions per student. Rejudge jobs do not consume upload slots.
+- Configure independent sandbox instances through the environment. Admin's Isolates panel shows configured, healthy, and working counts, current work, heartbeat freshness, and faults.
 - Show Queued, Judging, Passed/Failed, configured compile-error feedback, or Judging delayed. Compile-error feedback defaults to approximately 20 lines, with full/verdict-only options.
 - During labs, expose no partial marks or hidden-case details. Scoreboards may be disabled, admin-only (default), or student-visible with solved tasks only.
 

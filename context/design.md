@@ -1,6 +1,6 @@
 # Design
 
-Proposed organization for the requirements in [product-requirements.md](product-requirements.md). M0–M4 are implemented; later modules remain planned. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M5 are implemented; later modules remain planned. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -16,7 +16,9 @@ flowchart LR
     Workers --> Sandbox[isolate]
 ```
 
-Docker Compose separates `web` (nginx + frontend), `api`, `db`, and `judge` (worker + isolate). The API owns authentication, authorization, lab policy, admission, marks, and release. PostgreSQL holds metadata/jobs; persistent protected volumes hold artifacts. Workers judge asynchronously. Only web ports are public; nginx delivers protected files after authorization. Validate judge-container cgroup permissions before accepting submissions.
+Docker Compose separates `web`, `api`, `db`, and runtime `worker`; standalone `judge` runs isolation gates without networking. The worker container holds an environment-configured process pool, with independent isolate boxes/cgroups/UIDs. PostgreSQL distributes fair leased jobs. The API owns authentication, lab policy, and admission; marks/release remain planned. Only web ports are public. Protected volumes hold artifacts; workers mount source/test data read-only.
+
+Admin Isolates uses worker registration, startup sandbox checks, and heartbeat freshness rather than periodic probes. Admin SSE carries invalidations; stale workers become Offline locally even if updates disconnect. Student SSE refreshes admission/history without exposing hidden grading data.
 
 Suggested backend boundaries: identity, tasks, labs, submissions, judging, results, and exports. Keep scoring and timing policy separate from HTTP handlers; keep sandbox management in worker-only code.
 

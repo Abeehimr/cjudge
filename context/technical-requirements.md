@@ -1,11 +1,11 @@
 # Technical Requirements
 
-Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M4 are implemented; later module requirements remain planned.
+Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M5 are implemented; later module requirements remain planned.
 
 ## Stack and Storage
 
 - FastAPI, SQLAlchemy 2, Alembic, PostgreSQL; React/TypeScript/Vite, Tailwind, TanStack Query; nginx with HTTPS and local assets.
-- Docker Compose services: `web` (nginx + built frontend), `api`, `db` (PostgreSQL), and `judge` (worker + isolate/cgroup v2). PostgreSQL queue with `FOR UPDATE SKIP LOCKED`; no Redis requirement.
+- Docker Compose services: `web`, `api`, `db`, runtime `worker` (process pool + isolate/cgroup v2), and standalone `judge` gate. PostgreSQL queue with `FOR UPDATE SKIP LOCKED`; no Redis requirement.
 - Publish only web ports; keep API, database, and judge communication internal. Persist database/artifacts in volumes with service-specific access. Do not mount the Docker socket into application services.
 - Validate the judge container's cgroup delegation, capabilities, and mounts on target Linux before implementation depends on it. Keep required elevated permissions confined to `judge`; never silently enable privileged mode across services. Upstream cautions that containerized isolate may need privileged execution: [isolate installation notes](https://github.com/ioi/isolate/blob/master/isolate.1.txt). Docker service separation does not replace the inner execution sandbox.
 - The scaffold requires Python 3.14+. Verify dependency compatibility before pinning versions.
@@ -35,6 +35,10 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 - Use immutable checker/test revisions. Python checkers expose `read_input()`, `read_output()`, `read_answer()`, `accept()`, and `reject()` and return binary case outcomes.
 - Run generation asynchronously with bounded resources and persist reviewed cases; do not regenerate during judging.
 - Size configurable workers using CPU and memory headroom; support at least one worker on a single-core host. Benchmark before increasing concurrency.
+- M5: `CJUDGE_SANDBOX_INSTANCES=1` (1–32); `CJUDGE_JUDGE_MEMORY_LIMIT=1g`, at least 768 MiB per instance. One runtime container with distinct box IDs/UIDs; recreate API/worker after count changes. PostgreSQL allows 200 connections for the maximum pool.
+- Claims serialize briefly to order students by last claim, then FIFO submissions. Leases last 60 seconds; busy heartbeats every 10 seconds; idle LISTEN/recovery timeout 30 seconds. Three automatic attempts then audited admin retry; delayed jobs retain pending slots. Attempt IDs and worker generations fence writes.
+- Isolates status is admin-only: Starting/Idle/Judging/Faulted/Offline, last heartbeat/current job/completed count. Startup runs one compile/execute check; freshness expires after 90 seconds or an expired active lease. SSE delivers invalidations; no periodic sandbox/HTTP health probes.
+- Upload UUID idempotency keys are scoped to student/lab. Filename, pinned revision, and SHA-256 must match on replay; original IP/time never change. Durability precedes database acceptance. Cleanup takes an exclusive artifact lock; uploads share it until commit.
 
 ## Isolation and Limits
 
@@ -79,7 +83,7 @@ Use pytest, Vitest, and disposable-database module gates; no coverage threshold 
 
 ## Remaining Decisions
 
-M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. Before the relevant component is built, specify Python helper protocol; generator invocation, seeds, manifest and limits; stderr/temp/ZIP/diagnostic caps; upload idempotency; submission SSE contracts; lease timing; generation scheduling; correction-batch transactions; and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
+M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. M5 defines upload idempotency, SSE invalidations, lease timing, and bounded compiler/case previews. Before later components are built, specify Python helper protocol; generator invocation, seeds, manifest and limits; generation scheduling; correction-batch transactions; trusted MAC integration; and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
 
 Before deployment, confirm CPU/RAM/disk/OS, representative benchmark fixtures, LAN DHCP/NAT/proxy behavior, HTTPS trust distribution, clock/storage monitoring, retention capacity, and who preserves downloaded archives.
 

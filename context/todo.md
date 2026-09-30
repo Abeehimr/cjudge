@@ -43,12 +43,13 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M5 — Submission Pipeline · v0.4 · requires M1, M4
 
-- [ ] Add durable uploads, idempotent retries, cooldown, and pending limits.
-- [ ] Save acceptance-time IP and optional trusted LAN MAC metadata; choose the MAC source before implementation.
-- [ ] Implement fair queue, leases, heartbeats, retries, and stale-attempt rejection.
-- [ ] Connect judging, submission history, compiler feedback, and SSE refresh.
-- [ ] **Test:** acceptance races, worker/storage failures, duplicate requests, delayed judging, reconnects, live-data secrecy.
-- [ ] Benchmark representative submissions on target hardware.
+- [x] Add durable uploads, idempotent retries, cooldown, and pending limits.
+- [x] Save acceptance-time IP; reserve nullable MAC/source/time for a future trusted LAN integration.
+- [x] Implement fair queue, leases, heartbeats, retries, and stale-attempt rejection.
+- [x] Add configurable independent sandbox workers and admin Isolates status via SSE.
+- [x] Connect judging, submission history, compiler feedback, and SSE refresh.
+- [x] **Test:** acceptance races, worker/storage failures, duplicate requests, delayed judging, reconnects, live-data secrecy.
+- [x] Benchmark 150 integer-sum submissions with ten cases and two workers; deployment acceptance remains M9.
 
 ## M6 — Marks and Rejudge · v0.5 · requires M5
 
