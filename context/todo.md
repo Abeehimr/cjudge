@@ -78,11 +78,11 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M8 — Release and Exports · v0.7 · requires M6
 
-- [ ] Add own-submission student detail URLs after release; deny source/detail endpoints before release or while reveal is disabled. Preserve live status/compiler-feedback policy.
-- [ ] Add release gates, reuse warnings, failed-case detail, and output previews.
-- [ ] Add configured scoreboards and CSV/XLSX mark sheets.
-- [ ] Add versioned lab archives and separate permanent-deletion action.
-- [ ] **Test:** unresolved-job blocking, release/reopen rules, ownership, truncation, formula safety, archive completeness.
+- [x] Add audited Stop now; preserve accepted work and pre-release reopening.
+- [x] Add release/reveal gates, reuse warnings, own-submission detail/source, retained runs and bounded failed-case previews.
+- [x] Add formula-safe final CSV mark sheets; XLSX omitted and scoreboards deferred.
+- [x] Add explicit read-only archiving, verified versioned lab ZIPs and separate guarded permanent deletion.
+- [x] **Test:** stop/version races, unresolved work, release/reopen rules, ownership/binding/revocation, truncation, CSV safety, archive completeness/hashes, deletion and cleanup recovery.
 
 ## M9 — Deployment Acceptance · v1.0 · requires M7, M8
 

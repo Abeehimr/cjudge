@@ -1,16 +1,16 @@
 # Product Requirements
 
-Source of truth for cJudge v1 product behavior. M0–M5 are implemented; subsequent modules remain planned. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
+Source of truth for cJudge v1 product behavior. M0–M8 are implemented; deployment acceptance remains M9. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
 
 ## Scope
 
 An offline-operable LAN judge for C programming labs: one admin, one active lab, 150 students, five tasks, ten cases per task, and a two-hour lab. Installation and maintenance may use internet; running a lab must not.
 
-Deferred: other submission languages, TAs/multiple admins, concurrent labs, individual extensions, weighted cases, subtask groups, testlib, plagiarism detection, an in-browser editor, offline installation bundles, automated backups, server restoration, and archive import.
+Deferred: other submission languages, TAs/multiple admins, concurrent labs, individual extensions, weighted cases, subtask groups, testlib, plagiarism detection, scoreboards, an in-browser editor, offline installation bundles, automated backups, server restoration, and archive import.
 
 ## Accounts and Tasks
 
-- Keep one global account and unique credentials per student across labs. Create accounts manually or from CSV; retain existing credentials and flag name mismatches. Admin can reprint credentials and reset student passwords. Keep admin authentication separate. Enroll accounts into labs in M4.
+- Keep one global account and unique credentials per student across labs. Create accounts manually or from CSV; retain existing credentials and flag name mismatches. Admin can reprint credentials and reset student passwords. Use one login form with server-enforced role separation. Enroll accounts into labs in M4.
 - Bind each student's browser per lab. Missing/invalid tokens require admin release even at the same IP; release revokes old sessions. Allow and flag IP changes with a valid token; optional strict mode requires matching IPs.
 - Tasks have a title, optional Markdown statement, maximum marks, scoring mode, checker, and resource limits. Require at least one case before publication; no per-task PDF is required or stored.
 - Accept paired `N.in`/`N.out` ZIPs, pasted cases, and reviewed output from sandboxed Python/C generators with a reference C solution.
@@ -22,6 +22,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 - Lifecycle: Draft → Scheduled → Running → Ended → Results released → Archived. Hide lab PDFs and task statements until start and allow only assigned students to participate.
 - Freeze task assignments and enrollment removals at start; allow late enrollment additions.
 - Require explicit Enter lab to bind the browser, including after the lab ends.
+- Admin may stop a running lab immediately with confirmation and a reason. Stop closes new uploads but finishes accepted judging; reopening remains possible before first release.
 - Admin may freeze/unfreeze new submissions per student and lab with an audit reason; retain materials access and prior accepted work. Unfreezing adds no time.
 - Admin posts plain-text announcements; enrolled students can read the full history after start.
 - Use a common server-authoritative deadline. Allow whole-lab extensions and reopening before first release; never reopen after release, even if results are hidden again.
@@ -31,7 +32,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 - Enforce a 30-second cooldown across tasks and at most three pending submissions per student. Rejudge jobs do not consume upload slots.
 - Configure independent sandbox instances through the environment. Admin's Isolates panel shows configured, healthy, and working counts, current work, heartbeat freshness, and faults.
 - Show Queued, Judging, Passed/Failed, configured compile-error feedback, or Judging delayed. Compile-error feedback defaults to approximately 20 lines, with full/verdict-only options.
-- During labs, expose no partial marks or hidden-case details. Scoreboards may be disabled, admin-only (default), or student-visible with solved tasks only.
+- During labs, expose no partial marks or hidden-case details. Scoreboards are deferred.
 
 ## Navigation
 
@@ -49,13 +50,14 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 
 ## Release and Exports
 
-- Release manually after the lab ends; block release and final mark sheets while active judging/rejudging remains unresolved. Admins may retry or explicitly invalidate affected runs.
-- After release, show each active submission's marks, per-case verdicts, and failed-case inputs, expected outputs, and student stdout/stderr. Retain the first 64 KiB per stream/case and label truncation.
+- Release manually after the lab ends; block release and final mark sheets while active judging/rejudging remains unresolved. Admins may retry or exclude affected attempts through audited soft deletion.
+- After release with reveal enabled, show each active submission's source, marks, all retained grading runs, per-case verdicts, and failed-case inputs, expected outputs, and student stdout/stderr. Retain the first 64 KiB per stream/case and label truncation.
 - Open submissions from history on a dedicated page with inline source and details. Admins can inspect submissions before release; students can inspect only their own after release while reveal is enabled. During labs, keep student histories limited to status and configured compiler feedback.
 - Warn before revealing tests used by another scheduled lab. Admin controls release timing; hiding results cannot undo disclosure.
-- Students access only their own private data, apart from the configured scoreboard.
-- CSV/XLSX exports contain roll number, name, per-task marks/pass percentages, total marks, active submission count, and last active submission time. Percentages come from counted submissions.
-- Lab ZIPs include lab PDFs, optional task Markdown statements, tests, configurations/revisions, all retained sources including deleted attempts, judge history, marks, and audit records. Export does not delete the lab; permanent deletion is a separate action after successful export. ZIPs are not full-server backups.
+- Students access only their own private data, with no student access to network metadata or infrastructure diagnostics.
+- CSV exports contain roll number, name, per-task marks/pass percentages, total marks, active submission count, and last active submission time. Percentages come from counted submissions.
+- Explicit Archive after release freezes lab and grading edits; reveal and exports remain available.
+- Lab ZIPs include lab PDFs, optional task Markdown statements, tests, configurations/revisions, all retained sources including deleted attempts, judge history, marks, and audit records. Export does not delete the lab; permanent deletion requires a current verified export, saved-copy acknowledgment, matching typed lab title, and audit reason. Global accounts and shared tasks remain. ZIPs are not full-server backups.
 
 ## Success Targets
 

@@ -1,6 +1,6 @@
 # cJudge
 
-Offline C lab judge. M0–M4 provide HTTPS, isolation, accounts, tasks, and labs. M5 adds durable C submissions, fair asynchronous judging, a configurable sandbox pool, and an admin Isolates panel. M6 adds official marks, audited deletion/restoration, rejudge history, and atomic task corrections. Python authoring and release/export remain planned.
+Offline C lab judge. M0–M4 provide HTTPS, isolation, accounts, tasks, and labs. M5 adds durable C submissions, fair asynchronous judging, a configurable sandbox pool, and an admin Isolates panel. M6 adds official marks, audited deletion/restoration, rejudge history, and atomic task corrections. M7 adds sandboxed Python/C test generation and Python checkers. M8 adds Stop now, release-gated student details, CSV sheets, verified ZIP archives, and guarded permanent deletion.
 
 ## Repository layout
 
@@ -142,7 +142,7 @@ Admin lab overview and student/task pages show official best marks, rounded half
 
 Open a submission to delete/restore it with a reason, rejudge it, retry delayed work, or inspect retained runs and case inputs. Rejudges preserve earlier official results until success and do not consume upload slots. Network flags compare all retained lab evidence; missing MACs are ignored and differences are not proof of a PC switch. Trusted MAC capture remains planned.
 
-For corrections, publish a revision in the task library, then select it on the assigned task page. New uploads use that revision; old task URLs still open the current task, and previously accepted upload retries retain their original revision/key. Existing active submissions form a correction batch. Official results switch together after active members resolve; infrastructure faults block publication until repaired/retried. Deleting a member removes it from the publication gate; restoring it adds it back or queues current-revision judging after publication. Post-release corrections require a warning and reason and never reopen a lab. Student marks/details remain unavailable until M8.
+For corrections, publish a revision in the task library, then select it on the assigned task page. New uploads use that revision; old task URLs still open the current task, and previously accepted upload retries retain their original revision/key. Existing active submissions form a correction batch. Official results switch together after active members resolve; infrastructure faults block publication until repaired/retried. Deleting a member removes it from the publication gate; restoring it adds it back or queues current-revision judging after publication. Post-release corrections require a warning and reason and never reopen a lab. M8 student detail reads require release, reveal, ownership and a valid binding.
 
 For real sandbox rejudging, stop the runtime worker and run:
 
@@ -177,3 +177,24 @@ docker compose up -d worker
 ```
 
 The disposable gate verifies real byte helpers/AC/WA/faults, full student output, reproducible Python/C seeds, reference failures, authorization/CSRF, staged apply/publication, lease fencing, bounded retries, and live worker kill/restart recovery. `api python tests/authoring_gate.py` runs its database/API checks without isolate.
+
+
+## M8 stop, release and exports
+
+Rebuild API/web/worker, stop API/worker, run `docker compose run --rm api alembic upgrade head`, then restart services. M8 adds migrations through `20261005_delete` and protected `export_files` (API UID 10001, mode 700); back it up with PostgreSQL and other artifact volumes.
+
+On a running lab overview, **Stop now** requires confirmation and a reason. It closes new uploads at server time; accepted uploads keep judging. Reopen is allowed only before first release.
+
+After the lab ends, resolve active judging/rejudge/correction jobs before **Release results**. Retry infrastructure faults or exclude attempts with an audited soft deletion. Reused scheduled tests require acknowledgment, including visible post-release corrections. **Hide results** blocks student source/details without undoing past disclosure; first release permanently prevents reopening.
+
+Students open their own submissions from task/lab history while reveal is enabled. Detail pages show escaped source, official marks, retained grading runs and failed-case input/expected/stdout/stderr previews (64 KiB each, labeled when truncated). Binding, ownership and visibility are checked on every read. Network metadata and infrastructure diagnostics remain admin-only.
+
+**Download final CSV** uses official marks and safe spreadsheet cells; XLSX and scoreboards are deferred. **Archive lab** freezes lab/grading edits. **Generate lab ZIP** is separate and includes retained/deleted evidence, PDF versions, revision tests/configurations, marks and audits. `manifest.json` format version 1 records entry sizes/hashes; `snapshot.json` stores byte streams as Base64 objects. Verify the downloaded ZIP against the displayed SHA-256 and keep a saved copy. ZIPs are not server backups and import is unsupported.
+
+Permanent deletion requires an archived lab, a current verified export, saved-copy acknowledgment, typed lab title and audit reason. It preserves global accounts/shared tasks and deletion audits. File failures leave retry records: send authenticated, CSRF-protected `POST /api/admin/labs/<lab-id>/cleanup` to retry. Unreferenced export ZIPs after interrupted/uncertain commits remain protected; M9 will define retention/capacity operations.
+
+```sh
+docker compose run --rm -v ./tests:/app/tests:ro api python tests/release_gate.py
+```
+
+The disposable M8 gate checks fresh/existing migration paths, stop/version races, upload recovery, release/reuse rules, student binding/ownership/secrecy, retained runs, previews, CSV safety, ZIP hashes/completeness, deletion protections and cleanup recovery. It does not execute student programs.

@@ -1,6 +1,6 @@
 # Technical Requirements
 
-Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M7 are implemented; later module requirements remain planned.
+Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M8 are implemented; deployment acceptance remains M9.
 
 ## Stack and Storage
 
@@ -28,7 +28,7 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 - Snapshot `client_ip` and nullable `client_mac` with MAC source/observation time on durable submission acceptance; preserve the original values on retries and rejudges. Reuse trusted-proxy IP handling. Browsers cannot expose client MAC addresses; use a trusted LAN lookup/integration, never student-supplied values. MAC lookup depends on network topology and may be unavailable across routers, NAT, or Docker networking. Do not block acceptance on lookup failure; select the trusted source before implementing MAC capture.
 - Keep submission network metadata admin-only and retain it in lab archives. Compare IPs and available MACs across each student's lab submissions; missing MACs are not changes. DHCP, multiple interfaces, and MAC randomization mean differences suggest a PC switch rather than establish one.
 - Separate student/admin response models; never send hidden data for browser-side filtering. Authorize PDFs, downloads, and SSE as well as ordinary API calls.
-- Admin submission detail reads are scoped by lab and submission UUID, with no-store responses and escaped source/diagnostics. M8 must authorize student detail/source reads by ownership, binding, release, and current reveal state; no source or case detail is sent to students before release. Add failed-case input/expected output and judge/rejudge history with their planned modules.
+- Admin submission detail reads are scoped by lab and submission UUID, with no-store responses and escaped source/diagnostics. M8 authorizes student detail/source reads by ownership, binding, release, and current reveal state; no source or case detail is sent to students before release. Failed-case input/expected output and retained runs are available under the same gates.
 - Lab SSE carries invalidations via one PostgreSQL LISTEN connection per API process. Reconnect with an authoritative snapshot; coalesce notifications, revalidate revoked sessions, and send keepalives without database polling.
 - Anchor countdowns to server time and monotonic elapsed client time. Refresh on phase boundaries and tab visibility; no recurring health probes.
 - Use PostgreSQL range exclusion for nonoverlapping schedules, lab row locks/version checks for setup, and enrollment locks for binding and freeze policy. Submission admission in M5 must reuse these locks and policy.
@@ -58,7 +58,7 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 - Prioritize initial jobs over rejudges. Rejudge jobs do not consume upload slots. Fence superseded attempts, retain prior official runs during faults, and use each selected run's revision for case inputs.
 - Serialize correction/review changes under the lab lock. Permit one active correction per lab task, including running and released labs; released labs stay closed. New uploads use the target revision while old official results remain visible.
 - Publish staged results atomically when every active snapshot member resolves. Include completed concurrent uploads in the switch; unfinished uploads remain pending. Deletion removes a member from the gate; restoration requires current-target work. Retry infrastructure failures instead of inventing zeros. Worker startup recovers publication interrupted after the final result commit.
-- Admin endpoints provide marks, best/latest attempt order, review mutations, rejudge/history, and correction progress. Student disclosure gates remain M8; trusted MAC capture remains unimplemented.
+- Admin endpoints provide marks, best/latest attempt order, review mutations, rejudge/history, and correction progress. Student disclosure gates are implemented in M8; trusted MAC capture remains unimplemented.
 
 ## M7 Authoring
 
@@ -84,6 +84,18 @@ All compilation, student execution, custom checking, and generation run in separ
 | Compilation | 10 s, 512 MiB; GCC `-O2`, C11, libm |
 
 Compare full permitted stdout before retaining previews. Bound stderr, temporary storage, compiler diagnostics, checker output, and generator output independently. Use unique sandbox identities and cleanup after success, failure, timeout, or recovery.
+
+## M8 Release and Exports
+
+- Stop now changes the deadline under the lab lock/version check using server time; keep accepted uploads and retries intact.
+- Preserve first release permanently and store current reveal separately. Active unresolved jobs/corrections block release and final exports; audited soft-deleted attempts do not block.
+- Serialize scheduled test selection and disclosure checks. Require reuse acknowledgment before revealing or applying visible post-release corrections involving scheduled tests, including retained revisions.
+- Students read only their own active source/details after release with reveal enabled and valid binding. Retained grading runs are visible; infrastructure attempts/network metadata remain admin-only. Failed-case byte previews are capped at 64 KiB with truncation flags.
+- CSV uses official exact marks and counted-run percentages; neutralize untrusted formula-like text. XLSX and scoreboards are omitted.
+- Explicit archiving freezes lab/review/correction changes and fences unfinished excluded jobs. ZIP generation uses protected `export_files`, metadata snapshots and optimistic evidence revalidation; disk work runs outside DB transactions.
+- Manifest `cjudge-lab` version 1 lists paths, sizes and SHA-256 hashes; `snapshot.json` encodes binary judge streams as `{base64: ...}`. Verify every entry before recording an export receipt. Exclude credentials/session/binding secrets and unrelated labs.
+- Deletion requires an archived lab, current evidence/version receipt, valid ZIP hash, saved-copy acknowledgment, matching title and audit reason. A transaction-local lab identifier narrowly enables the immutable-submission trigger exception; ordinary updates/deletes remain forbidden.
+- Persist cleanup records before deleting lab rows; retry failed source/PDF/ZIP cleanup through the admin endpoint. Preserve shared tasks/accounts and deletion audits. Unreferenced ZIPs after uncertain commits remain protected; retention/orphan cleanup belongs to M9 operations.
 
 ## Security and Operations
 
@@ -113,7 +125,7 @@ Use pytest, Vitest, and disposable-database module gates; no coverage threshold 
 
 ## Remaining Decisions
 
-M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. M5 defines upload idempotency, SSE invalidations, lease timing, and bounded compiler/case previews. M7 defines byte checker helpers, seeded generation, protected provenance, and shared-pool scheduling below. Remaining contracts: trusted MAC integration and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
+M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. M5 defines upload idempotency, SSE invalidations, lease timing, and bounded compiler/case previews. M7 defines byte checker helpers, seeded generation, protected provenance, and shared-pool scheduling below. Remaining contracts: trusted MAC integration. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
 
 Before deployment, confirm CPU/RAM/disk/OS, representative benchmark fixtures, LAN DHCP/NAT/proxy behavior, HTTPS trust distribution, clock/storage monitoring, retention capacity, and who preserves downloaded archives.
 

@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M7 are implemented; later modules remain planned. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M8 are implemented; later modules remain planned. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -16,7 +16,7 @@ flowchart LR
     Workers --> Sandbox[isolate]
 ```
 
-Docker Compose separates `web`, `api`, `db`, and runtime `worker`; standalone `judge` runs isolation gates without networking. The worker container holds an environment-configured process pool, with independent isolate boxes/cgroups/UIDs. PostgreSQL distributes fair leased jobs. The API owns authentication, lab policy, and admission; release/export remain planned. Only web ports are public. Protected volumes hold artifacts; workers mount source/test data read-only. API and workers share writable `authoring_files` for protected staged generation and cached binaries. Student isolate processes cannot access this volume.
+Docker Compose separates `web`, `api`, `db`, and runtime `worker`; standalone `judge` runs isolation gates without networking. The worker container holds an environment-configured process pool, with independent isolate boxes/cgroups/UIDs. PostgreSQL distributes fair leased jobs. The API owns authentication, lab policy, and admission; release/export are implemented with shared grading and lab policies. Only web ports are public. Protected volumes hold artifacts; workers mount source/test data read-only. API and workers share writable `authoring_files` for protected staged generation and cached binaries. Student isolate processes cannot access this volume.
 
 Admin Isolates uses worker registration, startup sandbox checks, and heartbeat freshness rather than periodic probes. Admin SSE carries invalidations; stale workers become Offline locally even if updates disconnect. Student SSE refreshes admission/history without exposing hidden grading data.
 
@@ -32,7 +32,7 @@ Use a DOMjudge-inspired layout for both student and admin interfaces: compact na
 | Lab countdown, lab PDF links, and ordered task table | Lab overview, PDF uploads, common deadline, student table, progress |
 | Optional task Markdown, file upload, submission history table | Task library, Markdown textarea/preview, test editor, generation review, revisions |
 | Submission status and released details | Submission filters, best-to-worst attempts, deleted runs, judging faults |
-| Optional solved-task scoreboard | Corrections, release, marks, archive export |
+| Own retained grading runs | Corrections, release, marks, archive export |
 
 Use one login form with username/roll number and password. Detect `admin` automatically, case-insensitively; reserve that identifier from student roll numbers.
 
@@ -50,7 +50,7 @@ Navigation uses browser URLs, breadcrumbs, and lab sections. Refresh and Back/Fo
 
 - Admin: global Labs, Students, Task Library, and Isolates. Each lab has Overview (settings, schedule, PDFs, announcements, compiler feedback), Students (enrollment), Tasks (assignments), and Submissions (newest first).
 - Admin student detail: identity, binding/IP, freeze/release controls, and that student's lab submissions. Admin task detail: assigned revision statement/limits and task submissions; editing stays in the task library.
-- Admin submission detail: `/admin/labs/:labId/submissions/:submissionId`, inline escaped source, download, current status/score, compiler feedback, case verdicts/resources/input/output previews, and IP/MAC. Inputs come from the pinned immutable revision. Available before release. Student own-submission detail and failed-case input/expected output disclosure are planned for M8, with server-enforced release/reveal authorization.
+- Admin submission detail: `/admin/labs/:labId/submissions/:submissionId`, inline escaped source, download, current status/score, compiler feedback, case verdicts/resources/input/output previews, and IP/MAC. Inputs come from the pinned immutable revision. Available before release. Student `/labs/:labId/submissions/:submissionId` shows own source and retained grading runs after release with reveal enabled; failed-case previews enforce server authorization and size limits.
 - Student: assigned labs, lab overview with PDFs/announcements/task links, task statement/limits/upload/task history together, and own lab submission history. Submissions stay per lab; no global submission page.
 - Existing browser bindings resume through authorized reads. Creating a binding still requires explicit entry. Dirty forms warn before navigation; unconfirmed upload files/keys survive within the lab session. Reload requires file reselection and warns before discarding it. Credentials and sources are never stored in browser storage.
 
@@ -71,7 +71,7 @@ Navigation uses browser URLs, breadcrumbs, and lab sections. Refresh and Back/Fo
 - Rejudge batch, audit event, and export metadata.
 - Generation job, leased attempts, checkpointed cases, and retained source/seed/hash provenance.
 
-Submissions retain immutable evidence. `submission_reviews` holds deletion state and official-run pointers; `judge_jobs` holds current work while attempts/runs retain history. `correction_batches` and `correction_members` stage atomic replacements. First-release history and current reveal visibility remain separate M8 concerns.
+Submissions retain immutable evidence. `submission_reviews` holds deletion state and official-run pointers; `judge_jobs` holds current work while attempts/runs retain history. `correction_batches` and `correction_members` stage atomic replacements. First-release history, current reveal visibility, and explicit archiving remain separate states. `lab_exports` holds verified snapshot receipts; `lab_cleanup_files` retains cleanup work after permanent deletion.
 
 ## Main Flows
 
@@ -79,7 +79,7 @@ Submissions retain immutable evidence. `submission_reviews` holds deletion state
 2. **Judge:** claim a lease, compile, execute every case in clean environments, check complete permitted output, and publish results only for the current attempt.
 3. **Correct:** publish a revision, queue all affected active attempts, preserve prior results, and switch official marks together after the replacement batch succeeds. New uploads target the correction revision; active existing attempts form the publication gate. Deleted members do not block, and restoration adds missing work. Lab locks serialize acceptance, review changes, and publication.
 4. **Release:** verify lab closure and resolved judging, warn on test reuse, record first release permanently, and enable authorized details.
-5. **Export:** use official marks for sheets and include retained history in archives; never implicitly delete data.
+5. **Export:** use official marks for CSV and include retained history in verified ZIPs. Explicit Archive locks edits; permanent deletion separately requires a current saved archive.
 
 Generation uses the existing worker pool after submission/rejudge work. Each seed checkpoints one case and yields. Admins preview staged results and explicitly append to cases in an unchanged draft; publication remains a separate immutable operation. Python checker helpers run in a separate checker sandbox with input, complete output, and answer bytes.
 
