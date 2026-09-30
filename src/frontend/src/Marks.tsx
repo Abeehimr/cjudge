@@ -43,17 +43,15 @@ export function Corrections({ lab, task, csrf, refreshLab, onDirty }: { lab: Adm
   const latest = useRef(0);
   async function refresh() {
     const request = ++latest.current;
-    try { const values = await api<Batch[]>(`/admin/labs/${lab.id}/corrections`);
-      if (request === latest.current) { setBatches(values); setError(""); } }
+    try { const [values, library] = await Promise.all([api<Batch[]>(`/admin/labs/${lab.id}/corrections`),
+        api<{ revisions: { id: string; number: number }[] }>(`/admin/tasks/${task.task_id}`)]);
+      if (request === latest.current) { setBatches(values); setOptions(library.revisions); setError(""); } }
     catch (e) { if (request === latest.current) setError((e as Error).message); }
   }
   useAdminEvents(refresh);
   useEffect(() => {
-    const controller = new AbortController();
-    void api<{ revisions: { id: string; number: number }[] }>(`/admin/tasks/${task.task_id}`, { signal: controller.signal })
-      .then((value) => setOptions(value.revisions)).catch((e) => { if (!controller.signal.aborted) setError(e.message); });
     void refresh();
-    return () => { controller.abort(); latest.current++; };
+    return () => { latest.current++; };
   }, [lab.id, task.task_id]);
   useEffect(() => { onDirty(busy || !!revision || !!reason); }, [busy, revision, reason]);
   useEffect(() => () => onDirty(false), []);

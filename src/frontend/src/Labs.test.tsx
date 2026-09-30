@@ -167,3 +167,31 @@ test('removing enrollment from student detail returns to the roster with one con
   expect(router.state.location.pathname).toBe('/admin/labs/lab/students');
   expect(confirm).toHaveBeenCalledTimes(1);
 });
+
+test('task corrections preserve unconfirmed uploads with the original revision and retry key', async () => {
+  live(); vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+  const task = { ...materials.tasks[0], previous_revision_ids: [] as string[] };
+  let current = { ...materials, tasks: [task], admission: { allowed: true, reason: '', code: '', pending: 0, retry_at: null, server_time: summary.server_time } };
+  let attempts = 0;
+  const fetchMock = vi.fn().mockImplementation((path: string, options: RequestInit) => {
+    if (options.method === 'POST') {
+      if (++attempts === 1) return Promise.reject(new TypeError('Connection lost'));
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ id: 'submission', filename: 'main.c', accepted_at: summary.server_time }) });
+    }
+    return Promise.resolve({ ok: true, status: 200, json: async () => path.includes('/submissions') ? [] : path === '/api/labs' ? [summary] : current });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab/tasks/revision');
+  fireEvent.change(await screen.findByLabelText(/C file/), { target: { files: [new File(['int main(void){}'], 'main.c')] } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+  await screen.findByRole('button', { name: 'Retry upload' });
+  current = { ...current, tasks: [{ ...task, revision_id: 'corrected', previous_revision_ids: ['revision'] }] };
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh lab' }));
+  await screen.findByText(/Task corrected/);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry upload' }));
+  await screen.findByText(/Accepted main.c/);
+  const posts = fetchMock.mock.calls.filter(([, options]) => options.method === 'POST');
+  expect(posts[0][0]).toContain('revision_id=revision');
+  expect(posts[1][0]).toContain('revision_id=revision');
+  expect(posts[0][1].headers['Idempotency-Key']).toBe(posts[1][1].headers['Idempotency-Key']);
+});

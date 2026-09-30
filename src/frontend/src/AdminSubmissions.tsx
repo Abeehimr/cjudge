@@ -90,7 +90,7 @@ export function AdminSubmissionDetail({ labId, submissionId, csrf, released }: {
   const [row, setRow] = useState<SubmissionDetail | null>(null), [error, setError] = useState("");
   const [params, setParams] = useSearchParams(), [busy, setBusy] = useState(false);
   const run = params.get('run') || '';
-  useUnsaved(busy);
+  useUnsaved(busy, true);
   const latest = useRef(0);
   async function refresh() {
     const request = ++latest.current;
