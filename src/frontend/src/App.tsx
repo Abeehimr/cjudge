@@ -10,9 +10,6 @@ type Credential = Student & { password: string };
 type ImportResult = { created: string[]; existing: string[]; name_mismatches: string[] };
 
 export default function App() {
-  const [dark, setDark] = useState(() => {
-    try { return localStorage.getItem("cjudge-theme") === "dark"; } catch { return false; }
-  });
   const [page, setPage] = useState<"students" | "tasks" | "labs">("students");
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,10 +22,6 @@ export default function App() {
   const [roll, setRoll] = useState("");
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    try { localStorage.setItem("cjudge-theme", dark ? "dark" : "light"); } catch { /* Storage may be disabled. */ }
-  }, [dark]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -115,11 +108,10 @@ export default function App() {
     } catch (error) { setMessage((error as Error).message); }
   }
 
-  return <div className={`${dark ? "theme-dark " : ""}min-h-screen bg-slate-100 text-slate-900`}>
+  return <div className="min-h-screen bg-slate-100 text-slate-900">
     <header className="no-print flex items-center justify-between border-b border-slate-300 bg-white px-6 py-3">
       <strong>cJudge</strong>
       <div className="flex gap-2">
-        <button type="button" aria-pressed={dark} onClick={() => setDark(!dark)}>{dark ? "Light theme" : "Dark theme"}</button>
         {session && <button className="rounded border px-3 py-1" onClick={logout}>Log out</button>}
       </div>
     </header>

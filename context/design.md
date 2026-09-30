@@ -22,7 +22,7 @@ Suggested backend boundaries: identity, tasks, labs, submissions, judging, resul
 
 ## Screens
 
-Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use light and muted grey dark themes, restrained colors, and native form controls. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.
+Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use a light theme, restrained colors, and native form controls. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.
 
 | Student | Admin |
 | --- | --- |

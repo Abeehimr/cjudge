@@ -4,17 +4,13 @@ import App from "./App";
 
 afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
 
-test("theme toggle stays selected after reopening the app", async () => {
+test("light theme ignores saved dark preference and has no toggle", async () => {
+  localStorage.setItem("cjudge-theme", "dark");
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
-  const view = render(<App />);
-  const toggle = screen.getByRole("button", { name: "Dark theme" });
-  fireEvent.click(toggle);
-  expect(localStorage.getItem("cjudge-theme")).toBe("dark");
-  expect(toggle.getAttribute("aria-pressed")).toBe("true");
-  expect(toggle.closest(".theme-dark")).toBeTruthy();
-  view.unmount();
   render(<App />);
-  expect(screen.getByRole("button", { name: "Light theme" }).getAttribute("aria-pressed")).toBe("true");
+  const heading = await screen.findByRole("heading", { name: "Sign in" });
+  expect(heading.closest(".theme-dark")).toBeNull();
+  expect(screen.queryByRole("button", { name: /theme/i })).toBeNull();
 });
 
 test("shows login when session is absent", async () => {
