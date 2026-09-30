@@ -50,6 +50,7 @@ Navigation uses browser URLs, breadcrumbs, and lab sections. Refresh and Back/Fo
 
 - Admin: global Labs, Students, Task Library, and Isolates. Each lab has Overview (settings, schedule, PDFs, announcements, compiler feedback), Students (enrollment), Tasks (assignments), and Submissions (newest first).
 - Admin student detail: identity, binding/IP, freeze/release controls, and that student's lab submissions. Admin task detail: assigned revision statement/limits and task submissions; editing stays in the task library.
+- Admin submission detail: `/admin/labs/:labId/submissions/:submissionId`, inline escaped source, download, current status/score, compiler feedback, case verdicts/resources/output previews, and IP/MAC. Available before release. Student own-submission detail and failed-case input/expected output are planned for M8, with server-enforced release/reveal authorization.
 - Student: assigned labs, lab overview with PDFs/announcements/task links, task statement/limits/upload/task history together, and own lab submission history. Submissions stay per lab; no global submission page.
 - Existing browser bindings resume through authorized reads. Creating a binding still requires explicit entry. Dirty forms warn before navigation; unconfirmed upload files/keys survive within the lab session. Reload requires file reselection and warns before discarding it. Credentials and sources are never stored in browser storage.
 

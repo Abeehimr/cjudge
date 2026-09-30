@@ -62,6 +62,8 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M6 — Marks and Rejudge · v0.5 · requires M5
 
+- [x] Add admin submission URLs with inline source, current result, compiler feedback, network metadata, and retained case outputs before release.
+
 - [ ] Implement best-score selection, rounding, and admin attempt ordering.
 - [ ] Show submission IP/MAC and flag address changes across a student's lab attempts; test unavailable MACs and admin-only access.
 - [ ] Add soft deletion/restoration and audit reasons.
@@ -76,6 +78,7 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M8 — Release and Exports · v0.7 · requires M6
 
+- [ ] Add own-submission student detail URLs after release; deny source/detail endpoints before release or while reveal is disabled. Preserve live status/compiler-feedback policy.
 - [ ] Add release gates, reuse warnings, failed-case detail, and output previews.
 - [ ] Add configured scoreboards and CSV/XLSX mark sheets.
 - [ ] Add versioned lab archives and separate permanent-deletion action.

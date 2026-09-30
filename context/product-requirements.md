@@ -51,6 +51,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 
 - Release manually after the lab ends; block release and final mark sheets while active judging/rejudging remains unresolved. Admins may retry or explicitly invalidate affected runs.
 - After release, show each active submission's marks, per-case verdicts, and failed-case inputs, expected outputs, and student stdout/stderr. Retain the first 64 KiB per stream/case and label truncation.
+- Open submissions from history on a dedicated page with inline source and details. Admins can inspect submissions before release; students can inspect only their own after release while reveal is enabled. During labs, keep student histories limited to status and configured compiler feedback.
 - Warn before revealing tests used by another scheduled lab. Admin controls release timing; hiding results cannot undo disclosure.
 - Students access only their own private data, apart from the configured scoreboard.
 - CSV/XLSX exports contain roll number, name, per-task marks/pass percentages, total marks, active submission count, and last active submission time. Percentages come from counted submissions.
