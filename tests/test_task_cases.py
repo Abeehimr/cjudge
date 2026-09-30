@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from cjudge.task_cases import MAX_FILE, parse_zip, validate_cases
+from cjudge.tasks.cases import MAX_FILE, parse_zip, validate_cases
 
 
 def zipped(entries):

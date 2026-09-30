@@ -5,7 +5,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt && useradd --system --uid 10001 cjudge
 RUN mkdir /var/lib/cjudge-tasks && chown 10001:10001 /var/lib/cjudge-tasks && chmod 700 /var/lib/cjudge-tasks
 RUN mkdir /var/lib/cjudge-labs && chown 10001:10001 /var/lib/cjudge-labs && chmod 700 /var/lib/cjudge-labs
-COPY src ./src
+COPY src/cjudge ./src/cjudge
 COPY alembic.ini ./
 COPY migrations ./migrations
 ENV PYTHONPATH=/app/src

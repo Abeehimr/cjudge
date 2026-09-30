@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import pytest
 from cjudge.labs import LabError, phase, setup_open, submission_allowed
-from cjudge.lab_binding import client_ip
+from cjudge.labs.binding import client_ip
 from starlette.requests import Request
 
 

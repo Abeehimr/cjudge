@@ -1,5 +1,6 @@
 import pytest
-from cjudge import lab_files, labs
+from cjudge import labs
+from cjudge.labs import files as lab_files
 
 
 def test_pdf_bounds_and_immutable_storage(tmp_path, monkeypatch):

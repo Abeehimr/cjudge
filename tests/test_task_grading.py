@@ -3,7 +3,7 @@ from fractions import Fraction
 
 import pytest
 
-from cjudge.task_grading import Checker, TaskConfig, compare_output, score
+from cjudge.tasks.grading import Checker, TaskConfig, compare_output, score
 
 
 def test_checker_contract():

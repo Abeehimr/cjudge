@@ -10,9 +10,9 @@ import sqlalchemy as sa
 from starlette.concurrency import run_in_threadpool
 
 from cjudge import identity, tasks as store
-from cjudge.identity_api import admin, admin_write
-from cjudge.task_cases import MAX_FILE, MAX_ZIP, parse_zip, validate_cases
-from cjudge.task_grading import TaskConfig
+from cjudge.identity.api import admin, admin_write
+from cjudge.tasks.cases import MAX_FILE, MAX_ZIP, parse_zip, validate_cases
+from cjudge.tasks.grading import TaskConfig
 
 
 def private(response: Response, account: dict = Depends(admin)) -> None:

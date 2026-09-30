@@ -11,10 +11,11 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 from starlette.concurrency import run_in_threadpool
 
-from cjudge import identity, lab_binding, lab_files, labs, tasks
-from cjudge.identity_api import StrictModel, admin, admin_write, current, write_guard, COOKIE, no_store
-from cjudge.tasks_api import bounded_body, json_input
-from cjudge.task_grading import TaskConfig
+from cjudge import identity, labs, tasks
+from cjudge.labs import binding as lab_binding, files as lab_files
+from cjudge.identity.api import StrictModel, admin, admin_write, current, write_guard, COOKIE, no_store
+from cjudge.tasks.api import bounded_body, json_input
+from cjudge.tasks.grading import TaskConfig
 
 
 def private(response: Response) -> None:
@@ -446,7 +447,7 @@ async def lab_events(lab_id: UUID, request: Request, account: dict = Depends(stu
     import time
     from starlette.responses import StreamingResponse
     from cjudge.events import hub
-    from cjudge.identity_api import same_origin
+    from cjudge.identity.api import same_origin
     # EventSource sends Origin for cross-origin requests; same-origin clients may omit it.
     if request.headers.get('origin') is not None:
         same_origin(request)

@@ -17,7 +17,8 @@ from alembic.config import Config
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
-from cjudge import identity, labs, tasks, lab_binding, lab_files
+from cjudge import identity, labs, tasks
+from cjudge.labs import binding as lab_binding, files as lab_files
 
 
 def core_checks():

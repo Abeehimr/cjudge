@@ -8,7 +8,7 @@ import zipfile
 import sqlalchemy as sa
 
 from cjudge.identity import metadata
-from cjudge.task_cases import parse_zip, validate_cases
+from cjudge.tasks.cases import parse_zip, validate_cases
 
 ARTIFACTS = Path(os.getenv('CJUDGE_TASK_FILES', '/var/lib/cjudge-tasks'))
 tasks = sa.Table('tasks', metadata,
