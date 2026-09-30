@@ -119,6 +119,7 @@ def enqueue(conn: sa.Connection, submission_id: UUID, revision_id: UUID, kind: s
 
 def set_deleted(conn: sa.Connection, lab: dict, submission_id: UUID, deleted: bool, actor: UUID, reason: str) -> None:
     from cjudge.judging import queue
+    labs.editable(lab)
     queue.scheduler_lock(conn)
     row = find_submission(conn, lab['id'], submission_id)
     ensure_review(conn, submission_id)
@@ -151,6 +152,7 @@ def set_deleted(conn: sa.Connection, lab: dict, submission_id: UUID, deleted: bo
 
 def rejudge(conn: sa.Connection, lab: dict, submission_id: UUID, actor: UUID, reason: str) -> None:
     from cjudge.judging import queue
+    labs.editable(lab)
     queue.scheduler_lock(conn)
     row = find_submission(conn, lab['id'], submission_id)
     ensure_review(conn, submission_id)
@@ -169,8 +171,9 @@ def rejudge(conn: sa.Connection, lab: dict, submission_id: UUID, actor: UUID, re
 
 def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, actor: UUID, reason: str) -> UUID:
     from cjudge.judging import queue
+    labs.editable(lab)
     queue.scheduler_lock(conn)
-    if labs.phase(lab, labs.now(conn)) not in ('Running', 'Ended'):
+    if labs.phase(lab, labs.now(conn)) not in ('Running', 'Ended', 'Results released'):
         raise labs.LabError(409, 'Corrections require a running or ended lab')
     base = current_revision(conn, lab['id'], task_id)
     if task_id_for(conn, revision_id) != task_id:

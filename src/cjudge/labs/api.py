@@ -157,6 +157,8 @@ class AdminLab(LabSummary):
     strict_ip: bool
     compiler_feedback: str
     first_released_at: datetime | None
+    reveal_results: bool
+    archived_at: datetime | None
     tasks: list[AssignedTask]
     pdfs: list[AdminPdf]
     students: list[RosterOutput]
@@ -164,6 +166,7 @@ class AdminLab(LabSummary):
 
 
 class StudentLab(LabSummary):
+    results_visible: bool
     frozen: bool
     tasks: list[PublicTask]
     pdfs: list[PdfOutput]
@@ -214,7 +217,7 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
             *[labs.enrollments.c[key] for key in RosterOutput.model_fields if key not in ('id', 'roll_number', 'name')])
             .join(labs.enrollments, identity.accounts.c.id == labs.enrollments.c.account_id)
             .where(labs.enrollments.c.lab_id == lab['id']).order_by(identity.accounts.c.roll_number)).mappings()
-        result.update(version=lab['version'], strict_ip=lab['strict_ip'], compiler_feedback=lab['compiler_feedback'], first_released_at=lab['first_released_at'],
+        result.update(version=lab['version'], strict_ip=lab['strict_ip'], compiler_feedback=lab['compiler_feedback'], first_released_at=lab['first_released_at'], reveal_results=lab['reveal_results'], archived_at=lab['archived_at'],
             students=[dict(row) for row in roster], tasks=[{'position': row['position'], 'revision_id': row['id'],
                 'previous_revision_ids': previous.get(row['task_id'], []),
                 'task_id': row['task_id'], 'number': row['number'], 'config': row['config']} for row in assigned])
@@ -226,7 +229,7 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
                 'previous_revision_ids': previous.get(row['task_id'], []),
                 **{key: config[key] for key in PublicTask.model_fields if key not in ('position', 'revision_id', 'previous_revision_ids')}})
         from cjudge.submissions.service import allowance
-        result.update(frozen=enrollment['frozen'], tasks=public_tasks, admission=allowance(conn, lab, enrollment))
+        result.update(results_visible=bool(lab['first_released_at'] and lab['reveal_results']), frozen=enrollment['frozen'], tasks=public_tasks, admission=allowance(conn, lab, enrollment))
     return result
 
 
@@ -416,6 +419,7 @@ async def post_announcement(lab_id: UUID, request: Request, actor: dict = Depend
     def post():
         with transaction() as conn:
             lab = labs.find(conn, lab_id, shared=True)
+            labs.editable(lab)
             lab_files.announcement(conn, lab_id, body.body.strip(), actor['id'])
             return snapshot(conn, lab)
     return await run_in_threadpool(post)
@@ -514,4 +518,38 @@ async def stop_lab(lab_id: UUID, request: Request, actor: dict = Depends(admin_w
     def perform():
         with transaction() as conn:
             return snapshot(conn, labs.stop(conn, labs.find(conn, lab_id, body.version), body.reason, actor['id']))
+    return await run_in_threadpool(perform)
+
+
+class RevealInput(StopInput):
+    enabled: bool
+    acknowledge_reuse: bool = False
+
+
+@admin_router.get('/{lab_id}/release-warnings')
+def release_warnings(lab_id: UUID):
+    from cjudge.labs import release
+    with transaction() as conn:
+        labs.find(conn, lab_id, shared=True)
+        return release.reuse(conn, lab_id)
+
+
+@admin_router.post('/{lab_id}/results', response_model=AdminLab)
+async def results(lab_id: UUID, request: Request, actor: dict = Depends(admin_write)):
+    from cjudge.labs import release
+    body = await json_input(request, RevealInput)
+    def perform():
+        with transaction() as conn:
+            lab = labs.find(conn, lab_id, body.version)
+            return snapshot(conn, release.reveal(conn, lab, body.enabled, body.acknowledge_reuse, actor['id'], body.reason))
+    return await run_in_threadpool(perform)
+
+
+@admin_router.post('/{lab_id}/archive', response_model=AdminLab)
+async def archive_lab(lab_id: UUID, request: Request, actor: dict = Depends(admin_write)):
+    from cjudge.labs import release
+    body = await json_input(request, StopInput)
+    def perform():
+        with transaction() as conn:
+            return snapshot(conn, release.archive(conn, labs.find(conn, lab_id, body.version), actor['id'], body.reason))
     return await run_in_threadpool(perform)

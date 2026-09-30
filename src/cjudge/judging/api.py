@@ -88,7 +88,7 @@ async def retry(lab_id: UUID, submission_id: UUID, request: Request, actor: dict
         raise HTTPException(400, 'Reason required')
     def perform():
         with transaction() as conn:
-            labs.find(conn, lab_id, shared=True)
+            labs.editable(labs.find(conn, lab_id, shared=True))
             queue.retry(conn, lab_id, submission_id, actor['id'], body.reason.strip())
     await run_in_threadpool(perform)
 

@@ -13,6 +13,8 @@ labs = sa.Table('labs', metadata,
     sa.Column('version', sa.Integer()), sa.Column('strict_ip', sa.Boolean()),
     sa.Column('compiler_feedback', sa.String(8)),
     sa.Column('starts_at', sa.DateTime(timezone=True)), sa.Column('ends_at', sa.DateTime(timezone=True)),
+    sa.Column('reveal_results', sa.Boolean(), nullable=False, server_default=sa.false()),
+    sa.Column('archived_at', sa.DateTime(timezone=True)),
     sa.Column('first_released_at', sa.DateTime(timezone=True)), sa.Column('created_at', sa.DateTime(timezone=True)))
 assignments = sa.Table('lab_tasks', metadata,
     sa.Column('lab_id', sa.Uuid(), primary_key=True), sa.Column('position', sa.Integer(), primary_key=True),
@@ -43,6 +45,10 @@ def now(conn: sa.Connection) -> datetime:
 
 
 def phase(lab: dict, timestamp: datetime) -> str:
+    if lab.get('archived_at'):
+        return 'Archived'
+    if lab.get('first_released_at'):
+        return 'Results released'
     if lab['starts_at'] is None:
         return 'Draft'
     if timestamp < lab['starts_at']:
@@ -69,7 +75,14 @@ def notify(conn: sa.Connection, *, lab_id: UUID | None = None, account_id: UUID 
     events.publish(conn, lab_id=lab_id, account_id=account_id)
 
 
+def editable(lab: dict) -> None:
+    if lab.get('archived_at'):
+        raise LabError(409, 'Archived lab is read-only')
+
+
 def changed(conn: sa.Connection, lab: dict, actor: UUID, action: str, **values) -> dict:
+    if action not in ('lab_results_revealed', 'lab_results_hidden'):
+        editable(lab)
     conn.execute(sa.update(labs).where(labs.c.id == lab['id']).values(version=lab['version'] + 1, **values))
     identity.audit(conn, action, actor, detail={'lab_id': str(lab['id']), **{
         key: value.isoformat() if isinstance(value, datetime) else value for key, value in values.items()}})
@@ -206,6 +219,7 @@ def remove_student(conn: sa.Connection, lab: dict, account_id: UUID, actor: UUID
 
 
 def freeze(conn: sa.Connection, lab: dict, account_id: UUID, frozen: bool, reason: str, actor: UUID) -> None:
+    editable(lab)
     enrollment(conn, lab['id'], account_id)
     conn.execute(sa.update(enrollments).where(enrollments.c.lab_id == lab['id'], enrollments.c.account_id == account_id)
                  .values(frozen=frozen, freeze_reason=reason if frozen else None))

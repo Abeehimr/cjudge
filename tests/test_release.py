@@ -18,3 +18,16 @@ def test_stop_uses_server_time_and_preserves_accepted_work():
         with pytest.raises(labs.LabError): labs.stop(None, lab, ' ', uuid4())
     with pytest.raises(labs.LabError):
         labs.submission_allowed({**lab, 'ends_at': timestamp}, {'frozen': False}, timestamp)
+
+
+def test_release_visibility_and_archive_are_independent():
+    from cjudge.labs.release import visible
+    timestamp = datetime.now(timezone.utc)
+    lab = dict(starts_at=timestamp - timedelta(hours=2), ends_at=timestamp,
+        first_released_at=timestamp, reveal_results=False, archived_at=None)
+    assert labs.phase(lab, timestamp) == 'Results released'
+    with pytest.raises(labs.LabError): visible(lab)
+    visible({**lab, 'reveal_results': True})
+    archived = {**lab, 'archived_at': timestamp}
+    assert labs.phase(archived, timestamp) == 'Archived'
+    with pytest.raises(labs.LabError): labs.editable(archived)

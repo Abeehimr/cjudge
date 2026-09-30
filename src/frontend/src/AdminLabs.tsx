@@ -6,6 +6,7 @@ import Statement from "./Statement";
 import { AdminSubmissionDetail, AdminSubmissions, CompilerFeedback } from "./AdminSubmissions";
 import { Announcements, type Summary, type AdminLab, type Enrollment, type Student, type Task } from "./Lab";
 import { NotFound, useOffset, useUnsaved } from "./navigation";
+import Release from "./Release";
 import { Marks, Corrections } from "./Marks";
 
 export function AdminLabs({ csrf }: { csrf: string }) {
@@ -124,7 +125,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   return <div className="space-y-4">
     <h1 className="text-xl font-semibold">{labId ? lab?.title || "Lab" : "Labs"}</h1>
     {!labId && <><form onSubmit={create} className="flex flex-wrap gap-2 rounded border bg-white p-4">
-      <label>New lab title <input required maxLength={160} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} /></label><button disabled={busy}>Create lab</button>
+      <label>New lab title <input required maxLength={160} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} /></label><button disabled={busy || !!lab?.archived_at}>Create lab</button>
     </form>
     <section className="overflow-x-auto rounded border bg-white p-4"><table className="w-full text-left text-sm"><thead><tr><th>Lab</th><th>Status</th><th>Start</th><th>Deadline</th></tr></thead>
       <tbody>{rows.map((row) => <tr className="border-t" key={row.id}><td><Link to={`/admin/labs/${row.id}`}>{row.title}</Link></td>
@@ -138,10 +139,11 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       <nav aria-label="Lab breadcrumbs"><Link to="/admin/labs">Labs</Link> / <Link to={`/admin/labs/${lab.id}`}>{lab.title}</Link>{studentId && ` / ${member?.roll_number}`}{revisionId && ` / ${task?.config.title}`}</nav>
       <nav aria-label="Lab navigation" className="flex flex-wrap gap-2">{[["", "Overview"], ["students", "Students"], ["tasks", "Tasks"], ["submissions", "Submissions"]].map(([path, title]) => <NavLink end={!path} className="nav-link" key={path} to={`/admin/labs/${lab.id}${path ? "/" + path : ""}`}>{title}</NavLink>)}</nav>
       <section className="rounded border bg-white p-4"><div className="flex justify-between"><h2 className="font-semibold">{lab.title} · {lab.phase}</h2>
-        <button disabled={busy} onClick={() => perform(() => reload())}>Refresh lab</button></div>
+        <button disabled={busy || !!lab?.archived_at} onClick={() => perform(() => reload())}>Refresh lab</button></div>
         <LabClock serverTime={lab.server_time} start={lab.starts_at} end={lab.ends_at} refresh={() => { void reload().catch((e) => showError(e.message)); }} />
       </section>
       {section === "overview" && <>
+      <Release lab={lab} csrf={csrf} accept={accept} />
       <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("", "PUT", { version: lab.version, title, strict_ip: strict })); }} className="rounded border bg-white p-4">
         <fieldset disabled={busy || !setupOpen} className="space-y-2"><legend className="font-semibold">Lab settings</legend>
           <label className="block">Lab title <input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
@@ -167,10 +169,11 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       </section>
       </>}
       {section === "overview" && <>
+      <Release lab={lab} csrf={csrf} accept={accept} />
       <section className="rounded border bg-white p-4"><h2 className="font-semibold">Schedule ({zone})</h2>
         {setupOpen ? <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("/schedule", "POST", {
           version: lab.version, starts_at: new Date(start).toISOString(), ends_at: new Date(end).toISOString(),
-        })); }}><fieldset disabled={busy} className="flex flex-wrap gap-3">
+        })); }}><fieldset disabled={busy || !!lab?.archived_at} className="flex flex-wrap gap-3">
           <label>Starts at <input type="datetime-local" required value={start} onChange={(e) => setStart(e.target.value)} /></label>
           <label>Ends at <input type="datetime-local" required value={end} onChange={(e) => setEnd(e.target.value)} /></label>
           <button>{lab.phase === "Draft" ? "Schedule lab" : "Reschedule lab"}</button>
@@ -179,12 +182,12 @@ export function AdminLabs({ csrf }: { csrf: string }) {
           if (confirm(`${lab.phase === "Ended" ? "Reopen" : "Extend"} this lab for all students?`)) void perform(async () => {
             await mutate("/deadline", "POST", { version: lab.version, action: lab.phase === "Ended" ? "reopen" : "extend",
               ends_at: new Date(end).toISOString(), reason }); setReason("");
-          }); }}><fieldset disabled={busy} className="flex flex-wrap gap-3">
+          }); }}><fieldset disabled={busy || !!lab?.archived_at} className="flex flex-wrap gap-3">
             <label>New deadline <input type="datetime-local" required value={end} onChange={(e) => setEnd(e.target.value)} /></label>
             <label>Deadline reason <input required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
             <button>{lab.phase === "Ended" ? "Reopen lab" : "Extend lab"}</button>
           </fieldset></form>}
-        {lab.phase === "Running" && <button disabled={busy} onClick={() => {
+        {lab.phase === "Running" && <button disabled={busy || !!lab?.archived_at} onClick={() => {
           if (!confirm("Stop this lab now? New submissions will close. Accepted submissions continue judging.")) return;
           const why = prompt("Reason for stopping the lab"); if (!why?.trim()) return;
           void perform(() => mutate("/stop", "POST", { version: lab.version, reason: why.trim() }));
@@ -197,7 +200,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
           <a download href={`/api/admin/labs/${lab.id}/pdfs/${pdf.id}`}>{pdf.name}</a> <span>{Math.ceil(pdf.size / 1024)} KiB · {pdf.active ? "Current" : "Previous version"}</span>
           {pdf.active && <><label>Replace {pdf.name}<input type="file" accept=".pdf,application/pdf" disabled={busy || lab.phase === "Ended" || !!lab.first_released_at}
             onChange={(e) => { if (e.target.files?.[0]) void upload([e.target.files[0]], pdf.id); e.target.value = ""; }} /></label>
-            {setupOpen && <button disabled={busy} onClick={() => { if (confirm(`Remove ${pdf.name} from this lab?`)) void perform(() => mutate(`/pdfs/${pdf.id}?version=${lab.version}`, "DELETE")); }}>Remove PDF</button>}</>}
+            {setupOpen && <button disabled={busy || !!lab?.archived_at} onClick={() => { if (confirm(`Remove ${pdf.name} from this lab?`)) void perform(() => mutate(`/pdfs/${pdf.id}?version=${lab.version}`, "DELETE")); }}>Remove PDF</button>}</>}
         </li>)}</ul>
       </section>
       <CompilerFeedback labId={lab.id} csrf={csrf} feedback={lab.compiler_feedback} refreshLab={() => reload()} onDirty={setFeedbackDirty} />
@@ -206,19 +209,19 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">{studentId ? `${member?.roll_number} · ${member?.name}` : `Enrollment (${lab.students.length})`}</h2>
         {!studentId && <>
         <form onSubmit={(e) => { e.preventDefault(); void perform(async () => setStudents(await api<Student[]>(`/admin/students?search=${encodeURIComponent(search)}`))); }} className="flex flex-wrap gap-2">
-          <label>Find student <input value={search} onChange={(e) => setSearch(e.target.value)} maxLength={64} /></label><button disabled={busy}>Search students</button>
+          <label>Find student <input value={search} onChange={(e) => setSearch(e.target.value)} maxLength={64} /></label><button disabled={busy || !!lab?.archived_at}>Search students</button>
         </form>
-        <fieldset disabled={busy} className="flex flex-wrap gap-2"><label>Existing student <select value={selectedStudentId} onChange={(e) => setStudentId(e.target.value)}>
+        <fieldset disabled={busy || !!lab?.archived_at} className="flex flex-wrap gap-2"><label>Existing student <select value={selectedStudentId} onChange={(e) => setStudentId(e.target.value)}>
           <option value="">Select student</option>{students.filter((s) => !lab.students.some((m) => m.id === s.id)).map((s) => <option key={s.id} value={s.id}>{s.roll_number} · {s.name}</option>)}</select></label>
           <button disabled={!selectedStudentId} onClick={() => perform(async () => { await mutate("/students", "POST", { version: lab.version, ids: [selectedStudentId] }); setStudentId(""); })}>Enroll selected student</button>
         </fieldset>
         <form onSubmit={(e) => { e.preventDefault(); void perform(async () => {
           await mutate("/students/manual", "POST", { version: lab.version, roll_number: roll, name }); setRoll(""); setName("");
-        }); }}><fieldset disabled={busy} className="flex flex-wrap gap-2">
+        }); }}><fieldset disabled={busy || !!lab?.archived_at} className="flex flex-wrap gap-2">
           <label>Student roll number <input required maxLength={64} value={roll} onChange={(e) => setRoll(e.target.value)} /></label>
           <label>Student name <input required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></label><button>Find or create and enroll</button>
         </fieldset></form>
-        <label>Import roster CSV (roll_number,name)<input type="file" accept=".csv,text/csv" disabled={busy} className="mt-1 block" onChange={(e) => {
+        <label>Import roster CSV (roll_number,name)<input type="file" accept=".csv,text/csv" disabled={busy || !!lab?.archived_at} className="mt-1 block" onChange={(e) => {
           const file = e.target.files?.[0]; e.target.value = "";
           if (file) void perform(async () => {
             const result = await api<{ created: string[]; existing: string[]; name_mismatches: string[] }>(`/admin/labs/${lab.id}/students/import?version=${lab.version}`, { method: "POST", body: file }, csrf);
@@ -231,16 +234,17 @@ export function AdminLabs({ csrf }: { csrf: string }) {
           <tbody>{(studentId ? [member!] : lab.students.filter((item) => `${item.roll_number} ${item.name}`.toLowerCase().includes(rosterSearch.toLowerCase()))).map((member) => <tr className="border-t" key={member.id}><td><Link to={`/admin/labs/${lab.id}/students/${member.id}`}>{member.roll_number}</Link></td><td>{member.name}</td>
             <td>{member.bound_at ? `Bound · ${member.last_ip}` : "Not bound"}{member.ip_changed && <span className="block">IP changed (original {member.bound_ip})</span>}</td>
             <td><span className={member.frozen ? "notice-danger rounded px-2 py-1" : ""}>{member.frozen ? `Frozen · ${member.freeze_reason}` : "Enabled during lab"}</span></td><td><div className="flex flex-wrap gap-2">
-              <button disabled={busy} onClick={() => rosterAction(member, "freeze")}>{member.frozen ? "Unfreeze" : "Freeze"} {member.roll_number}</button>
+              <button disabled={busy || !!lab?.archived_at} onClick={() => rosterAction(member, "freeze")}>{member.frozen ? "Unfreeze" : "Freeze"} {member.roll_number}</button>
               <button disabled={busy || !member.bound_at} onClick={() => rosterAction(member, "release")}>Release browser {member.roll_number}</button>
-              {setupOpen && <button disabled={busy} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?`)) void perform(async () => { await mutate(`/students/${member.id}?version=${lab.version}`, "DELETE"); if (studentId) setDestination(`/admin/labs/${lab.id}/students`); }); }}>Remove student</button>}
+              {setupOpen && <button disabled={busy || !!lab?.archived_at} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?`)) void perform(async () => { await mutate(`/students/${member.id}?version=${lab.version}`, "DELETE"); if (studentId) setDestination(`/admin/labs/${lab.id}/students`); }); }}>Remove student</button>}
             </div></td></tr>)}</tbody></table></div>
       </section>
       </>}
       {section === "overview" && <>
+      <Release lab={lab} csrf={csrf} accept={accept} />
       <form onSubmit={(e) => { e.preventDefault(); void perform(async () => { await mutate("/announcements", "POST", { body: announcement }); setAnnouncement(""); }); }} className="rounded border bg-white p-4">
         <label className="block">Message to lab<textarea required maxLength={4000} rows={3} value={announcement} onChange={(e) => setAnnouncement(e.target.value)} className="mt-1 block w-full" /></label>
-        <button disabled={busy}>Post announcement</button>
+        <button disabled={busy || !!lab?.archived_at}>Post announcement</button>
       </form>
       <Announcements messages={lab.announcements} />
       </>}
