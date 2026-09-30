@@ -1,6 +1,6 @@
 # Technical Requirements
 
-Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M5 are implemented; later module requirements remain planned.
+Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M6 are implemented; later module requirements remain planned.
 
 ## Stack and Storage
 
@@ -49,6 +49,17 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 - Isolates status is admin-only: Starting/Idle/Judging/Faulted/Offline, last heartbeat/current job/completed count. Startup runs one compile/execute check; freshness expires after 90 seconds or an expired active lease. SSE delivers invalidations; no periodic sandbox/HTTP health probes.
 - Upload UUID idempotency keys are scoped to student/lab. Filename, pinned revision, and SHA-256 must match on replay; original IP/time never change. Durability precedes database acceptance. Cleanup takes an exclusive artifact lock; uploads share it until commit.
 
+## M6 Official Results and Corrections
+
+- Keep mutable review state and official-run pointers separate from immutable accepted sources/revisions. Reuse one leased job per submission; retain all execution attempts and successful judge runs.
+- Identify lab tasks by their task-library ID across revision changes. Historical task URLs remain valid aliases, but new uploads must use the current assigned revision; accepted idempotent retries retain the original revision.
+- Compare scores as exact fractions. Ties use acceptance time then UUID; round half-up to two decimals and sum displayed task marks. Pending work never overwrites an earlier official score with zero.
+- Require admin CSRF, reasons, and audit records for deletion/restoration, retries, rejudges, and corrections. Deletion hides student records and excludes marks without removing evidence. Network flags include retained deleted evidence; missing MACs do not count as changes.
+- Prioritize initial jobs over rejudges. Rejudge jobs do not consume upload slots. Fence superseded attempts, retain prior official runs during faults, and use each selected run's revision for case inputs.
+- Serialize correction/review changes under the lab lock. Permit one active correction per lab task, including running and released labs; released labs stay closed. New uploads use the target revision while old official results remain visible.
+- Publish staged results atomically when every active snapshot member resolves. Include completed concurrent uploads in the switch; unfinished uploads remain pending. Deletion removes a member from the gate; restoration requires current-target work. Retry infrastructure failures instead of inventing zeros. Worker startup recovers publication interrupted after the final result commit.
+- Admin endpoints provide marks, best/latest attempt order, review mutations, rejudge/history, and correction progress. Student disclosure gates remain M8; trusted MAC capture remains unimplemented.
+
 ## Isolation and Limits
 
 All compilation, student execution, custom checking, and generation run in separate isolate profiles. Never fall back to unsandboxed execution. Allow compiler subprocesses but restrict student execution to one process, no network, and bounded temporary storage. Reset writable state per case. Hide answers, unrelated cases, checker code, credentials, and other submissions from student processes.
@@ -92,7 +103,7 @@ Use pytest, Vitest, and disposable-database module gates; no coverage threshold 
 
 ## Remaining Decisions
 
-M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. M5 defines upload idempotency, SSE invalidations, lease timing, and bounded compiler/case previews. Before later components are built, specify Python helper protocol; generator invocation, seeds, manifest and limits; generation scheduling; correction-batch transactions; trusted MAC integration; and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
+M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. M5 defines upload idempotency, SSE invalidations, lease timing, and bounded compiler/case previews. Before later components are built, specify Python helper protocol; generator invocation, seeds, manifest and limits; generation scheduling; trusted MAC integration; and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
 
 Before deployment, confirm CPU/RAM/disk/OS, representative benchmark fixtures, LAN DHCP/NAT/proxy behavior, HTTPS trust distribution, clock/storage monitoring, retention capacity, and who preserves downloaded archives.
 

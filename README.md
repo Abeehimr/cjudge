@@ -1,6 +1,6 @@
 # cJudge
 
-Offline C lab judge. M0–M4 provide HTTPS, isolation, accounts, tasks, and labs. M5 adds durable C submissions, fair asynchronous judging, a configurable sandbox pool, and an admin Isolates panel. Marks/rejudge and release/export remain later modules.
+Offline C lab judge. M0–M4 provide HTTPS, isolation, accounts, tasks, and labs. M5 adds durable C submissions, fair asynchronous judging, a configurable sandbox pool, and an admin Isolates panel. M6 adds official marks, audited deletion/restoration, rejudge history, and atomic task corrections. Python authoring and release/export remain planned.
 
 ## Repository layout
 
@@ -35,6 +35,7 @@ Stop services with `docker compose down`. The PostgreSQL volume survives contain
 - Task gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/tasks_gate.py`
 - Lab gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/labs_gate.py`
 - Submission admission gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/submissions_gate.py`
+- Marks/rejudge gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/marks_gate.py`
 
 Compose has no periodic health probes. Run `sh scripts/smoke.sh` when you want a readiness check.
 
@@ -132,3 +133,24 @@ CJUDGE_JUDGE_MEMORY_LIMIT=2g docker compose run --rm -e CJUDGE_SANDBOX_INSTANCES
 ```
 
 The gate uses a disposable database and temporary artifacts. It checks all verdicts, recovery after killing a worker, deadline admission, secrecy, feedback policy, and admin SSE revocation. On September 30, 2026, Ryzen 5 7430U (6 cores/12 threads), 15 GiB RAM, Linux/cgroup v2, two workers capped at 2 GiB: 150 integer-sum submissions with ten cases each uploaded in 1.30 seconds and finished in 17.83 seconds. This simple fixture is not the full M9 performance acceptance test; timeout-heavy behavior is tested separately for correctness.
+
+## M6 marks and corrections
+
+Apply `alembic upgrade head` with API/worker stopped after rebuilding their images, then restart both. Migration `20261001_marks` backfills official results and adds mutable review/batch state separately from immutable submission evidence.
+
+Admin lab overview and student/task pages show official best marks, rounded half-up to two decimals. Totals sum displayed task marks. Pending work keeps prior marks provisional; students with no active submissions receive 0.00. Student/task attempt lists default to best-first, with pending and deleted records last; the lab-wide list stays newest-first.
+
+Open a submission to delete/restore it with a reason, rejudge it, retry delayed work, or inspect retained runs and case inputs. Rejudges preserve earlier official results until success and do not consume upload slots. Network flags compare all retained lab evidence; missing MACs are ignored and differences are not proof of a PC switch. Trusted MAC capture remains planned.
+
+For corrections, publish a revision in the task library, then select it on the assigned task page. New uploads use that revision; old task URLs still open the current task, and previously accepted upload retries retain their original revision/key. Existing active submissions form a correction batch. Official results switch together after active members resolve; infrastructure faults block publication until repaired/retried. Deleting a member removes it from the publication gate; restoring it adds it back or queues current-revision judging after publication. Post-release corrections require a warning and reason and never reopen a lab. Student marks/details remain unavailable until M8.
+
+For real sandbox rejudging, stop the runtime worker and run:
+
+```sh
+docker compose stop worker
+docker compose run --rm -v ./tests:/app/tests:ro -v ./migrations:/app/migrations:ro \
+  -v ./alembic.ini:/app/alembic.ini:ro worker python tests/marks_gate.py --sandbox
+docker compose up -d worker
+```
+
+The gate uses a disposable database and temporary artifacts. It covers migration backfill, exact marks/ties, deletion/restoration, CSRF/role separation, fault recovery, superseded workers, correction races and publication, and real isolate execution.

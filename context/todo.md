@@ -64,11 +64,11 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 - [x] Add admin submission URLs with inline source, current result, compiler feedback, network metadata, and retained case outputs before release.
 
-- [ ] Implement best-score selection, rounding, and admin attempt ordering.
-- [ ] Show submission IP/MAC and flag address changes across a student's lab attempts; test unavailable MACs and admin-only access.
-- [ ] Add soft deletion/restoration and audit reasons.
-- [ ] Add single-run rejudge and atomic full-task correction batches.
-- [ ] **Test:** ties, pending versus zero, restoration, concurrent arrivals/deletions, stale batches, consistent publication.
+- [x] Implement best-score selection, rounding, and admin attempt ordering.
+- [x] Show submission IP/MAC and flag address changes across a student's lab attempts; test unavailable MACs and admin-only access.
+- [x] Add soft deletion/restoration and audit reasons.
+- [x] Add single-run rejudge and atomic full-task correction batches.
+- [x] **Test:** ties, pending versus zero, restoration, concurrent arrivals/deletions, stale batches, consistent publication.
 
 ## M7 — Python Authoring · v0.6 · requires M1, M3, M5
 

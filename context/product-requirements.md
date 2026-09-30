@@ -45,7 +45,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 - Count the best active submission by unrounded score; ties use earliest acceptance, then submission ID. Display two decimals with half-up rounding and sum displayed task marks for totals.
 - Show admin attempts best to worst, separating pending/deleted attempts. Soft deletion requires a reason, excludes the attempt from marks/student history, preserves evidence, and permits restoration. Recompute marks on either action.
 - No submission means zero; unresolved infrastructure failure means pending, never zero.
-- Corrections publish a new revision and rejudge every active attempt for the affected lab task. Preserve earlier results and replace official marks consistently after completion. Support single-submission rejudges without changing grading configuration.
+- Allow corrections during running or ended labs, including after release with a warning and audit reason; never reopen a released lab. Corrections publish a new revision and rejudge every active attempt for the affected lab task. Preserve earlier results and replace official marks consistently after completion. Support single-submission rejudges without changing grading configuration.
 
 ## Release and Exports
 

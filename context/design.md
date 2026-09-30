@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M5 are implemented; later modules remain planned. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M6 are implemented; later modules remain planned. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -16,7 +16,7 @@ flowchart LR
     Workers --> Sandbox[isolate]
 ```
 
-Docker Compose separates `web`, `api`, `db`, and runtime `worker`; standalone `judge` runs isolation gates without networking. The worker container holds an environment-configured process pool, with independent isolate boxes/cgroups/UIDs. PostgreSQL distributes fair leased jobs. The API owns authentication, lab policy, and admission; marks/release remain planned. Only web ports are public. Protected volumes hold artifacts; workers mount source/test data read-only.
+Docker Compose separates `web`, `api`, `db`, and runtime `worker`; standalone `judge` runs isolation gates without networking. The worker container holds an environment-configured process pool, with independent isolate boxes/cgroups/UIDs. PostgreSQL distributes fair leased jobs. The API owns authentication, lab policy, and admission; release/export remain planned. Only web ports are public. Protected volumes hold artifacts; workers mount source/test data read-only.
 
 Admin Isolates uses worker registration, startup sandbox checks, and heartbeat freshness rather than periodic probes. Admin SSE carries invalidations; stale workers become Offline locally even if updates disconnect. Student SSE refreshes admission/history without exposing hidden grading data.
 
@@ -70,13 +70,13 @@ Navigation uses browser URLs, breadcrumbs, and lab sections. Refresh and Back/Fo
 - Queue job/attempt with lease identity; judge run and case results tied to a revision.
 - Rejudge batch, audit event, and export metadata.
 
-A submission can have multiple judge runs. Store first-release history separately from current reveal visibility. Exact tables and schemas must be designed before implementation.
+Submissions retain immutable evidence. `submission_reviews` holds deletion state and official-run pointers; `judge_jobs` holds current work while attempts/runs retain history. `correction_batches` and `correction_members` stage atomic replacements. First-release history and current reveal visibility remain separate M8 concerns.
 
 ## Main Flows
 
 1. **Submit:** receive/validate source, persist safely, enforce deadline/cooldown/backlog atomically, create submission and job, then acknowledge durable acceptance.
 2. **Judge:** claim a lease, compile, execute every case in clean environments, check complete permitted output, and publish results only for the current attempt.
-3. **Correct:** publish a revision, queue all affected active attempts, preserve prior results, and switch official marks together after the replacement batch succeeds. Define concurrent arrivals/deletions explicitly before implementing this transaction.
+3. **Correct:** publish a revision, queue all affected active attempts, preserve prior results, and switch official marks together after the replacement batch succeeds. New uploads target the correction revision; active existing attempts form the publication gate. Deleted members do not block, and restoration adds missing work. Lab locks serialize acceptance, review changes, and publication.
 4. **Release:** verify lab closure and resolved judging, warn on test reuse, record first release permanently, and enable authorized details.
 5. **Export:** use official marks for sheets and include retained history in archives; never implicitly delete data.
 
