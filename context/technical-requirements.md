@@ -1,6 +1,6 @@
 # Technical Requirements
 
-Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M6 are implemented; later module requirements remain planned.
+Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M7 are implemented; later module requirements remain planned.
 
 ## Stack and Storage
 
@@ -46,7 +46,7 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 - Size configurable workers using CPU and memory headroom; support at least one worker on a single-core host. Benchmark before increasing concurrency.
 - M5: `CJUDGE_SANDBOX_INSTANCES=1` (1–32); `CJUDGE_JUDGE_MEMORY_LIMIT=1g`, at least 768 MiB per instance. One runtime container with distinct box IDs/UIDs; recreate API/worker after count changes. PostgreSQL allows 200 connections for the maximum pool.
 - Claims serialize briefly to order students by last claim, then FIFO submissions. Leases last 60 seconds; busy heartbeats every 10 seconds; idle LISTEN/recovery timeout 30 seconds. Three automatic attempts then audited admin retry; delayed jobs retain pending slots. Attempt IDs and worker generations fence writes.
-- Isolates status is admin-only: Starting/Idle/Judging/Faulted/Offline, last heartbeat/current job/completed count. Startup runs one compile/execute check; freshness expires after 90 seconds or an expired active lease. SSE delivers invalidations; no periodic sandbox/HTTP health probes.
+- Isolates status is admin-only: Starting/Idle/Judging/Generating/Faulted/Offline, last heartbeat/current job/completed count. Startup runs one compile/execute check; freshness expires after 90 seconds or an expired active lease. SSE delivers invalidations; no periodic sandbox/HTTP health probes.
 - Upload UUID idempotency keys are scoped to student/lab. Filename, pinned revision, and SHA-256 must match on replay; original IP/time never change. Durability precedes database acceptance. Cleanup takes an exclusive artifact lock; uploads share it until commit.
 
 ## M6 Official Results and Corrections
@@ -59,6 +59,16 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 - Serialize correction/review changes under the lab lock. Permit one active correction per lab task, including running and released labs; released labs stay closed. New uploads use the target revision while old official results remain visible.
 - Publish staged results atomically when every active snapshot member resolves. Include completed concurrent uploads in the switch; unfinished uploads remain pending. Deletion removes a member from the gate; restoration requires current-target work. Retry infrastructure failures instead of inventing zeros. Worker startup recovers publication interrupted after the final result commit.
 - Admin endpoints provide marks, best/latest attempt order, review mutations, rejudge/history, and correction progress. Student disclosure gates remain M8; trusted MAC capture remains unimplemented.
+
+## M7 Authoring
+
+- Python checker source belongs to draft configuration and immutable revisions; UTF-8 sources are at most 64 KiB. Helpers return bytes. `accept()`/`reject()` terminate with AC/WA; absent/malformed verdicts, exceptions, and resource failures are infrastructure faults. Compare full permitted student stdout.
+- Python/C generators produce one input per consecutive seed via `argv[1]`. Python standard `random` is seeded automatically; C authors seed explicitly. Reference C stdout becomes the answer. Compile C sources once per job and cache protected executables.
+- Defaults: seed 0, 1–100 cases, signed 64-bit nonnegative seeds. Each source ≤64 KiB; each input/answer ≤1 MiB, combined ≤16 MiB. Generator/reference profile: CPU 10s, wall 30s, memory 256 MiB, one process; checker CPU 5s, wall 15s, stdout 64 KiB.
+- Persist job configuration, source hashes, seeds, case hashes, progress, attempts, leases, and diagnostics. `authoring_files` is writable only by API/worker and absent from student sandbox mounts; API UID 10001 owns protected directories/files. Back up this volume with PostgreSQL.
+- Share existing sandboxes: initial submissions, then rejudges/corrections, then generation. Checkpoint/yield after each case; recover expired leases and fence stale attempts/generations. Three infrastructure faults exhaust automatic retries; confirmed teacher errors fail immediately.
+- Permit one unresolved generation job per task. Stage results separately, preview inputs/answers, and require explicit apply confirmation. Apply replaces draft cases only for a complete job and unchanged captured draft version. Publication remains separate; existing reviewed cases can publish during pending generation. Retain applied/discarded job evidence.
+- Require admin role, CSRF, and audit for create/apply/retry/discard. SSE invalidations refresh progress and Isolates identifies Generating leases; no recurring probes. Require deterministic author programs; arbitrary clock/OS randomness cannot guarantee reproducibility.
 
 ## Isolation and Limits
 
@@ -103,7 +113,7 @@ Use pytest, Vitest, and disposable-database module gates; no coverage threshold 
 
 ## Remaining Decisions
 
-M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. M5 defines upload idempotency, SSE invalidations, lease timing, and bounded compiler/case previews. Before later components are built, specify Python helper protocol; generator invocation, seeds, manifest and limits; generation scheduling; trusted MAC integration; and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
+M3 specifies exact byte comparison with optional one final LF/CRLF removal. Token comparison splits ASCII whitespace, with optional ASCII case folding and finite-decimal absolute/relative tolerances; NaN/Infinity receive literal comparison only. M5 defines upload idempotency, SSE invalidations, lease timing, and bounded compiler/case previews. M7 defines byte checker helpers, seeded generation, protected provenance, and shared-pool scheduling below. Remaining contracts: trusted MAC integration and archive schema/checksums. M2 defines eight-hour revocable sessions, global credentials, and CSV import behavior.
 
 Before deployment, confirm CPU/RAM/disk/OS, representative benchmark fixtures, LAN DHCP/NAT/proxy behavior, HTTPS trust distribution, clock/storage monitoring, retention capacity, and who preserves downloaded archives.
 

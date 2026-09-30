@@ -72,9 +72,9 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M7 — Python Authoring · v0.6 · requires M1, M3, M5
 
-- [ ] Define Python checker helpers and generator/reference-solution protocols.
-- [ ] Add bounded background generation, reproducible seeds, and draft review.
-- [ ] **Test:** protocol errors, resource exhaustion, generator failures, hidden answers, publication gating.
+- [x] Define byte-based Python checker helpers and seeded Python/C generator/reference protocols.
+- [x] Add durable generation jobs, case checkpoints, shared-pool priority, staged review/apply, and provenance.
+- [x] **Test:** protocol errors/limits, reproducible seeds, generator/reference failures, hidden artifacts, stale drafts, and worker kill/recovery.
 
 ## M8 — Release and Exports · v0.7 · requires M6
 

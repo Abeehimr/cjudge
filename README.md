@@ -154,3 +154,26 @@ docker compose up -d worker
 ```
 
 The gate uses a disposable database and temporary artifacts. It covers migration backfill, exact marks/ties, deletion/restoration, CSRF/role separation, fault recovery, superseded workers, correction races and publication, and real isolate execution.
+
+## M7 Python authoring
+
+Rebuild API/web/worker, stop API/worker, run `docker compose run --rm api alembic upgrade head`, then restart services. Migration `20261002_authoring` adds durable generation jobs. Back up the new `authoring_files` volume with PostgreSQL; both API and worker images initialize its owner to UID 10001, mode 700.
+
+Admin → Task Library → draft: select Python checker and save source. `read_input()`, `read_output()`, `read_answer()` return bytes; call `accept()` or `reject()`. Print output, exceptions, missing verdicts, and resource failures block judging instead of awarding zero. Review shows the retained checker source; publication freezes it.
+
+In Generate cases, paste Python/C generator and reference C source, choose starting seed/count, and start generation. Each invocation receives seed in `argv[1]`; Python `random` is seeded automatically. Generator stdout is reference stdin; reference stdout is the answer. Keep author programs deterministic. Sources/configuration, seeds, SHA-256 hashes, diagnostics, and checkpoints are retained. Sources are bounded to 64 KiB, inputs/answers to 1 MiB each, combined cases to 16 MiB.
+
+Review generated input/answer previews, then Apply reviewed cases to replace draft cases. Publish separately. Editing the draft during generation prevents applying stale results; discard and generate again. One unresolved job per task; failed jobs support retry/discard. Existing manually reviewed cases remain publishable while generation runs. Applied/discarded evidence stays retained; automatic authoring-file cleanup is not implemented.
+
+Generation shares configured sandboxes at lowest priority and yields after each case. Isolates shows Generating work and lease health. Crashes resume checkpoints; three infrastructure faults require admin retry, while confirmed teacher errors fail immediately.
+
+Run the module gate with runtime workers stopped:
+
+```sh
+docker compose stop worker
+docker compose run --rm -v ./tests:/app/tests:ro -v ./migrations:/app/migrations:ro \
+  -v ./alembic.ini:/app/alembic.ini:ro worker python tests/authoring_gate.py --sandbox
+docker compose up -d worker
+```
+
+The disposable gate verifies real byte helpers/AC/WA/faults, full student output, reproducible Python/C seeds, reference failures, authorization/CSRF, staged apply/publication, lease fencing, bounded retries, and live worker kill/restart recovery. `api python tests/authoring_gate.py` runs its database/API checks without isolate.
