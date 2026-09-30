@@ -51,6 +51,7 @@ services:
       - credential_keys:/var/lib/cjudge:ro
       - task_files:/var/lib/cjudge-tasks
       - lab_files:/var/lib/cjudge-labs
+      - submission_files:/var/lib/cjudge-submissions
     depends_on: [db]
 
   key-init:
@@ -68,3 +69,4 @@ volumes:
   credential_keys:
   task_files:
   lab_files:
+  submission_files:
