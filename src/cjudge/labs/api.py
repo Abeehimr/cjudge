@@ -99,6 +99,7 @@ class LabSummary(StrictModel):
 class PublicTask(StrictModel):
     position: int
     revision_id: UUID
+    previous_revision_ids: list[UUID] = []
     title: str
     statement: str
     maximum_marks: str
@@ -111,6 +112,7 @@ class PublicTask(StrictModel):
 class AssignedTask(StrictModel):
     position: int
     revision_id: UUID
+    previous_revision_ids: list[UUID] = []
     task_id: UUID
     number: int
     config: TaskConfig
@@ -188,6 +190,10 @@ def summary(conn: sa.Connection, lab: dict, timestamp: datetime | None = None) -
 
 
 def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> dict:
+    from cjudge.submissions import batches
+    previous = {}
+    for item in conn.execute(sa.select(batches.c.task_id, batches.c.base_revision_id).where(batches.c.lab_id == lab['id'])).all():
+        previous.setdefault(item.task_id, []).append(item.base_revision_id)
     admin_view = enrollment is None
     assigned = labs.task_rows(conn, lab['id'])
     pdf_query = sa.select(labs.pdfs).where(labs.pdfs.c.lab_id == lab['id'])
@@ -206,13 +212,15 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
             .where(labs.enrollments.c.lab_id == lab['id']).order_by(identity.accounts.c.roll_number)).mappings()
         result.update(version=lab['version'], strict_ip=lab['strict_ip'], compiler_feedback=lab['compiler_feedback'], first_released_at=lab['first_released_at'],
             students=[dict(row) for row in roster], tasks=[{'position': row['position'], 'revision_id': row['id'],
+                'previous_revision_ids': previous.get(row['task_id'], []),
                 'task_id': row['task_id'], 'number': row['number'], 'config': row['config']} for row in assigned])
     else:
         public_tasks = []
         for row in assigned:
             config = TaskConfig.model_validate(row['config']).model_dump(mode='json')
             public_tasks.append({'position': row['position'], 'revision_id': row['id'],
-                **{key: config[key] for key in PublicTask.model_fields if key not in ('position', 'revision_id')}})
+                'previous_revision_ids': previous.get(row['task_id'], []),
+                **{key: config[key] for key in PublicTask.model_fields if key not in ('position', 'revision_id', 'previous_revision_ids')}})
         from cjudge.submissions.service import allowance
         result.update(frozen=enrollment['frozen'], tasks=public_tasks, admission=allowance(conn, lab, enrollment))
     return result

@@ -14,6 +14,7 @@ from cjudge.identity.api import StrictModel, admin, admin_write, no_store
 from cjudge.labs.api import student, student_write, student_access, ReasonInput
 from cjudge.labs.binding import client_ip
 from cjudge.submissions import service, files
+from cjudge.submissions import review
 from cjudge.tasks.api import bounded_body, json_input
 
 student_router = APIRouter(prefix='/api/labs/{lab_id}/submissions', dependencies=[Depends(student), Depends(no_store)])
@@ -45,6 +46,15 @@ class AdminSubmission(SubmissionOutput):
     total: int | None
     score_numerator: str | None
     score_denominator: str | None
+    accepted_revision_id: UUID
+    result_revision_id: UUID | None
+    run_id: UUID | None
+    deleted_at: datetime | None
+    delete_reason: str | None
+    rejudge_status: str | None
+    marks: str | None
+    ip_changed: bool = False
+    mac_changed: bool = False
 
 
 @contextmanager
@@ -64,28 +74,43 @@ def transaction():
 
 
 def query(lab_id: UUID):
-    return sa.select(store.submissions, identity.accounts.c.roll_number, identity.accounts.c.name, store.jobs.c.state, store.jobs.c.attempt_count,
+    assigned_revision = tasks.revisions.alias('assigned_revision')
+    assigned = sa.select(labs.assignments.c.revision_id).join(assigned_revision,
+        assigned_revision.c.id == labs.assignments.c.revision_id).where(labs.assignments.c.lab_id == lab_id,
+        assigned_revision.c.task_id == tasks.revisions.c.task_id).correlate(tasks.revisions).scalar_subquery()
+    return sa.select(store.submissions, assigned.label('current_revision_id'), tasks.revisions.c.task_id,
+        store.reviews.c.run_id, store.reviews.c.deleted_at, store.reviews.c.delete_reason,
+        store.jobs.c.kind, store.jobs.c.batch_id,
+        store.runs.c.revision_id.label('result_revision_id'), identity.accounts.c.roll_number, identity.accounts.c.name, store.jobs.c.state, store.jobs.c.attempt_count,
         store.runs.c.verdict, store.runs.c.compiler_feedback, store.runs.c.compiler_truncated,
         store.runs.c.passed, store.runs.c.total, store.runs.c.score_numerator, store.runs.c.score_denominator,
         store.attempts.c.fault).select_from(store.submissions.join(store.jobs,
         store.jobs.c.submission_id == store.submissions.c.id).join(identity.accounts,
-        identity.accounts.c.id == store.submissions.c.account_id).outerjoin(store.runs,
-        store.runs.c.id == store.jobs.c.attempt_id).outerjoin(store.attempts,
+        identity.accounts.c.id == store.submissions.c.account_id).join(tasks.revisions,
+        tasks.revisions.c.id == store.submissions.c.revision_id).outerjoin(store.reviews,
+        store.reviews.c.submission_id == store.submissions.c.id).outerjoin(store.runs,
+        store.runs.c.id == store.reviews.c.run_id).outerjoin(store.attempts,
         store.attempts.c.id == store.jobs.c.attempt_id)).where(store.submissions.c.lab_id == lab_id)
 
 
 def output(row: dict, feedback: str, *, admin_view: bool = False) -> dict:
-    status = {'queued': 'Queued', 'judging': 'Judging', 'delayed': 'Judging delayed',
-              'complete': 'Passed' if row['verdict'] == 'AC' else 'Compile error' if row['verdict'] == 'CE' else 'Failed'}[row['state']]
+    status = ('Passed' if row['verdict'] == 'AC' else 'Compile error' if row['verdict'] == 'CE' else 'Failed') if row['run_id'] else {
+        'queued': 'Queued', 'judging': 'Judging', 'delayed': 'Judging delayed', 'complete': 'Judging'}[row['state']]
     result = {key: row[key] for key in SubmissionOutput.model_fields if key not in ('status', 'compiler_feedback', 'compiler_truncated')}
     result.update(status=status, compiler_feedback=None, compiler_truncated=False)
+    result['revision_id'] = row['current_revision_id'] or row['revision_id']
     if row['verdict'] == 'CE' and (admin_view or feedback != 'none'):
         diagnostic = row['compiler_feedback'] or ''
         short = not admin_view and feedback == 'short'
         result.update(compiler_feedback='\n'.join(diagnostic.splitlines()[:20]) if short else diagnostic,
                       compiler_truncated=bool(row['compiler_truncated'] or short and len(diagnostic.splitlines()) > 20))
     if admin_view:
-        result.update({key: row[key] for key in AdminSubmission.model_fields if key not in SubmissionOutput.model_fields})
+        computed = {'accepted_revision_id', 'rejudge_status', 'ip_changed', 'mac_changed', 'marks'}
+        result.update({key: row[key] for key in AdminSubmission.model_fields if key not in SubmissionOutput.model_fields and key not in computed})
+        result.update(accepted_revision_id=row['revision_id'], rejudge_status=(
+            'Staged' if row['batch_id'] and row['state'] == 'complete' else row['state'])
+            if row['kind'] != 'initial' and (row['state'] != 'complete' or row['batch_id']) else None)
+        result['marks'] = review.displayed(review.exact(row)) if row['run_id'] else None
     return result
 
 
@@ -113,8 +138,10 @@ def history(lab_id: UUID, request: Request, offset: int = Query(default=0, ge=0)
     with transaction() as conn:
         lab, _, _ = student_access(conn, lab_id, account, request)
         selection = query(lab_id).where(store.submissions.c.account_id == account['id'])
+        selection = selection.where(store.reviews.c.deleted_at.is_(None))
         if revision_id:
-            selection = selection.where(store.submissions.c.revision_id == revision_id)
+            selection = selection.where(tasks.revisions.c.task_id == sa.select(tasks.revisions.c.task_id)
+                .where(tasks.revisions.c.id == revision_id).scalar_subquery())
         rows = conn.execute(selection.order_by(store.submissions.c.accepted_at.desc(), store.submissions.c.id).offset(offset).limit(100)).mappings()
         return [output(row, lab['compiler_feedback']) for row in rows]
 
@@ -124,7 +151,7 @@ def detail(lab_id: UUID, submission_id: UUID, request: Request, account: dict = 
     with transaction() as conn:
         lab, _, _ = student_access(conn, lab_id, account, request)
         row = conn.execute(query(lab_id).where(store.submissions.c.id == submission_id,
-            store.submissions.c.account_id == account['id'])).mappings().first()
+            store.submissions.c.account_id == account['id'], store.reviews.c.deleted_at.is_(None))).mappings().first()
         if not row:
             raise HTTPException(404, 'Submission not found')
         return output(row, lab['compiler_feedback'])
@@ -132,17 +159,25 @@ def detail(lab_id: UUID, submission_id: UUID, request: Request, account: dict = 
 
 @admin_router.get('', response_model=list[AdminSubmission])
 def admin_history(lab_id: UUID, offset: int = Query(default=0, ge=0),
-                  account_id: UUID | None = None, revision_id: UUID | None = None):
+                  account_id: UUID | None = None, revision_id: UUID | None = None, order: Literal['latest', 'best'] = 'latest'):
     with transaction() as conn:
         labs.find(conn, lab_id, shared=True)
         selection = query(lab_id)
         if account_id:
             selection = selection.where(store.submissions.c.account_id == account_id)
         if revision_id:
-            selection = selection.where(store.submissions.c.revision_id == revision_id)
-        rows = conn.execute(selection.order_by(store.submissions.c.accepted_at.desc(), store.submissions.c.id)
-                            .offset(offset).limit(100)).mappings()
-        return [output(row, 'full', admin_view=True) for row in rows]
+            selection = selection.where(tasks.revisions.c.task_id == sa.select(tasks.revisions.c.task_id)
+                .where(tasks.revisions.c.id == revision_id).scalar_subquery())
+        if order == 'best':
+            rows = list(conn.execute(selection).mappings())
+            rows.sort(key=lambda row: (2 if row['deleted_at'] else 1 if row['run_id'] is None else 0,
+                -review.exact(row) if row['run_id'] else 0, row['accepted_at'], str(row['id'])))
+            rows = rows[offset:offset + 100]
+        else:
+            rows = conn.execute(selection.order_by(store.submissions.c.accepted_at.desc(), store.submissions.c.id)
+                                .offset(offset).limit(100)).mappings()
+        flags = review.network_flags(conn, lab_id)
+        return [dict(output(row, 'full', admin_view=True), **flags.get(row['account_id'], {})) for row in rows]
 
 
 @admin_router.get('/{submission_id}/source')
@@ -158,21 +193,37 @@ def source(lab_id: UUID, submission_id: UUID):
 
 
 @admin_router.get('/{submission_id}')
-def admin_detail(lab_id: UUID, submission_id: UUID):
+def admin_detail(lab_id: UUID, submission_id: UUID, run_id: UUID | None = None):
     with transaction() as conn:
         labs.find(conn, lab_id, shared=True)
         row = conn.execute(query(lab_id).where(store.submissions.c.id == submission_id)).mappings().first()
         if not row:
             raise HTTPException(404, 'Submission not found')
+        official_run_id = row['run_id']
+        if run_id:
+            selected = conn.execute(sa.select(store.runs).where(store.runs.c.id == run_id,
+                store.runs.c.submission_id == submission_id)).mappings().first()
+            if not selected:
+                raise HTTPException(404, 'Judge run not found')
+            row = dict(row) | {key: selected[key] for key in ('verdict', 'compiler_feedback', 'compiler_truncated',
+                'passed', 'total', 'score_numerator', 'score_denominator')}
+            row.update(run_id=run_id, result_revision_id=selected['revision_id'])
         result = output(row, 'full', admin_view=True)
+        result['official_run_id'] = official_run_id
+        result['history'] = [dict(item) for item in conn.execute(sa.select(store.runs.c.id, store.runs.c.revision_id,
+            store.runs.c.verdict, store.runs.c.finished_at).where(store.runs.c.submission_id == submission_id)
+            .order_by(store.runs.c.finished_at.desc())).mappings()]
+        result['attempts'] = [dict(item) for item in conn.execute(sa.select(store.attempts.c.id,
+            store.attempts.c.started_at, store.attempts.c.finished_at, store.attempts.c.outcome, store.attempts.c.fault)
+            .where(store.attempts.c.submission_id == submission_id).order_by(store.attempts.c.started_at.desc())).mappings()]
+        result.update(review.network_flags(conn, lab_id).get(row['account_id'], {}))
         result['source'] = files.read(row).decode('utf-8', errors='replace')
-        case_rows = conn.execute(sa.select(store.cases).join(store.runs, store.runs.c.id == store.cases.c.run_id)
-            .join(store.jobs, store.jobs.c.attempt_id == store.runs.c.id)
-            .where(store.jobs.c.submission_id == submission_id).order_by(store.cases.c.number)).mappings().all()
+        case_rows = conn.execute(sa.select(store.cases).where(store.cases.c.run_id == row['run_id'])
+            .order_by(store.cases.c.number)).mappings().all()
         inputs = []
         if case_rows:
             cases_key = conn.execute(sa.select(tasks.revisions.c.cases_key)
-                .where(tasks.revisions.c.id == row['revision_id'])).scalar_one()
+                .where(tasks.revisions.c.id == row['result_revision_id'])).scalar_one()
             inputs = tasks.load_cases(cases_key)
         result['cases'] = [{**case, 'stdin': inputs[case['number'] - 1][0].decode('utf-8', errors='replace'),
                            'stdout': case['stdout'].decode('utf-8', errors='replace'),

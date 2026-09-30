@@ -103,7 +103,7 @@ def exercise(directory: str) -> None:
         assert submit(token='wrong')[0] == 403
         assert submit(source=b'x' * 65537)[0] == 413
         assert submit(filename='../evil.c')[0] == 400
-        assert submit(revision=uuid4())[0] == 400
+        assert submit(revision=uuid4())[0] == 409
         retry_key = uuid4()
         with ThreadPoolExecutor(2) as executor:
             duplicates = list(executor.map(lambda _: submit(key=retry_key), range(2)))

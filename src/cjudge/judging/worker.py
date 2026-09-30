@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 from cjudge import identity, runner, tasks
 from cjudge.judging import queue
-from cjudge.submissions import files
+from cjudge.submissions import files, review, batches
 from cjudge.tasks.grading import TaskConfig, compare_output, score
 
 LOG = logging.getLogger(__name__)
@@ -99,6 +99,12 @@ def work(slot: int) -> None:
     generation = uuid4()
     active = None
     try:
+        # Recover a committed final result whose publisher crashed before switching marks.
+        with identity.engine().connect() as conn:
+            pending_labs = conn.execute(sa.select(batches.c.lab_id).where(batches.c.state == 'judging').distinct()).scalars().all()
+        for lab_id in pending_labs:
+            with identity.engine().begin() as conn:
+                review.publish_ready(conn, lab_id)
         with identity.engine().begin() as conn:
             queue.register(conn, slot, generation)
         compiled = runner.compile_c(b'#include <stdio.h>\nint main(void){puts("ready");return 0;}')
@@ -130,6 +136,8 @@ def work(slot: int) -> None:
                     with identity.engine().begin() as conn:
                         if not queue.finish(conn, slot, generation, active, result):
                             raise runner.SandboxError('Lease lost')
+                    with identity.engine().begin() as conn:
+                        review.publish_ready(conn, active['lab_id'])
                 finally:
                     stop.set()
                     heartbeat.join(timeout=5)

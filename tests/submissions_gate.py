@@ -183,9 +183,11 @@ def history_checks() -> None:
             ends_at=timestamp + timedelta(hours=1)))
         conn.execute(sa.insert(labs.enrollments).values(lab_id=lab_id, account_id=student_id, binding_hash=identity.token_digest(binding)))
         conn.execute(sa.insert(tasks.tasks).values(id=task_id, version=1, config={'title': 'History'}, case_count=1))
+        other_task = uuid4()
+        conn.execute(sa.insert(tasks.tasks).values(id=other_task, version=1, config={'title': 'Other'}, case_count=1))
         for number, revision in enumerate([revision_a, revision_b], 1):
             cases_key = tasks.save_cases([(b'<svg onload=alert(1)>\xff' if number == 1 else b'other revision', b'answer')])
-            conn.execute(sa.insert(tasks.revisions).values(id=revision, task_id=task_id, number=number,
+            conn.execute(sa.insert(tasks.revisions).values(id=revision, task_id=task_id if number == 1 else other_task, number=number,
                 draft_version=number, config={'title': 'History'}, case_count=1, cases_key=cases_key))
         for index in range(106):
             key = uuid4()
@@ -210,6 +212,7 @@ def history_checks() -> None:
             stdout_truncated=True, stderr_truncated=False))
         conn.execute(sa.update(submissions.jobs).where(submissions.jobs.c.submission_id == detail_id)
             .values(state='complete', attempt_id=attempt_id, attempt_count=1))
+        conn.execute(sa.insert(submissions.reviews).values(submission_id=detail_id, run_id=attempt_id))
     def get(path, headers=None):
         try:
             response = urlopen(Request('http://127.0.0.1:8016' + path, headers=headers or {}), timeout=10)
