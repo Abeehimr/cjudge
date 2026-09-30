@@ -110,3 +110,31 @@ test("restores an admin deep link after login and returns to login on session ex
   expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
   expect(location.pathname).toBe("/admin/isolates");
 });
+
+test.each([
+  ['student', '/admin/students', '/labs'], ['admin', '/labs/lab/tasks/revision', '/admin/labs'],
+])('signed-in %s cannot open the other role pages', async (role, path, destination) => {
+  history.replaceState(null, '', path);
+  const account = { id: 'account', role, name: 'Ada', roll_number: null, csrf_token: 'csrf' };
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path.endsWith('/auth/session') ? account : [] }));
+  vi.stubGlobal('fetch', fetchMock);
+  render(<App />);
+  expect(await screen.findByRole('heading', { name: role === 'student' ? 'Assigned labs' : 'Labs' })).toBeTruthy();
+  expect(location.pathname).toBe(destination);
+  expect(fetchMock.mock.calls.some(([path]) => role === 'student' ? path.includes('/admin/') : path.includes('/labs/lab'))).toBe(false);
+});
+
+test('admin stream revocation clears private pages immediately', async () => {
+  history.replaceState(null, '', '/admin/isolates');
+  let stream!: EventTarget;
+  vi.stubGlobal('EventSource', class extends EventTarget { close = vi.fn(); constructor() { super(); stream = this; } });
+  const account = { id: 'admin', role: 'admin', name: 'Admin', csrf_token: 'csrf' };
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path.endsWith('/auth/session') ? account : { configured: 1, healthy: 0, working: 0, server_time: new Date().toISOString(), workers: [] } })));
+  render(<App />);
+  expect(await screen.findByRole('heading', { name: 'Isolates' })).toBeTruthy();
+  fireEvent(stream, new Event('denied'));
+  expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: 'Isolates' })).toBeNull();
+});

@@ -31,8 +31,9 @@ function Screen() {
     try {
       const account = await api<Session>(`/auth/${role}/login`, { method: "POST", body: JSON.stringify({ identifier: username, password }) });
       setPassword(""); setIdentifier(""); setSession(account);
-      const prefix = account.role === "admin" ? "/admin/" : "/labs";
-      if (!location.pathname.startsWith(prefix)) navigate(account.role === "admin" ? "/admin/labs" : "/labs", { replace: true });
+      const permitted = account.role === "admin" ? location.pathname.startsWith("/admin/")
+        : location.pathname === "/labs" || location.pathname.startsWith("/labs/");
+      if (!permitted) navigate(account.role === "admin" ? "/admin/labs" : "/labs", { replace: true });
     } catch (e) { setError((e as Error).message); }
     finally { setSigningIn(false); }
   }

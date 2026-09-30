@@ -17,7 +17,7 @@ export function useAdminEvents(refresh: () => Promise<void>) {
       source.onopen = () => setConnection("Live updates connected");
       source.onerror = () => setConnection("Updates reconnecting…");
       source.addEventListener("refresh", () => { void load(); });
-      source.addEventListener("denied", () => { stopped = true; source.close(); setConnection("Login expired. Sign in again."); });
+      source.addEventListener("denied", () => { stopped = true; source.close(); setConnection("Login expired. Sign in again."); window.dispatchEvent(new Event("cjudge-session-expired")); });
       source.addEventListener("reconnect", () => { source.close(); setConnection("Updates reconnecting…"); timer = setTimeout(connect, 3000); });
     }
     connect();
