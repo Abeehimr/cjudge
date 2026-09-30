@@ -271,7 +271,7 @@ def exercise(directory: str) -> None:
             conn.execute(sa.update(store.jobs).where(store.jobs.c.submission_id == excluded).values(state='delayed'))
         version = call(base)[1]['version']
         assert call(correction, 'POST', {'version': version, 'revision_id': str(revisions[2]), 'reason': 'Post-release correction'})[0] == 201
-        assert call(base)[1]['phase'] == 'Ended'
+        assert call(base)[1]['phase'] == 'Results released'
         print('PASS: correction races, concurrent arrivals, restoration membership, infrastructure blocking, atomic recovery, immutable source and post-release corrections')
     finally:
         server.terminate(); server.wait(timeout=10)

@@ -195,3 +195,32 @@ test('task corrections preserve unconfirmed uploads with the original revision a
   expect(posts[1][0]).toContain('revision_id=revision');
   expect(posts[0][1].headers['Idempotency-Key']).toBe(posts[1][1].headers['Idempotency-Key']);
 });
+
+test('Stop now confirms and sends the current lab version and audit reason', async () => {
+  live();
+  let lab = { ...summary, version: 1, strict_ip: false, first_released_at: null, tasks: [], pdfs: [], students: [], announcements: [] };
+  const fetch = vi.fn().mockImplementation((path: string) => {
+    if (path.endsWith('/stop')) lab = { ...lab, version: 2, phase: 'Ended' };
+    return Promise.resolve({ ok: true, status: 200, json: async () => path === '/api/admin/labs/lab' || path.endsWith('/stop') ? lab : [] });
+  });
+  vi.stubGlobal('fetch', fetch); vi.stubGlobal('confirm', vi.fn().mockReturnValue(true)); vi.stubGlobal('prompt', vi.fn().mockReturnValue('Finished early'));
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab');
+  fireEvent.click(await screen.findByRole('button', { name: 'Stop now' }));
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/admin/labs/lab/stop', expect.objectContaining({ method: 'POST',
+    body: JSON.stringify({ version: 1, reason: 'Finished early' }), headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }) })));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop now' })).toBeNull());
+});
+
+test('SSE hide-results refresh removes previously visible student source', async () => {
+  live(); let visible = true;
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path.endsWith('/details') ? { id: 'submission', filename: 'main.c', source: 'private source', status: 'Passed',
+      accepted_at: summary.starts_at, official_marks: '10.00', marks: '10.00', passed: 1, total: 1, history: [], cases: [] }
+      : path === '/api/labs' ? [summary] : { ...materials, results_visible: visible, server_time: visible ? '2026-09-30T00:00:00Z' : '2026-09-30T00:00:01Z' } })));
+  renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab/submissions/submission');
+  expect(await screen.findByText('private source')).toBeTruthy();
+  visible = false; act(() => Live.instances[0].dispatchEvent(new Event('refresh')));
+  await waitFor(() => expect(screen.queryByText('private source')).toBeNull());
+  expect(screen.getByText(/details are hidden/)).toBeTruthy();
+  expect(Live.instances).toHaveLength(1);
+});
