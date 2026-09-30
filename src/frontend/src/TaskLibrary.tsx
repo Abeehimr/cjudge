@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "./api";
 import Statement from "./Statement";
+import Generation from "./Generation";
 import { Link, useMatch, useNavigate, useSearchParams } from "react-router";
 import { NotFound, useOffset, useUnsaved } from "./navigation";
 
-type Checker = { kind: "exact" | "tokens"; ignore_final_newline: boolean; ignore_case: boolean;
+type Checker = { kind: "exact" | "tokens" | "python"; source?: string; ignore_final_newline: boolean; ignore_case: boolean;
   absolute_tolerance: string; relative_tolerance: string };
 type Config = { title: string; statement: string; maximum_marks: string; scoring: "partial" | "all_or_nothing";
   checker: Checker; cpu_seconds: number; wall_seconds: number; memory_mib: number; stack_mib: number; stdout_mib: number };
@@ -19,7 +20,7 @@ function Summary({ config }: { config: Config }) {
   return <div className="space-y-2 text-sm">
     <p><strong>{config.title}</strong> · {config.maximum_marks} marks · {config.scoring === "partial" ? "Partial" : "All or nothing"}</p>
     <p>Checker: {c.kind}; {c.kind === "exact" ? (c.ignore_final_newline ? "ignore one final LF/CRLF" : "all bytes must match")
-      : `${c.ignore_case ? "ASCII case-insensitive" : "case-sensitive"}; absolute tolerance ${c.absolute_tolerance}; relative tolerance ${c.relative_tolerance}`}</p>
+      : c.kind === "python" ? "Python helpers; explicit accept/reject" : `${c.ignore_case ? "ASCII case-insensitive" : "case-sensitive"}; absolute tolerance ${c.absolute_tolerance}; relative tolerance ${c.relative_tolerance}`}</p>
     <p>CPU {config.cpu_seconds}s · Wall {config.wall_seconds}s · Memory {config.memory_mib} MiB · Stack {config.stack_mib} MiB · Output {config.stdout_mib} MiB</p>
     <Statement text={config.statement} />
   </div>;
@@ -47,9 +48,10 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
   function setMessage(text: string) { setMessageError(false); setMessageText(text); }
   function showError(text: string) { setMessageError(true); setMessageText(text); }
   const [busy, setBusy] = useState(false);
+  const [generationDirty, setGenerationDirty] = useState(false);
   const dirty = !!draft && JSON.stringify(config) !== JSON.stringify(draft.config);
 
-  useUnsaved(dirty || !!input || !!answer || !!title, true);
+  useUnsaved(generationDirty || dirty || !!input || !!answer || !!title, true);
   useEffect(() => { if (created) { navigate(`/admin/tasks/${created}`); setCreated(null); } }, [created]);
   useEffect(() => {
     setInput(""); setAnswer(""); setMessage("");
@@ -188,10 +190,11 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
             <label>Scoring <select value={config.scoring} onChange={(e) => change("scoring", e.target.value as Config["scoring"])}>
               <option value="partial">Partial</option><option value="all_or_nothing">All or nothing</option></select></label>
             <label>Checker <select value={config.checker.kind} onChange={(e) => checker({ kind: e.target.value as Checker["kind"],
-              ignore_final_newline: false, ignore_case: false, absolute_tolerance: "0", relative_tolerance: "0" })}>
-              <option value="exact">Exact bytes</option><option value="tokens">ASCII whitespace tokens</option></select></label>
+              ignore_final_newline: false, ignore_case: false, absolute_tolerance: "0", relative_tolerance: "0", source: "" })}>
+              <option value="exact">Exact bytes</option><option value="tokens">ASCII whitespace tokens</option><option value="python">Python checker</option></select></label>
           </div>
-          {config.checker.kind === "exact" ? <label className="block"><input type="checkbox" checked={config.checker.ignore_final_newline}
+          {config.checker.kind === "python" ? <div><p className="text-sm">read_input(), read_output(), read_answer() return bytes. Call accept() or reject(); other outcomes block judging.</p>
+            <label>Python checker source<textarea required maxLength={65536} rows={8} className="block w-full font-mono" value={config.checker.source || ""} onChange={(e) => checker({ source: e.target.value })} /></label></div> : config.checker.kind === "exact" ? <label className="block"><input type="checkbox" checked={config.checker.ignore_final_newline}
             onChange={(e) => checker({ ignore_final_newline: e.target.checked })} /> Ignore one final LF/CRLF</label>
             : <div className="flex flex-wrap gap-3">
               <label><input type="checkbox" checked={config.checker.ignore_case} onChange={(e) => checker({ ignore_case: e.target.checked })} /> Ignore ASCII case</label>
@@ -237,6 +240,7 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
           </form>
         </fieldset>}
       </section>
+      {!published && !review && <Generation key={draft.id} taskId={draft.id} version={draft.version} csrf={csrf} disabled={busy || dirty} onDirty={setGenerationDirty} applied={async () => { accept(await api<Detail>(`/admin/tasks/${draft.id}`)); }} />}
       <section className="rounded border bg-white p-4"><h2 className="font-semibold">Published revisions</h2>
         {draft.revisions.length ? <ul>{draft.revisions.map((revision) => <li key={revision.id}>
           <Link to={`?revision=${revision.id}`}>Revision {revision.number}</Link> · draft {revision.draft_version} · {new Date(revision.created_at).toLocaleString()}

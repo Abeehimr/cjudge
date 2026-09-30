@@ -27,7 +27,7 @@ export function useAdminEvents(refresh: () => Promise<void>) {
 }
 
 type Worker = { slot: number; state: string; healthy: boolean; heartbeat_at: string | null; started_at: string | null;
-  lease_until: string | null; submission_id: string | null; completed: number; fault: string | null };
+  lease_until: string | null; submission_id: string | null; generation_job_id?: string | null; completed: number; fault: string | null };
 type Snapshot = { configured: number; healthy: number; working: number; server_time: string; workers: Worker[] };
 
 export default function Isolates() {
@@ -43,14 +43,14 @@ export default function Isolates() {
     const serverTime = Date.parse(snapshot.server_time), started = performance.now();
     const deadlines = snapshot.workers.filter((row) => row.state !== "Offline").map((row) => {
       const heartbeat = row.heartbeat_at ? Date.parse(row.heartbeat_at) + 90000 : serverTime;
-      return row.state === "Judging" && row.lease_until ? Math.min(heartbeat, Date.parse(row.lease_until)) : heartbeat;
+      return (row.state === "Judging" || row.state === "Generating") && row.lease_until ? Math.min(heartbeat, Date.parse(row.lease_until)) : heartbeat;
     });
     if (!deadlines.length) return;
     const timer = setTimeout(() => {
       const now = serverTime + performance.now() - started;
       setSnapshot((old) => old !== snapshot ? old : { ...snapshot, server_time: new Date(now).toISOString(), workers: snapshot.workers.map((row) => {
         if (row.heartbeat_at && (Date.parse(row.heartbeat_at) + 90000 <= now ||
-            row.state === "Judging" && row.lease_until && Date.parse(row.lease_until) <= now))
+            (row.state === "Judging" || row.state === "Generating") && row.lease_until && Date.parse(row.lease_until) <= now))
           return { ...row, state: "Offline", healthy: false, submission_id: null };
         return row;
       }) });
@@ -61,12 +61,12 @@ export default function Isolates() {
     <h1 className="text-xl font-semibold">Isolates</h1>
     <p>{connection}</p><button onClick={() => { void refresh(); }}>Refresh isolates</button>
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
-    {snapshot && <><p>{snapshot.configured} configured · {snapshot.workers.filter((row) => row.healthy).length} healthy · {snapshot.workers.filter((row) => row.state === "Judging").length} working</p>
+    {snapshot && <><p>{snapshot.configured} configured · {snapshot.workers.filter((row) => row.healthy).length} healthy · {snapshot.workers.filter((row) => (row.state === "Judging" || row.state === "Generating")).length} working</p>
       <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>
-        <th>Instance</th><th>Status</th><th>Submission</th><th>Last heartbeat</th><th>Completed since restart</th><th>Fault</th>
+        <th>Instance</th><th>Status</th><th>Work</th><th>Last heartbeat</th><th>Completed since restart</th><th>Fault</th>
       </tr></thead><tbody>{snapshot.workers.map((row) => <tr key={row.slot} className="border-t">
         <td>{row.slot + 1}</td><td><span className={row.state === "Faulted" || row.state === "Offline" ? "notice-danger rounded px-2" : ""}>{row.state}</span></td>
-        <td>{row.submission_id || "—"}</td><td>{row.heartbeat_at ? new Date(row.heartbeat_at).toLocaleString() : "Unavailable"}</td>
+        <td>{row.generation_job_id ? `Generation ${row.generation_job_id}` : row.submission_id || "—"}</td><td>{row.heartbeat_at ? new Date(row.heartbeat_at).toLocaleString() : "Unavailable"}</td>
         <td>{row.completed}</td><td>{row.fault || "—"}</td>
       </tr>)}</tbody></table></div>
       <p className="text-sm">Set CJUDGE_SANDBOX_INSTANCES and CJUDGE_JUDGE_MEMORY_LIMIT in .env, then recreate the worker service.</p>
