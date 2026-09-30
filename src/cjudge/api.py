@@ -15,6 +15,7 @@ from cjudge.submissions.api import admin_router as submissions_admin, student_ro
 from cjudge.judging.api import router as judging_admin
 from cjudge.submissions.review_api import router as review_admin
 from cjudge.authoring.api import router as authoring_admin
+from cjudge.labs import exports  # Register protected CSV routes before including the lab router.
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.add_middleware(

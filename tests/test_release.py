@@ -31,3 +31,10 @@ def test_release_visibility_and_archive_are_independent():
     archived = {**lab, 'archived_at': timestamp}
     assert labs.phase(archived, timestamp) == 'Archived'
     with pytest.raises(labs.LabError): labs.editable(archived)
+
+
+def test_csv_neutralizes_untrusted_formula_cells():
+    from cjudge.labs.exports import safe_cell
+    for cell in ('=1+1', ' +SUM(A1)', '-1', '@cmd', '\troll', '\nname'):
+        assert safe_cell(cell).startswith("'")
+    assert safe_cell('Ada') == 'Ada'

@@ -23,6 +23,7 @@ export function Marks({ labId, accountId, taskId }: { labId: string; accountId?:
   const tasks = (rows[0]?.tasks || []).filter((task) => !taskId || task.task_id === taskId);
   return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Marks</h2>
     <button onClick={() => { void refresh(); }}>Refresh marks</button>
+    {!accountId && !taskId && <a download href={`/api/admin/labs/${labId}/marks.csv`}>Download final CSV</a>}
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Student</th>
       {tasks.map((task) => <th key={task.task_id}>{task.title}</th>)}{!taskId && <><th>Total</th><th>Active submissions</th></>}</tr></thead>
