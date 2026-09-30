@@ -169,7 +169,6 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       </section>
       </>}
       {section === "overview" && <>
-      <Release lab={lab} csrf={csrf} accept={accept} deleted={() => setDestination("/admin/labs")} />
       <section className="rounded border bg-white p-4"><h2 className="font-semibold">Schedule ({zone})</h2>
         {setupOpen ? <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("/schedule", "POST", {
           version: lab.version, starts_at: new Date(start).toISOString(), ends_at: new Date(end).toISOString(),
@@ -241,7 +240,6 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       </section>
       </>}
       {section === "overview" && <>
-      <Release lab={lab} csrf={csrf} accept={accept} deleted={() => setDestination("/admin/labs")} />
       <form onSubmit={(e) => { e.preventDefault(); void perform(async () => { await mutate("/announcements", "POST", { body: announcement }); setAnnouncement(""); }); }} className="rounded border bg-white p-4">
         <label className="block">Message to lab<textarea required maxLength={4000} rows={3} value={announcement} onChange={(e) => setAnnouncement(e.target.value)} className="mt-1 block w-full" /></label>
         <button disabled={busy || !!lab?.archived_at}>Post announcement</button>

@@ -205,7 +205,9 @@ test('Stop now confirms and sends the current lab version and audit reason', asy
   });
   vi.stubGlobal('fetch', fetch); vi.stubGlobal('confirm', vi.fn().mockReturnValue(true)); vi.stubGlobal('prompt', vi.fn().mockReturnValue('Finished early'));
   renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab');
-  fireEvent.click(await screen.findByRole('button', { name: 'Stop now' }));
+  const stop = await screen.findByRole('button', { name: 'Stop now' });
+  expect(screen.getAllByRole('heading', { name: 'Results and archive' })).toHaveLength(1);
+  fireEvent.click(stop);
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/admin/labs/lab/stop', expect.objectContaining({ method: 'POST',
     body: JSON.stringify({ version: 1, reason: 'Finished early' }), headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }) })));
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop now' })).toBeNull());
