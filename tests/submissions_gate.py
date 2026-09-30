@@ -184,8 +184,9 @@ def history_checks() -> None:
         conn.execute(sa.insert(labs.enrollments).values(lab_id=lab_id, account_id=student_id, binding_hash=identity.token_digest(binding)))
         conn.execute(sa.insert(tasks.tasks).values(id=task_id, version=1, config={'title': 'History'}, case_count=1))
         for number, revision in enumerate([revision_a, revision_b], 1):
+            cases_key = tasks.save_cases([(b'<svg onload=alert(1)>\xff' if number == 1 else b'other revision', b'answer')])
             conn.execute(sa.insert(tasks.revisions).values(id=revision, task_id=task_id, number=number,
-                draft_version=number, config={'title': 'History'}, case_count=1, cases_key=uuid4()))
+                draft_version=number, config={'title': 'History'}, case_count=1, cases_key=cases_key))
         for index in range(106):
             key = uuid4()
             source = b'<script>alert(1)</script>\xff'
@@ -245,6 +246,7 @@ def history_checks() -> None:
         assert status == 200 and detail['source'] == source.decode('utf-8', errors='replace'), detail
         assert detail['client_ip'] == '192.0.2.1' and detail['status'] == 'Failed'
         assert len(detail['cases']) == 1 and detail['cases'][0]['stdout'] == '<img src=x>\ufffd'
+        assert detail['cases'][0]['stdin'] == '<svg onload=alert(1)>\ufffd'
         assert detail['cases'][0]['stdout_truncated'] and detail['cases'][0]['verdict'] == 'WA'
         assert get(detail_path, student_headers)[0] == 403
         assert get(detail_path)[0] == 401
@@ -273,6 +275,8 @@ def main() -> None:
         command.upgrade(Config('alembic.ini'), 'head')
         with tempfile.TemporaryDirectory() as directory:
             os.environ['CJUDGE_SUBMISSION_FILES'] = directory
+            os.environ['CJUDGE_TASK_FILES'] = directory
+            tasks.ARTIFACTS = Path(directory)
             checks()
             history_checks()
     finally:

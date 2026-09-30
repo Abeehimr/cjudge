@@ -22,12 +22,13 @@ test('admin submission detail renders untrusted source and outputs as text', asy
     client_ip: '192.0.2.1', client_mac: null, attempt_count: 1, passed: 0, total: 1,
     score_numerator: '0', score_denominator: '1', compiler_feedback: null,
     cases: [{ number: 1, verdict: 'WA', cpu_seconds: .1, wall_seconds: .2, memory_kib: 1024,
-      stdout: '<img src=x onerror=alert(1)>', stderr: 'diagnostic', stdout_truncated: true, stderr_truncated: false }],
+      stdin: '<svg onload=alert(1)>', stdout: '<img src=x onerror=alert(1)>', stderr: 'diagnostic', stdout_truncated: true, stderr_truncated: false }],
   }) }));
   const { container } = renderRoute(<AdminSubmissionDetail labId="lab" submissionId="submission" />, '/admin/labs/lab/submissions/submission');
   expect(await screen.findByText(source)).toBeTruthy();
   expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeTruthy();
-  expect(container.querySelector('script, img')).toBeNull();
+  expect(screen.getByText('<svg onload=alert(1)>')).toBeTruthy();
+  expect(container.querySelector('script, img, svg')).toBeNull();
   expect(screen.getByText('Standard output (truncated)')).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Download original source' }).getAttribute('href')).toBe('/api/admin/labs/lab/submissions/submission/source');
 });

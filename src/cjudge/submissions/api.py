@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
 
-from cjudge import identity, labs, submissions as store
+from cjudge import identity, labs, tasks, submissions as store
 from cjudge.identity.api import StrictModel, admin, admin_write, no_store
 from cjudge.labs.api import student, student_write, student_access, ReasonInput
 from cjudge.labs.binding import client_ip
@@ -168,7 +168,13 @@ def admin_detail(lab_id: UUID, submission_id: UUID):
         result['source'] = files.read(row).decode('utf-8', errors='replace')
         case_rows = conn.execute(sa.select(store.cases).join(store.runs, store.runs.c.id == store.cases.c.run_id)
             .join(store.jobs, store.jobs.c.attempt_id == store.runs.c.id)
-            .where(store.jobs.c.submission_id == submission_id).order_by(store.cases.c.number)).mappings()
-        result['cases'] = [{**case, 'stdout': case['stdout'].decode('utf-8', errors='replace'),
+            .where(store.jobs.c.submission_id == submission_id).order_by(store.cases.c.number)).mappings().all()
+        inputs = []
+        if case_rows:
+            cases_key = conn.execute(sa.select(tasks.revisions.c.cases_key)
+                .where(tasks.revisions.c.id == row['revision_id'])).scalar_one()
+            inputs = tasks.load_cases(cases_key)
+        result['cases'] = [{**case, 'stdin': inputs[case['number'] - 1][0].decode('utf-8', errors='replace'),
+                           'stdout': case['stdout'].decode('utf-8', errors='replace'),
                            'stderr': case['stderr'].decode('utf-8', errors='replace')} for case in case_rows]
         return result
