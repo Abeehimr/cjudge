@@ -38,3 +38,15 @@ def test_csv_neutralizes_untrusted_formula_cells():
     for cell in ('=1+1', ' +SUM(A1)', '-1', '@cmd', '\troll', '\nname'):
         assert safe_cell(cell).startswith("'")
     assert safe_cell('Ada') == 'Ada'
+
+
+def test_archive_verification_rejects_corrupt_content(tmp_path):
+    import hashlib
+    import zipfile
+    from cjudge.labs.archive import verify
+    path = tmp_path / 'test.zip'
+    with zipfile.ZipFile(path, 'w') as archive:
+        archive.writestr('data', b'wrong')
+        archive.writestr('manifest.json', b'{}')
+    manifest = {'entries': [{'path': 'data', 'size': 5, 'sha256': hashlib.sha256(b'right').hexdigest()}]}
+    with pytest.raises(OSError): verify(path, manifest)
