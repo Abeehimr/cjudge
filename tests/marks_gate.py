@@ -137,9 +137,9 @@ def exercise(directory: str) -> None:
         assert rows[0]['id'] == str(first) and {row['id'] for row in rows[-2:]} == {str(deleted), str(excluded)}
         assert call(detail)[1]['ip_changed']
         student_path = f'/labs/{lab_id}/submissions'
-        assert not {'passed', 'run_id', 'deleted_at', 'ip_changed', 'rejudge_status'} & call(student_path, student=True)[1][0].keys()
+        assert not {'passed', 'run_id', 'ip_changed', 'rejudge_status'} & call(student_path, student=True)[1][0].keys()
         assert call(f'{base}/submissions/{deleted}/source')[0] == 200
-        assert call(student_path + f'/{deleted}', student=True)[0] == 404
+        assert call(student_path + f'/{deleted}', student=True)[1]['deleted_at'] is not None
         assert call(detail + '/review', 'PUT', {'deleted': True, 'reason': 'Exclude'})[0] == 204
         with identity.engine().connect() as conn:
             assert review.marks(conn, lab_id)[0]['tasks'][0]['best_submission_id'] == tie
@@ -147,6 +147,9 @@ def exercise(directory: str) -> None:
         original = call(detail)[1]['official_run_id']
         assert call(detail + '/rejudge', 'POST', {'expected_run_id': str(uuid4()), 'reason': 'stale'})[0] == 409
         assert call(detail + '/rejudge', 'POST', {'expected_run_id': original, 'reason': 'Verify'})[0] == 204
+        notices = call(base)[1]['announcements']
+        assert any(str(first) in row['body'] and 'Verify' in row['body'] and row['audience'].startswith('Only ') for row in notices)
+        assert not any('stale' in row['body'] for row in notices)
         assert call(detail)[1]['official_run_id'] == original
         with identity.engine().begin() as conn:
             assert service.allowance(conn, labs.find(conn, lab_id, shared=True), labs.enrollment(conn, lab_id, student_id))['pending'] == 0
@@ -246,6 +249,10 @@ def exercise(directory: str) -> None:
         with identity.engine().begin() as conn:
             review.publish_ready(conn, lab_id)
             assert conn.execute(sa.select(store.batches.c.state).where(store.batches.c.id == batch_id)).scalar_one() == 'published'
+            review.publish_ready(conn, lab_id)
+            assert conn.execute(sa.select(sa.func.count()).select_from(labs.announcements).where(
+                labs.announcements.c.lab_id == lab_id, labs.announcements.c.recipient_id.is_(None),
+                labs.announcements.c.body.contains('rejudge completed'))).scalar_one() == 1
             scored_revisions = set(conn.execute(sa.select(store.runs.c.revision_id).join(store.reviews,
                 store.reviews.c.run_id == store.runs.c.id).where(store.reviews.c.deleted_at.is_(None))).scalars())
             assert scored_revisions == {revisions[1]}
@@ -254,7 +261,7 @@ def exercise(directory: str) -> None:
         selected = call(detail)[1]
         if selected['cases']: assert selected['cases'][0]['stdin'] == '2 0\n'
         assert all(row['revision_id'] == str(revisions[1]) for row in call(student_path, student=True)[1])
-        assert len(call(student_path + '?revision_id=' + str(revisions[1]), student=True)[1]) == 5
+        assert len([row for row in call(student_path + '?revision_id=' + str(revisions[1]), student=True)[1] if not row['deleted_at']]) == 5
         assert str(revisions[0]) in call(f'/labs/{lab_id}', student=True)[1]['tasks'][0]['previous_revision_ids']
         with identity.engine().begin() as conn:
             review.set_deleted(conn, labs.find(conn, lab_id), excluded, False, admin_id, 'Restore after publication')

@@ -31,7 +31,7 @@ def exercise(directory):
         os.environ[f'CJUDGE_{name}_FILES'] = directory
     tasks.ARTIFACTS = pdf_files.FILES = Path(directory)
     admin, student, other, lab_id, scheduled, task_id, revision = [uuid4() for _ in range(7)]
-    token, student_token, binding, csrf = [secrets.token_urlsafe(32) for _ in range(4)]
+    token, student_token, binding, csrf, other_token, other_binding = [secrets.token_urlsafe(32) for _ in range(6)]
     source = b'int main(void){return 0;}'
     config = dict(title='=Task', statement='Optional **statement**', maximum_marks='10', scoring='partial',
         cpu_seconds=1, wall_seconds=2, memory_mib=64, stack_mib=8, stdout_mib=1)
@@ -62,7 +62,7 @@ def exercise(directory):
         for key, role, name in ((admin, 'admin', 'Admin'), (student, 'student', '=Ada'), (other, 'student', 'Other')):
             conn.execute(sa.insert(identity.accounts).values(id=key, role=role, name=name, password_hash='unused',
                 roll_number=None if role == 'admin' else name, encrypted_password=None if role == 'admin' else b'private'))
-        for key, value in ((admin, token), (student, student_token)):
+        for key, value in ((admin, token), (student, student_token), (other, other_token)):
             conn.execute(sa.insert(identity.sessions).values(account_id=key, token_hash=identity.token_digest(value),
                 csrf_token=csrf, expires_at=timestamp + timedelta(hours=1)))
         conn.execute(sa.insert(tasks.tasks).values(id=task_id, version=1, config=config, case_count=2))
@@ -76,16 +76,16 @@ def exercise(directory):
             conn.execute(sa.insert(labs.assignments).values(lab_id=key, revision_id=revision, position=1))
         for key in (student, other):
             conn.execute(sa.insert(labs.enrollments).values(lab_id=lab_id, account_id=key,
-                binding_hash=identity.token_digest(binding) if key == student else None))
+                binding_hash=identity.token_digest(binding if key == student else other_binding)))
         submission, run = seed(conn, student)
         excluded, _ = seed(conn, other, True)
         alien, _ = seed(conn, other)
         pdf = pdf_files.save(b'%PDF-1.7\nlab tasks\n%%EOF')
         conn.execute(sa.insert(labs.pdfs).values(id=pdf, lab_id=lab_id, name='tasks.pdf', size=24, active=True))
         conn.execute(sa.update(labs.pdfs).where(labs.pdfs.c.id == pdf).values(size=(Path(directory) / f'{pdf}.pdf').stat().st_size))
-    def call(path, method='GET', body=None, student_view=False, bad_csrf=False, bound=True):
-        cookie = f'cjudge_session={student_token if student_view else token}'
-        if student_view and bound: cookie += f'; cjudge_lab_{lab_id.hex}={binding}'
+    def call(path, method='GET', body=None, student_view=False, bad_csrf=False, bound=True, other_view=False):
+        cookie = f'cjudge_session={other_token if other_view else student_token if student_view else token}'
+        if (student_view or other_view) and bound: cookie += f'; cjudge_lab_{lab_id.hex}={other_binding if other_view else binding}'
         headers = {'Cookie': cookie, 'Origin': 'https://localhost:8443', 'X-CSRF-Token': 'bad' if bad_csrf else csrf}
         payload = None
         if body is not None: headers['Content-Type'] = 'application/json'; payload = json.dumps(body).encode()
@@ -156,7 +156,7 @@ def exercise(directory):
         assert call(private + '/details', student_view=True, bound=False)[0] == 423
         assert call(private + '/source', student_view=True)[1] == source
         assert next(row for row in call(base + '/submissions')[1] if row['id'] == str(submission))['best_for_review']
-        assert call(f'/labs/{lab_id}/submissions', student_view=True)[1][0]['best_for_review']
+        assert next(row for row in call(f'/labs/{lab_id}/submissions', student_view=True)[1] if row['id'] == str(submission))['best_for_review']
         # Newest equal-score attempt is preferred for review; counted marks still use earliest.
         with identity.engine().begin() as conn:
             tie, _ = seed(conn, student)
@@ -164,9 +164,26 @@ def exercise(directory):
         admin_rows = call(base + '/submissions')[1]
         assert next(row for row in admin_rows if row['id'] == str(tie))['best_for_review']
         assert not next(row for row in admin_rows if row['id'] == str(submission))['best_for_review']
-        assert call(f'/labs/{lab_id}/submissions', student_view=True)[1][0]['best_for_review']
+        assert next(row for row in call(f'/labs/{lab_id}/submissions', student_view=True)[1] if row['id'] == str(tie))['best_for_review']
         assert call(base + f'/submissions/{tie}/review', 'PUT', {'reason': 'Exclude review tie', 'deleted': True})[0] == 204
-        assert call(f'/labs/{lab_id}/submissions', student_view=True)[1][0]['best_for_review']
+        assert next(row for row in call(f'/labs/{lab_id}/submissions', student_view=True)[1] if row['id'] == str(submission))['best_for_review']
+        own_rows = call(f'/labs/{lab_id}/submissions', student_view=True)[1]
+        deleted_row = next(row for row in own_rows if row['id'] == str(tie))
+        assert deleted_row['deleted_at'] and deleted_row['delete_reason'] == 'Exclude review tie'
+        assert not deleted_row['best_for_review']
+        assert call(f'/labs/{lab_id}/submissions/{tie}/details', student_view=True)[0] == 200
+        own_notices = call(f'/labs/{lab_id}', student_view=True)[1]['announcements']
+        other_notices = call(f'/labs/{lab_id}', other_view=True)[1]['announcements']
+        assert any(str(tie) in notice['body'] and notice['audience'] == 'Only you' for notice in own_notices)
+        assert not any(str(tie) in notice['body'] for notice in other_notices)
+        assert not any('Excluded failed infrastructure' in notice['body'] for notice in own_notices)
+        for notices in (own_notices, other_notices):
+            assert any('Lab stopped' in notice['body'] and 'Finished' in notice['body'] for notice in notices)
+            assert any('Results released' in notice['body'] for notice in notices)
+        # Rejected repeated actions do not create duplicate announcements.
+        count = len(own_notices)
+        assert call(base + f'/submissions/{tie}/review', 'PUT', {'reason': 'Again', 'deleted': True})[0] == 409
+        assert len(call(f'/labs/{lab_id}', student_view=True)[1]['announcements']) == count
         assert results(False)[0] == 200
         assert call(private + '/details', student_view=True)[0] == 403
         assert results()[0] == 200

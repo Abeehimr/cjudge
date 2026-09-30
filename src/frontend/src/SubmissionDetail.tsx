@@ -7,7 +7,7 @@ type Case = { number: number; verdict: string; cpu_seconds: number; wall_seconds
   stdin_truncated: boolean; expected_truncated: boolean; stdout_truncated: boolean; stderr_truncated: boolean };
 type Detail = { id: string; filename: string; source: string; status: string; accepted_at: string;
   marks: string | null; official_marks: string | null; passed: number | null; total: number | null; grading_pending: boolean;
-  official_run_id: string | null; compiler_feedback: string | null; compiler_truncated: boolean;
+  deleted_at: string | null; delete_reason: string | null; official_run_id: string | null; compiler_feedback: string | null; compiler_truncated: boolean;
   history: { id: string; verdict: string; finished_at: string }[]; cases: Case[] };
 
 export default function SubmissionDetail({ labId, submissionId, visible, refreshKey }: {
@@ -31,6 +31,7 @@ export default function SubmissionDetail({ labId, submissionId, visible, refresh
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
     {!row && !error && <p>Loading submission…</p>}
     {row && <><p><span className="submission-status" data-status={row.status}>{row.status}</span> · Accepted {new Date(row.accepted_at).toLocaleString()}</p>
+      {row.deleted_at && <p className="notice notice-danger">Deleted · {row.delete_reason} · Excluded from lab marks.</p>}
       <p>Official marks: {row.official_marks ?? "Pending"}</p>
       {row.grading_pending && <p className="notice notice-warning">Grading in progress. Previous official marks remain visible.</p>}
       <label>Judge result <select value={run} onChange={(e) => setParams(e.target.value ? { run: e.target.value } : {})}>

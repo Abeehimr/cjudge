@@ -68,3 +68,5 @@ input[type="file"]::file-selector-button:hover { background: #dbeafe; border-col
 a:not([download]):not(.nav-link) { @apply text-blue-800 underline underline-offset-2; }
 
 tr[data-best="true"] { @apply bg-green-50; }
+
+tr[data-deleted="true"] { @apply bg-red-50; }

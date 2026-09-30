@@ -31,6 +31,8 @@ class SubmissionOutput(StrictModel):
     compiler_feedback: str | None = None
     compiler_truncated: bool = False
     best_for_review: bool = False
+    deleted_at: datetime | None = None
+    delete_reason: str | None = None
 
 
 class AdminSubmission(SubmissionOutput):
@@ -50,8 +52,6 @@ class AdminSubmission(SubmissionOutput):
     accepted_revision_id: UUID
     result_revision_id: UUID | None
     run_id: UUID | None
-    deleted_at: datetime | None
-    delete_reason: str | None
     rejudge_status: str | None
     marks: str | None
     ip_changed: bool = False
@@ -139,7 +139,6 @@ def history(lab_id: UUID, request: Request, offset: int = Query(default=0, ge=0)
     with transaction() as conn:
         lab, _, _ = student_access(conn, lab_id, account, request)
         selection = query(lab_id).where(store.submissions.c.account_id == account['id'])
-        selection = selection.where(store.reviews.c.deleted_at.is_(None))
         if revision_id:
             selection = selection.where(tasks.revisions.c.task_id == sa.select(tasks.revisions.c.task_id)
                 .where(tasks.revisions.c.id == revision_id).scalar_subquery())
@@ -153,7 +152,7 @@ def detail(lab_id: UUID, submission_id: UUID, request: Request, account: dict = 
     with transaction() as conn:
         lab, _, _ = student_access(conn, lab_id, account, request)
         row = conn.execute(query(lab_id).where(store.submissions.c.id == submission_id,
-            store.submissions.c.account_id == account['id'], store.reviews.c.deleted_at.is_(None))).mappings().first()
+            store.submissions.c.account_id == account['id'])).mappings().first()
         if not row:
             raise HTTPException(404, 'Submission not found')
         return output(row, lab['compiler_feedback'])
@@ -292,7 +291,7 @@ def released_row(conn: sa.Connection, lab_id: UUID, submission_id: UUID, request
     from cjudge.labs.release import visible
     lab, _, _ = student_access(conn, lab_id, account, request)
     row = conn.execute(query(lab_id).where(store.submissions.c.id == submission_id,
-        store.submissions.c.account_id == account['id'], store.reviews.c.deleted_at.is_(None))).mappings().first()
+        store.submissions.c.account_id == account['id'])).mappings().first()
     if not row:
         raise HTTPException(404, 'Submission not found')
     visible(lab)
