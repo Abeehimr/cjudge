@@ -10,7 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class Checker(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-    kind: Literal["exact", "tokens"] = "exact"
+    kind: Literal["exact", "tokens", "python"] = "exact"
+    source: str = Field(default="", max_length=65536)
     ignore_final_newline: bool = False
     ignore_case: bool = False
     absolute_tolerance: Decimal = Field(default=Decimal(0), ge=0, le=1, max_digits=16, decimal_places=15)
@@ -18,6 +19,13 @@ class Checker(BaseModel):
 
     @model_validator(mode="after")
     def options_match_kind(self) -> Self:
+        if len(self.source.encode()) > 65536:
+            raise ValueError("Checker source exceeds 64 KiB")
+        if self.kind == "python":
+            if not self.source.strip() or self.ignore_final_newline or self.ignore_case or self.absolute_tolerance or self.relative_tolerance:
+                raise ValueError("Python checking requires source and no built-in options")
+        elif self.source:
+            raise ValueError("Checker source applies only to Python checking")
         if self.kind == "exact" and (self.ignore_case or self.absolute_tolerance or self.relative_tolerance):
             raise ValueError("Case and numeric tolerance apply only to token checking")
         if self.kind == "tokens" and self.ignore_final_newline:
@@ -52,6 +60,8 @@ _NUMBER = re.compile(rb"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]{1
 
 
 def compare_output(actual: bytes, expected: bytes, checker: Checker) -> bool:
+    if checker.kind == "python":
+        raise ValueError("Python checkers require the isolate runner")
     if checker.kind == "exact":
         if checker.ignore_final_newline:
             # Ignore precisely one LF or CRLF at EOF; preserve all other bytes.

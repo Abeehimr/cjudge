@@ -273,7 +273,8 @@ def execute(executable: bytes, stdin: bytes = b"", limits: Limits | None = None)
     return _run(Profile.EXECUTE, ["/box/main"], {"main": executable}, stdin, limits)
 
 
-def run_python(script: bytes, profile: Profile, files: dict[str, bytes] | None = None) -> Result:
+def run_python(script: bytes, profile: Profile, files: dict[str, bytes] | None = None,
+               args: tuple[str, ...] = (), limits: Limits | None = None) -> Result:
     """M1 isolation primitive; checker/generator protocols arrive in M7."""
     if profile not in (Profile.CHECKER, Profile.GENERATOR):
         raise ValueError("Python requires checker or generator profile")
@@ -281,5 +282,5 @@ def run_python(script: bytes, profile: Profile, files: dict[str, bytes] | None =
         raise ValueError("Python source must contain 1–65536 bytes")
     if files and "program.py" in files:
         raise ValueError("program.py is reserved")
-    return _run(profile, ["/usr/local/bin/python3", "-I", "-B", "/box/program.py"],
-                {**(files or {}), "program.py": script})
+    return _run(profile, ["/usr/local/bin/python3", "-I", "-B", "/box/program.py", *args],
+                {**(files or {}), "program.py": script}, limits=limits)
