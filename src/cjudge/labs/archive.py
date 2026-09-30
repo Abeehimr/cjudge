@@ -190,3 +190,74 @@ def download_export(lab_id: UUID, export_id: UUID, actor: dict = Depends(admin))
         identity.audit(conn, 'lab_export_downloaded', actor['id'], detail={'lab_id': str(lab_id), 'export_id': str(export_id)})
     return FileResponse(path, media_type='application/zip', filename=f'{lab_id}-archive-v1.zip',
         headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
+
+
+class DeleteInput(StopInput):
+    export_id: UUID
+    title: str = Field(max_length=160)
+    saved_copy: bool
+
+
+def cleanup(lab_id: UUID) -> int:
+    roots = {'source': (source_files.root(), '.c'), 'pdf': (pdf_files.FILES, '.pdf'), 'export': (root(), '.zip')}
+    with transaction() as conn:
+        pending = rows(conn, cleanup_files, cleanup_files.c.lab_id == lab_id)
+        for row in pending:
+            directory, suffix = roots[row['kind']]
+            try: (directory / f'{row["artifact_id"]}{suffix}').unlink(missing_ok=True)
+            except OSError: continue
+            conn.execute(sa.delete(cleanup_files).where(cleanup_files.c.lab_id == lab_id,
+                cleanup_files.c.kind == row['kind'], cleanup_files.c.artifact_id == row['artifact_id']))
+        return conn.execute(sa.select(sa.func.count()).select_from(cleanup_files).where(cleanup_files.c.lab_id == lab_id)).scalar_one()
+
+
+@admin_router.delete('/{lab_id}')
+async def delete_lab(lab_id: UUID, request: Request, actor: dict = Depends(admin_write)):
+    body = await json_input(request, DeleteInput)
+    def perform():
+        from cjudge.judging import queue
+        with transaction() as conn:
+            lab = labs.find(conn, lab_id, body.version)
+            if not lab['archived_at'] or not body.saved_copy or body.title != lab['title'] or not body.reason.strip():
+                raise labs.LabError(400, 'Deletion requires an archived lab, saved-copy acknowledgment, matching title and reason')
+            receipt = conn.execute(sa.select(exports).where(exports.c.id == body.export_id,
+                exports.c.lab_id == lab_id)).mappings().first()
+            if not receipt or receipt['version'] != lab['version'] or receipt['snapshot_digest'] != digest(snapshot(conn, lab)):
+                raise labs.LabError(409, 'Generate a current archive before deletion')
+            if file_hash(root() / f'{body.export_id}.zip') != (receipt['sha256'], receipt['size']):
+                raise labs.LabError(503, 'Archive integrity check failed')
+            queue.scheduler_lock(conn)
+            source_files.lock(conn)
+            ids = list(conn.execute(sa.select(store.submissions.c.id).where(store.submissions.c.lab_id == lab_id)).scalars())
+            run_ids = list(conn.execute(sa.select(store.runs.c.id).where(store.runs.c.submission_id.in_(ids))).scalars())
+            batch_ids = list(conn.execute(sa.select(store.batches.c.id).where(store.batches.c.lab_id == lab_id)).scalars())
+            artifacts = [('source', key) for key in ids]
+            artifacts += [('pdf', key) for key in conn.execute(sa.select(labs.pdfs.c.id).where(labs.pdfs.c.lab_id == lab_id)).scalars()]
+            artifacts += [('export', key) for key in conn.execute(sa.select(exports.c.id).where(exports.c.lab_id == lab_id)).scalars()]
+            if artifacts:
+                conn.execute(sa.insert(cleanup_files), [dict(lab_id=lab_id, kind=kind, artifact_id=key) for kind, key in artifacts])
+            conn.execute(sa.delete(store.members).where(store.members.c.batch_id.in_(batch_ids)))
+            conn.execute(sa.delete(store.cases).where(store.cases.c.run_id.in_(run_ids)))
+            conn.execute(sa.delete(store.reviews).where(store.reviews.c.submission_id.in_(ids)))
+            conn.execute(sa.delete(store.jobs).where(store.jobs.c.submission_id.in_(ids)))
+            conn.execute(sa.delete(store.runs).where(store.runs.c.submission_id.in_(ids)))
+            conn.execute(sa.delete(store.attempts).where(store.attempts.c.submission_id.in_(ids)))
+            conn.execute(sa.delete(store.batches).where(store.batches.c.lab_id == lab_id))
+            conn.execute(sa.select(sa.func.set_config('cjudge.delete_lab', str(lab_id), True)))
+            conn.execute(sa.delete(store.submissions).where(store.submissions.c.lab_id == lab_id))
+            for table in (labs.assignments, labs.enrollments, labs.pdfs, labs.announcements, exports):
+                conn.execute(sa.delete(table).where(table.c.lab_id == lab_id))
+            conn.execute(sa.delete(labs.labs).where(labs.labs.c.id == lab_id))
+            identity.audit(conn, 'lab_permanently_deleted', actor['id'], detail={'lab_id': str(lab_id),
+                'title': lab['title'], 'export_id': str(body.export_id), 'archive_sha256': receipt['sha256'], 'reason': body.reason.strip()})
+            labs.notify(conn, lab_id=lab_id)
+        return {'cleanup_pending': cleanup(lab_id)}
+    return await run_in_threadpool(perform)
+
+
+@admin_router.post('/{lab_id}/cleanup')
+def retry_cleanup(lab_id: UUID, actor: dict = Depends(admin_write)):
+    result = cleanup(lab_id)
+    with transaction() as conn:
+        identity.audit(conn, 'lab_cleanup_retried', actor['id'], detail={'lab_id': str(lab_id), 'pending': result})
+    return {'cleanup_pending': result}
