@@ -52,6 +52,7 @@ Confirm destructive or grading-changing admin actions and show their effects. Co
 - Lab with versioned PDF attachments, announcements, frozen/bound enrollment, and ordered pinned task revisions.
 - Reusable task with optional Markdown statement, immutable revision, and test cases.
 - Submission with immutable source, acceptance time, and soft-delete metadata.
+- Submission network snapshot: client IP, optional trusted MAC, MAC source/observation time. Admin attempt review displays addresses, unavailable MACs, and possible PC-switch flags across the student's lab submissions.
 - Queue job/attempt with lease identity; judge run and case results tied to a revision.
 - Rejudge batch, audit event, and export metadata.
 

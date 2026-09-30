@@ -27,6 +27,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 - Use a common server-authoritative deadline. Allow whole-lab extensions and reopening before first release; never reopen after release, even if results are hidden again.
 - Prevent overlapping labs. Require explicit rescheduling before an extension conflicts with another lab.
 - Accept one `.c` file up to 64 KiB only after complete upload, validation, and durable acceptance strictly before the deadline. Queued judging may finish afterward.
+- Save each accepted submission's client IP and MAC address when available from a trusted LAN source. Admin review shows these values and flags changes across a student's submissions within the lab as possible PC switches, not proof. Missing MAC values display as unavailable and do not block submission.
 - Enforce a 30-second cooldown across tasks and at most three pending submissions per student. Rejudge jobs do not consume upload slots.
 - Show Queued, Judging, Passed/Failed, configured compile-error feedback, or Judging delayed. Compile-error feedback defaults to approximately 20 lines, with full/verdict-only options.
 - During labs, expose no partial marks or hidden-case details. Scoreboards may be disabled, admin-only (default), or student-visible with solved tasks only.

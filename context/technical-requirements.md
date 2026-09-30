@@ -17,6 +17,8 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 
 - Enforce active-lab exclusion, acceptance time, cooldown, pending limits, deletion/restoration, and release gates under concurrency.
 - Use authenticated API contracts for accounts, tasks, labs, submissions, results, operations, and exports. Define schemas, stable error codes, and upload retry/idempotency before implementation.
+- Snapshot `client_ip` and nullable `client_mac` with MAC source/observation time on durable submission acceptance; preserve the original values on retries and rejudges. Reuse trusted-proxy IP handling. Browsers cannot expose client MAC addresses; use a trusted LAN lookup/integration, never student-supplied values. MAC lookup depends on network topology and may be unavailable across routers, NAT, or Docker networking. Do not block acceptance on lookup failure; select the trusted source before implementing MAC capture.
+- Keep submission network metadata admin-only and retain it in lab archives. Compare IPs and available MACs across each student's lab submissions; missing MACs are not changes. DHCP, multiple interfaces, and MAC randomization mean differences suggest a PC switch rather than establish one.
 - Separate student/admin response models; never send hidden data for browser-side filtering. Authorize PDFs, downloads, and SSE as well as ordinary API calls.
 - Lab SSE carries invalidations via one PostgreSQL LISTEN connection per API process. Reconnect with an authoritative snapshot; coalesce notifications, revalidate revoked sessions, and send keepalives without database polling.
 - Anchor countdowns to server time and monotonic elapsed client time. Refresh on phase boundaries and tab visibility; no recurring health probes.
