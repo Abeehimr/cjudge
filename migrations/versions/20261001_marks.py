@@ -9,6 +9,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Existing M5 installations skip its import side effects during this upgrade.
+    from cjudge import labs, tasks
     from cjudge.submissions import reviews, batches, members
     op.add_column('judge_jobs', sa.Column('kind', sa.String(16), nullable=False, server_default='initial'))
     op.add_column('judge_jobs', sa.Column('revision_id', sa.Uuid(), sa.ForeignKey('task_revisions.id')))

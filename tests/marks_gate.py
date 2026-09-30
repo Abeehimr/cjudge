@@ -85,7 +85,7 @@ def exercise(directory: str) -> None:
         queue.register(conn, 0, generation); queue.worker_status(conn, 0, generation, 'Idle')
     # Backfill existing official results through the actual migration path.
     command.downgrade(Config('alembic.ini'), '20260930_submissions')
-    command.upgrade(Config('alembic.ini'), 'head')
+    subprocess.run(['python', '-m', 'alembic', 'upgrade', 'head'], check=True)
     with identity.engine().begin() as conn:
         review.set_deleted(conn, labs.find(conn, lab_id), deleted, True, admin_id, 'Reapply deletion after migration check')
         review.set_deleted(conn, labs.find(conn, lab_id), excluded, True, admin_id, 'Reapply excluded evidence')
