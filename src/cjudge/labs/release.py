@@ -35,12 +35,15 @@ def fingerprints(conn: sa.Connection, ids: set[UUID]) -> set[bytes]:
         for key in set(keys) for i, o in tasks.load_cases(key)}
 
 
-def reuse(conn: sa.Connection, lab_id: UUID) -> list[dict]:
+def reuse(conn: sa.Connection, lab_id: UUID, revision_id: UUID | None = None) -> list[dict]:
     other = conn.execute(sa.select(labs.labs.c.id, labs.labs.c.title).where(labs.labs.c.id != lab_id,
         labs.labs.c.starts_at > labs.now(conn))).mappings().all()
     if not other:
         return []
-    disclosed = fingerprints(conn, revision_ids(conn, lab_id))
+    ids = revision_ids(conn, lab_id)
+    if revision_id:
+        ids.add(revision_id)
+    disclosed = fingerprints(conn, ids)
     result = []
     for row in other:
         ids = set(conn.execute(sa.select(labs.assignments.c.revision_id).where(labs.assignments.c.lab_id == row['id'])).scalars())
@@ -58,6 +61,7 @@ def reveal(conn: sa.Connection, lab: dict, enabled: bool, acknowledge: bool, act
     if not reason.strip():
         raise labs.LabError(400, 'Reason required')
     if enabled:
+        labs.disclosure_lock(conn)
         if labs.phase(lab, labs.now(conn)) not in ('Ended', 'Results released', 'Archived'):
             raise labs.LabError(409, 'Release requires an ended lab')
         resolved(conn, lab['id'])

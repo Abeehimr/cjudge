@@ -104,7 +104,13 @@ def task_rows(conn: sa.Connection, lab_id: UUID) -> list[dict]:
         .where(assignments.c.lab_id == lab_id).order_by(assignments.c.position)).mappings()]
 
 
+def disclosure_lock(conn: sa.Connection) -> None:
+    # Serialize scheduled test selection with release/correction disclosure checks.
+    conn.execute(sa.select(sa.func.pg_advisory_xact_lock(51003)))
+
+
 def set_tasks(conn: sa.Connection, lab: dict, ids: list[UUID], actor: UUID) -> dict:
+    disclosure_lock(conn)
     setup_open(lab, now(conn))
     rows = conn.execute(sa.select(tasks.revisions.c.id, tasks.revisions.c.task_id)
                         .where(tasks.revisions.c.id.in_(ids))).all()
@@ -125,6 +131,7 @@ def set_tasks(conn: sa.Connection, lab: dict, ids: list[UUID], actor: UUID) -> d
 
 
 def schedule(conn: sa.Connection, lab: dict, start: datetime | None, end: datetime, actor: UUID) -> dict:
+    disclosure_lock(conn)
     timestamp = now(conn)
     setup_open(lab, timestamp)
     start = start or timestamp

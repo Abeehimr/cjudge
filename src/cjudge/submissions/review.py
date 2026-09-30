@@ -169,7 +169,7 @@ def rejudge(conn: sa.Connection, lab: dict, submission_id: UUID, actor: UUID, re
     queue.notify(conn, row['account_id'])
 
 
-def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, actor: UUID, reason: str) -> UUID:
+def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, actor: UUID, reason: str, acknowledge_reuse: bool = False) -> UUID:
     from cjudge.judging import queue
     labs.editable(lab)
     queue.scheduler_lock(conn)
@@ -178,6 +178,11 @@ def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, ac
     base = current_revision(conn, lab['id'], task_id)
     if task_id_for(conn, revision_id) != task_id:
         raise labs.LabError(400, 'Select a published revision of the same task')
+    if lab.get('reveal_results'):
+        from cjudge.labs.release import reuse
+        labs.disclosure_lock(conn)
+        if reuse(conn, lab['id'], revision_id) and not acknowledge_reuse:
+            raise labs.LabError(409, 'Correction reveals reused tests; acknowledge the warning or hide results first')
     if base == revision_id or active_batch(conn, lab['id'], task_id):
         raise labs.LabError(409, 'Select a different revision and wait for the current correction')
     selection = sa.select(submissions.c.id).join(tasks.revisions, tasks.revisions.c.id == submissions.c.revision_id)
@@ -198,7 +203,7 @@ def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, ac
         labs.assignments.c.revision_id == base).values(revision_id=revision_id))
     labs.changed(conn, lab, actor, 'task_correction_started')
     identity.audit(conn, 'task_correction', actor, detail={'lab_id': str(lab['id']), 'task_id': str(task_id),
-        'batch_id': str(batch_id), 'revision_id': str(revision_id), 'reason': reason})
+        'batch_id': str(batch_id), 'revision_id': str(revision_id), 'reason': reason, 'reuse_acknowledged': acknowledge_reuse})
     queue.notify(conn)
     return batch_id
 

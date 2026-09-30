@@ -45,7 +45,7 @@ test('correction warns after release and submits a reason with the current lab v
   expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Results have already been released'));
   const post = fetchMock.mock.calls.find(([, options]) => options.method === 'POST')!;
   expect(post[0]).toBe('/api/admin/labs/lab/tasks/task/corrections');
-  expect(JSON.parse(post[1].body as string)).toEqual({ version: 3, revision_id: 'new', reason: 'Fix tests' });
+  expect(JSON.parse(post[1].body as string)).toEqual({ version: 3, revision_id: 'new', reason: 'Fix tests', acknowledge_reuse: false });
   expect(post[1].headers['X-CSRF-Token']).toBe('csrf');
   await waitFor(() => expect(dirty).toHaveBeenLastCalledWith(false));
 });

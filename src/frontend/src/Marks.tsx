@@ -61,8 +61,17 @@ export function Corrections({ lab, task, csrf, refreshLab, onDirty }: { lab: Adm
     const warning = lab.first_released_at ? "Results have already been released. This changes current marks and keeps the lab closed. " : "";
     if (!confirm(`${warning}Rejudge every active submission for this task using the selected revision? Previous official results stay visible until the batch completes.`)) return;
     setBusy(true);
-    try { await api(`/admin/labs/${lab.id}/tasks/${task.task_id}/corrections`, { method: 'POST',
-      body: JSON.stringify({ version: lab.version, revision_id: revision, reason }) }, csrf);
+    try {
+      let acknowledge = false;
+      if (lab.reveal_results) {
+        const warnings = await api<{ title: string }[]>(`/admin/labs/${lab.id}/release-warnings?revision_id=${encodeURIComponent(revision)}`);
+        if (warnings.length) {
+          acknowledge = confirm(`This correction reveals tests reused by scheduled labs: ${warnings.map((row) => row.title).join(", ")}. Continue?`);
+          if (!acknowledge) return;
+        }
+      }
+      await api(`/admin/labs/${lab.id}/tasks/${task.task_id}/corrections`, { method: 'POST',
+      body: JSON.stringify({ version: lab.version, revision_id: revision, reason, acknowledge_reuse: acknowledge }) }, csrf);
       setRevision(""); setReason(""); await refreshLab(); await refresh(); }
     catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
@@ -70,7 +79,7 @@ export function Corrections({ lab, task, csrf, refreshLab, onDirty }: { lab: Adm
   return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Task corrections</h2>
     <p>Publish a correction in the task library, then select its revision here.</p>
     <button onClick={() => { void refresh(); }}>Refresh corrections</button>
-    <form onSubmit={(e) => { e.preventDefault(); void correct(); }}><fieldset disabled={busy || active || !['Running', 'Ended'].includes(lab.phase)} className="flex flex-wrap items-center gap-3">
+    <form onSubmit={(e) => { e.preventDefault(); void correct(); }}><fieldset disabled={busy || active || !['Running', 'Ended', 'Results released'].includes(lab.phase)} className="flex flex-wrap items-center gap-3">
       <label>Corrected revision <select required value={revision} onChange={(e) => setRevision(e.target.value)}>
         <option value="">Select revision</option>{options.filter((row) => row.id !== task.revision_id).map((row) => <option key={row.id} value={row.id}>Revision {row.number}</option>)}</select></label>
       <label>Correction reason <input required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></label>

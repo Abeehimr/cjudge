@@ -527,11 +527,11 @@ class RevealInput(StopInput):
 
 
 @admin_router.get('/{lab_id}/release-warnings')
-def release_warnings(lab_id: UUID):
+def release_warnings(lab_id: UUID, revision_id: UUID | None = None):
     from cjudge.labs import release
     with transaction() as conn:
         labs.find(conn, lab_id, shared=True)
-        return release.reuse(conn, lab_id)
+        return release.reuse(conn, lab_id, revision_id)
 
 
 @admin_router.post('/{lab_id}/results', response_model=AdminLab)

@@ -24,6 +24,7 @@ class RejudgeInput(ReasonInput):
 
 
 class CorrectionInput(ReasonInput):
+    acknowledge_reuse: bool = False
     revision_id: UUID
     version: int
 
@@ -75,7 +76,7 @@ async def correction(lab_id: UUID, task_id: UUID, request: Request, actor: dict 
     def perform():
         with transaction() as conn:
             lab = labs.find(conn, lab_id, body.version)
-            key = review.correct(conn, lab, task_id, body.revision_id, actor['id'], why)
+            key = review.correct(conn, lab, task_id, body.revision_id, actor['id'], why, body.acknowledge_reuse)
             review.publish_ready(conn, lab_id)
             return {'id': key}
     return await run_in_threadpool(perform)
