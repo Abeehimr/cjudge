@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import StreamingResponse
 
-from cjudge import identity, labs
+from cjudge import authoring, identity, labs
 from cjudge.events import hub
 from cjudge.identity.api import admin, admin_write, COOKIE, no_store, same_origin, StrictModel
 from cjudge.judging import queue
@@ -31,6 +31,7 @@ class IsolateOutput(StrictModel):
     started_at: datetime | None
     lease_until: datetime | None
     submission_id: UUID | None
+    generation_job_id: UUID | None
     completed: int
     fault: str | None
 
@@ -53,24 +54,31 @@ def isolates():
     with transaction() as conn:
         timestamp = labs.now(conn)
         rows = {row['slot']: row for row in conn.execute(sa.select(workers, attempts.c.lease_until,
-            attempts.c.submission_id, jobs.c.state.label('job_state')).outerjoin(attempts,
+            attempts.c.submission_id, jobs.c.state.label('job_state'),
+            authoring.attempts.c.lease_until.label('generation_lease'), authoring.jobs.c.id.label('generation_job_id'),
+            authoring.jobs.c.state.label('generation_state')).outerjoin(attempts,
             attempts.c.id == workers.c.attempt_id).outerjoin(jobs, jobs.c.attempt_id == attempts.c.id)
+            .outerjoin(authoring.attempts, authoring.attempts.c.id == workers.c.attempt_id)
+            .outerjoin(authoring.jobs, authoring.jobs.c.attempt_id == authoring.attempts.c.id)
             .where(workers.c.slot < count)).mappings()}
     result = []
     for slot in range(count):
         row = rows.get(slot)
         value = dict(slot=slot, state='Offline', healthy=False, heartbeat_at=None, started_at=None,
-                     lease_until=None, submission_id=None, completed=0, fault=None)
+                     lease_until=None, submission_id=None, generation_job_id=None, completed=0, fault=None)
         if row:
             value.update({key: row[key] for key in value if key not in ('healthy',)})
+            if row['state'] == 'Generating':
+                value['lease_until'] = row['generation_lease']
             stale = (timestamp - row['heartbeat_at']).total_seconds() >= 90
             stale_job = row['state'] == 'Judging' and (row['job_state'] != 'judging' or not row['lease_until'] or row['lease_until'] <= timestamp)
-            if stale or stale_job:
-                value.update(state='Offline', submission_id=None)
-            value['healthy'] = value['state'] in ('Idle', 'Judging')
+            stale_generation = row['state'] == 'Generating' and (row['generation_state'] != 'generating' or not row['generation_lease'] or row['generation_lease'] <= timestamp)
+            if stale or stale_job or stale_generation:
+                value.update(state='Offline', submission_id=None, generation_job_id=None)
+            value['healthy'] = value['state'] in ('Idle', 'Judging', 'Generating')
         result.append(value)
     return dict(configured=count, healthy=sum(row['healthy'] for row in result),
-                working=sum(row['state'] == 'Judging' for row in result), server_time=timestamp, workers=result)
+                working=sum(row['state'] in ('Judging', 'Generating') for row in result), server_time=timestamp, workers=result)
 
 
 @router.post('/labs/{lab_id}/submissions/{submission_id}/retry', status_code=204)

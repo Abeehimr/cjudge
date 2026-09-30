@@ -12,9 +12,10 @@ from uuid import uuid4
 import psycopg
 import sqlalchemy as sa
 
-from cjudge import identity, runner, tasks
+from cjudge import authoring, identity, runner, tasks
 from cjudge.judging import queue
 from cjudge.submissions import files, review, batches
+from cjudge.tasks.authoring import check_python
 from cjudge.tasks.grading import TaskConfig, compare_output, score
 
 LOG = logging.getLogger(__name__)
@@ -59,7 +60,9 @@ def judge(submission: dict, lost: threading.Event) -> dict:
             execution = runner.execute(compiled.executable, input_bytes, limits)
             verdict = execution.verdict
             if verdict == 'OK':
-                verdict = 'AC' if compare_output(execution.stdout, answer, config.checker) else 'WA'
+                accepted = (check_python(config.checker.source, input_bytes, execution.stdout, answer)
+                            if config.checker.kind == 'python' else compare_output(execution.stdout, answer, config.checker))
+                verdict = 'AC' if accepted else 'WA'
             passed += verdict == 'AC'
             case_results.append(dict(number=number, verdict=verdict, cpu_seconds=execution.cpu_seconds,
                 wall_seconds=execution.wall_seconds, memory_kib=execution.memory_kib,
@@ -130,6 +133,20 @@ def work(slot: int) -> None:
                 heartbeat = threading.Thread(target=renew, args=(slot, generation, active['attempt_id'], stop, lost), daemon=True)
                 heartbeat.start()
                 try:
+                    if active.get('authoring'):
+                        try:
+                            case = authoring.run_case(active)
+                        except authoring.AuthoringError as exc:
+                            with identity.engine().begin() as conn:
+                                if not authoring.fail(conn, active['attempt_id'], str(exc), author_error=True):
+                                    raise runner.SandboxError('Lease lost')
+                                queue.worker_status(conn, slot, generation, 'Idle')
+                        else:
+                            with identity.engine().begin() as conn:
+                                if lost.is_set() or not authoring.checkpoint(conn, active['attempt_id'], case):
+                                    raise runner.SandboxError('Lease lost')
+                        active = None
+                        continue
                     result = judge(active, lost)
                     if lost.is_set():
                         raise runner.SandboxError('Lease lost')
@@ -148,7 +165,10 @@ def work(slot: int) -> None:
         try:
             with identity.engine().begin() as conn:
                 if active:
-                    queue.fail(conn, active['attempt_id'], message)
+                    if active.get('authoring'):
+                        authoring.fail(conn, active['attempt_id'], message)
+                    else:
+                        queue.fail(conn, active['attempt_id'], message)
                 queue.worker_status(conn, slot, generation, 'Faulted', message)
         except Exception:
             pass  # Lease recovery handles a simultaneous database outage.
