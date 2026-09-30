@@ -41,6 +41,7 @@ services:
     volumes:
       - task_files:/var/lib/cjudge-tasks:ro
       - submission_files:/var/lib/cjudge-submissions:ro
+      - authoring_files:/var/lib/cjudge-authoring
     command: [python, -m, cjudge.judging.worker]
     depends_on: [db]
     restart: unless-stopped
@@ -83,6 +84,7 @@ services:
       - task_files:/var/lib/cjudge-tasks
       - lab_files:/var/lib/cjudge-labs
       - submission_files:/var/lib/cjudge-submissions
+      - authoring_files:/var/lib/cjudge-authoring
     depends_on: [db]
 
   key-init:
@@ -101,6 +103,7 @@ volumes:
   task_files:
   lab_files:
   submission_files:
+  authoring_files:
 
 networks:
   judge_queue:

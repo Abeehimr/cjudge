@@ -35,3 +35,19 @@ def test_authoring_contracts(monkeypatch):
     monkeypatch.setattr(runner, 'run_python', lambda *a, **kw: replace(result, verdict='TLE'))
     with pytest.raises(AuthoringError):
         generate_case(config, 0, b'fake')
+
+
+def test_atomic_protected_artifacts(tmp_path, monkeypatch):
+    from uuid import uuid4
+    from cjudge import authoring
+    monkeypatch.setenv('CJUDGE_AUTHORING_FILES', str(tmp_path))
+    job, key = uuid4(), uuid4()
+    authoring.save(job, key, 'in', b'\x00\xff')
+    assert authoring.read(job, key, 'in') == b'\x00\xff'
+    with pytest.raises(FileExistsError):
+        authoring.save(job, key, 'in', b'overwrite')
+    assert authoring.read(job, key, 'in') == b'\x00\xff'
+    authoring.artifact_path(job, key, 'out').symlink_to('/etc/passwd')
+    with pytest.raises(OSError):
+        authoring.read(job, key, 'out')
+    assert not list(tmp_path.rglob('*.tmp'))
