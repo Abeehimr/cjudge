@@ -17,7 +17,7 @@ test("student enters explicitly, receives live updates, and loses materials on r
   }
   vi.stubGlobal("EventSource", Live);
   const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
-    json: async () => path === "/api/labs" ? [summary] : current }));
+    json: async () => path.includes("/submissions") ? [] : path === "/api/labs" ? [summary] : current }));
   vi.stubGlobal("fetch", fetchMock);
   render(<StudentLabs csrf="csrf" />);
   fireEvent.click(await screen.findByRole("button", { name: "C practice" }));
@@ -35,6 +35,7 @@ test("student enters explicitly, receives live updates, and loses materials on r
 });
 
 test("admin freeze requires a reason and sends the lab-specific action", async () => {
+  vi.stubGlobal("EventSource", class extends EventTarget { close = vi.fn(); });
   const member = { id: "student", roll_number: "001A", name: "Ada", frozen: false, freeze_reason: null, bound_at: null, bound_ip: null, last_ip: null, ip_changed: false };
   const lab = { ...summary, version: 1, strict_ip: false, first_released_at: null, tasks: [], pdfs: [], students: [member], announcements: [] };
   const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: path.endsWith("/freeze") ? 204 : 200,
