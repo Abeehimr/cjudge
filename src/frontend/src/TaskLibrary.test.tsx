@@ -12,7 +12,7 @@ test("admin creates draft, adds case, reviews and publishes once", async () => {
   let detail: { id: string; version: number; config: typeof config; case_count: number;
     cases: { number: number; input_bytes: number; answer_bytes: number }[]; revisions: object[] } = { id: "task", version: 1, config, case_count: 0, cases: [], revisions: [] as object[] };
   const fetchMock = vi.fn(async (path: string, options?: RequestInit) => {
-    if (path.includes("/publish")) {
+    if (path.includes("/publish") || path.includes("/revisions/")) {
       detail = { ...detail, revisions: [{ id: "revision", number: 1, draft_version: 2, created_at: "2026-09-29T00:00:00Z" }] };
       return { ok: true, status: 201, json: async () => ({ id: "revision", task_id: "task", number: 1,
         draft_version: 2, created_at: "2026-09-29T00:00:00Z", config, cases: detail.cases, case_count: 1 }) };
@@ -36,6 +36,11 @@ test("admin creates draft, adds case, reviews and publishes once", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Review draft" }));
   fireEvent.click(screen.getByRole("button", { name: "Publish reviewed draft" }));
   expect(await screen.findByText("Revision 1 published.")).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Revision 1 (read-only)" })).toBeTruthy();
+  cleanup();
+  renderRoute(<TaskLibrary csrf="csrf" />, "/admin/tasks/task?revision=revision");
+  expect(await screen.findByRole("heading", { name: "Revision 1 (read-only)" })).toBeTruthy();
+  expect(screen.queryByLabelText("Title")).toBeNull();
   expect(fetchMock).toHaveBeenCalledWith("/api/admin/tasks/task/publish", expect.objectContaining({
     headers: expect.objectContaining({ "X-CSRF-Token": "csrf" }),
     body: JSON.stringify({ version: 2 }),

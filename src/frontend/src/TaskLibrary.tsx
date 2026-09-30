@@ -52,18 +52,19 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
   useUnsaved(dirty || !!input || !!answer || !!title);
   useEffect(() => { if (created) { navigate(`/admin/tasks/${created}`); setCreated(null); } }, [created]);
   useEffect(() => {
+    setInput(""); setAnswer(""); setMessage("");
     if (!taskId) { setDraft(null); setConfig(null); return; }
     const controller = new AbortController();
     setDraft(null); setConfig(null); setInput(""); setAnswer(""); setMessage("");
-    void api<Detail>(`/admin/tasks/${taskId}`, { signal: controller.signal }).then(accept).catch((e) => { if (!controller.signal.aborted) showError(e.message); });
+    void api<Detail>(`/admin/tasks/${taskId}`, { signal: controller.signal }).then((next) => { if (!controller.signal.aborted) accept(next); }).catch((e) => { if (!controller.signal.aborted) showError(e.message); });
     return () => controller.abort();
   }, [taskId]);
   useEffect(() => {
     if (!draft || draft.id !== taskId) return;
     const controller = new AbortController();
-    setPublished(null); setPreview(null); setReview(params.get("view") === "review"); setConfig(draft.config);
+    setPublished(null); setPreview(null); setReview(params.get("view") === "review"); setConfig(draft.config); setInput(""); setAnswer("");
     if (revisionId) void api<Published>(`/admin/tasks/${taskId}/revisions/${revisionId}`, { signal: controller.signal })
-      .then(setPublished).catch((e) => { if (!controller.signal.aborted) showError(e.message); });
+      .then((next) => { if (!controller.signal.aborted) setPublished(next); }).catch((e) => { if (!controller.signal.aborted) showError(e.message); });
     return () => controller.abort();
   }, [taskId, draft?.id, revisionId, params.get("view")]);
 
@@ -162,7 +163,8 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
     </div>
     </>}
     {taskId && !draft && !message && <p role="status">Loading task…</p>}
-    {draft && config && <>
+    {draft && revisionId && !published && !message && <p role="status">Loading revision…</p>}
+    {draft && config && (!revisionId || published) && <>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-semibold">{published ? `Revision ${published.number} (read-only)` : `Draft version ${draft.version}`}</h2>
         <button disabled={busy} onClick={() => setParams({})}>Edit draft</button>
