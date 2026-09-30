@@ -31,6 +31,7 @@ test("generation preserves exact seeds, requires review confirmation, and escape
   expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeTruthy();
   expect(document.querySelector("img")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Apply reviewed cases" }));
+  expect(confirm).toHaveBeenCalledWith("Append these reviewed generated cases to existing draft cases?");
   expect(applied).not.toHaveBeenCalled();
   vi.stubGlobal("confirm", vi.fn(() => true));
   fireEvent.click(screen.getByRole("button", { name: "Apply reviewed cases" }));

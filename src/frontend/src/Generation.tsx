@@ -36,7 +36,7 @@ export default function Generation({ taskId, version, csrf, disabled, applied, o
     });
   }
   function action(name: "apply" | "retry" | "discard") {
-    if (!job || !confirm(name === "apply" ? "Replace all draft cases with these reviewed generated cases?" : `${name} generation job?`)) return;
+    if (!job || !confirm(name === "apply" ? "Append these reviewed generated cases to existing draft cases?" : `${name} generation job?`)) return;
     void perform(async () => {
       await api(`${base}/${job.id}/${name}`, { method: "POST", body: JSON.stringify({ version }) }, csrf);
       if (name === "apply") await applied();

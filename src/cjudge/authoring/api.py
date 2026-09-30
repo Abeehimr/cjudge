@@ -8,7 +8,7 @@ from starlette.concurrency import run_in_threadpool
 
 from cjudge import authoring as store, identity, runner
 from cjudge.identity.api import admin, admin_write, no_store
-from cjudge.tasks.api import VersionInput, find_task, json_input, update_cases
+from cjudge.tasks.api import VersionInput, cases_for, find_task, json_input, update_cases
 from cjudge.tasks.authoring import GenerationConfig
 
 router = APIRouter(prefix='/api/admin/tasks', dependencies=[Depends(admin), Depends(no_store)])
@@ -105,7 +105,7 @@ async def change(task_id: UUID, job_id: UUID, action: str, request: Request, act
                     raise HTTPException(503, 'Generation artifacts unavailable') from exc
                 if len(pairs) != row['config']['count']:
                     raise HTTPException(409, 'Generation is incomplete')
-                result = update_cases(conn, task, pairs, actor)
+                result = update_cases(conn, task, [*cases_for(task), *pairs], actor)
                 state = 'applied'
             elif action == 'retry':
                 if row['state'] != 'failed':

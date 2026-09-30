@@ -81,7 +81,7 @@ Submissions retain immutable evidence. `submission_reviews` holds deletion state
 4. **Release:** verify lab closure and resolved judging, warn on test reuse, record first release permanently, and enable authorized details.
 5. **Export:** use official marks for sheets and include retained history in archives; never implicitly delete data.
 
-Generation uses the existing worker pool after submission/rejudge work. Each seed checkpoints one case and yields. Admins preview staged results and explicitly replace an unchanged draft; publication remains a separate immutable operation. Python checker helpers run in a separate checker sandbox with input, complete output, and answer bytes.
+Generation uses the existing worker pool after submission/rejudge work. Each seed checkpoints one case and yields. Admins preview staged results and explicitly append to cases in an unchanged draft; publication remains a separate immutable operation. Python checker helpers run in a separate checker sandbox with input, complete output, and answer bytes.
 
 SSE prompts state refresh. Reconnect by fetching authoritative state; a dropped connection does not change grades or deadlines. Never show upload success without a confirmed submission record.
 

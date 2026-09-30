@@ -41,7 +41,7 @@ def exercise(directory: str) -> None:
         for key, value in ((admin, token), (student, student_token)):
             conn.execute(sa.insert(identity.sessions).values(account_id=key, token_hash=identity.token_digest(value),
                 csrf_token=csrf, expires_at=labs.now(conn) + timedelta(hours=1)))
-        conn.execute(sa.insert(tasks.tasks).values(id=task, version=1, config={'title': 'Generated'}, case_count=0))
+        conn.execute(sa.insert(tasks.tasks).values(id=task, version=1, config={'title': 'Generated'}, case_count=1, cases_key=tasks.save_cases([(b'3\n', b'6\n')])))
         queue.register(conn, 0, generation); queue.worker_status(conn, 0, generation, 'Idle')
     def call(path='', method='GET', body=None, role='admin', csrf_value=csrf):
         headers = {'Origin': 'https://localhost:8443', 'X-CSRF-Token': csrf_value,
@@ -132,9 +132,25 @@ def exercise(directory: str) -> None:
         with identity.engine().begin() as conn: assert authoring.checkpoint(conn, active['attempt_id'], result)
         assert call(path + '/cases/1/in', role='student')[0] == 403
         assert call(path + '/cases/1/in')[0] == 200
-        assert call(base)[1]['case_count'] == 0  # Staging does not mutate drafts.
+        assert call(base)[1]['case_count'] == 1  # Staging does not mutate drafts.
+        with identity.engine().connect() as conn:
+            original_key = conn.execute(sa.select(tasks.tasks.c.cases_key).where(tasks.tasks.c.id == task)).scalar_one()
+        for oversized in ([ (b'', b'') ] * 100, [ (b'x' * 524288, b'x' * 524288) ] * 16):
+            with identity.engine().begin() as conn:
+                conn.execute(sa.update(tasks.tasks).where(tasks.tasks.c.id == task).values(
+                    cases_key=tasks.save_cases(oversized), case_count=len(oversized)))
+            assert call(path + '/apply', 'POST', {'version': 1})[0] == 400
+            assert call(path)[1]['state'] == 'complete'
+            assert call(base)[1]['case_count'] == len(oversized) and call(base)[1]['version'] == 1
+        with identity.engine().begin() as conn:
+            conn.execute(sa.update(tasks.tasks).where(tasks.tasks.c.id == task).values(cases_key=original_key, case_count=1))
         assert call(path + '/apply', 'POST', {'version': 1})[0] == 200
-        assert call(base)[1]['case_count'] == 2 and not call(base)[1]['revisions']
+        assert call(base)[1]['case_count'] == 3 and not call(base)[1]['revisions']
+        assert call(base + '/cases/1/in')[1] == b'3\n'
+        assert call(base + '/cases/1/out')[1] == b'6\n'
+        assert call(base + '/cases/2/in')[1] == call(path + '/cases/1/in')[1]
+        assert call(path + '/apply', 'POST', {'version': 2})[0] == 409
+        assert call(base)[1]['case_count'] == 3
         assert call(base + '/publish', 'POST', {'version': 2})[0] == 201
         status, job = call(base + '/generation', 'POST', {'version': 2, 'config': config})
         assert status == 201

@@ -163,7 +163,7 @@ Admin → Task Library → draft: select Python checker and save source. `read_i
 
 In Generate cases, paste Python/C generator and reference C source, choose starting seed/count, and start generation. Each invocation receives seed in `argv[1]`; Python `random` is seeded automatically. Generator stdout is reference stdin; reference stdout is the answer. Keep author programs deterministic. Sources/configuration, seeds, SHA-256 hashes, diagnostics, and checkpoints are retained. Sources are bounded to 64 KiB, inputs/answers to 1 MiB each, combined cases to 16 MiB.
 
-Review generated input/answer previews, then Apply reviewed cases to replace draft cases. Publish separately. Editing the draft during generation prevents applying stale results; discard and generate again. One unresolved job per task; failed jobs support retry/discard. Existing manually reviewed cases remain publishable while generation runs. Applied/discarded evidence stays retained; automatic authoring-file cleanup is not implemented.
+Review generated input/answer previews, then Apply reviewed cases to append to existing draft cases. Publish separately. Editing the draft during generation prevents applying stale results; discard and generate again. One unresolved job per task; failed jobs support retry/discard. Existing manually reviewed cases remain publishable while generation runs. Applied/discarded evidence stays retained; automatic authoring-file cleanup is not implemented.
 
 Generation shares configured sandboxes at lowest priority and yields after each case. Isolates shows Generating work and lease health. Crashes resume checkpoints; three infrastructure faults require admin retry, while confirmed teacher errors fail immediately.
 
