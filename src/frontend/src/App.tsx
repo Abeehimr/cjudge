@@ -3,7 +3,8 @@ import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, NavLink, 
 import { api } from "./api";
 import Accounts from "./Accounts";
 import TaskLibrary from "./TaskLibrary";
-import { AdminLabs, StudentLabs } from "./Labs";
+import { StudentLabs } from "./Labs";
+import { AdminLabs } from "./AdminLabs";
 import Isolates from "./Isolates";
 import { NotFound } from "./navigation";
 

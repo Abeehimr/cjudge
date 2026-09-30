@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderRoute } from "./testRouter";
 import { afterEach, expect, test, vi } from "vitest";
-import { AdminSubmissions, StudentSubmissions } from "./Submissions";
+import { StudentSubmissions } from "./Submissions";
+import { AdminSubmissions, CompilerFeedback } from "./AdminSubmissions";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const admission = { allowed: true, reason: "", code: "", pending: 0, retry_at: null, server_time: "2026-09-30T00:00:00Z" };
@@ -44,8 +46,20 @@ test("saving feedback refreshes the parent lab version before further edits", as
     ok: true, status: options.method === "PUT" ? 204 : 200, json: async () => [],
   })));
   const refreshLab = vi.fn().mockResolvedValue(undefined);
-  render(<AdminSubmissions labId="lab" csrf="csrf" feedback="short" refreshLab={refreshLab} />);
+  render(<CompilerFeedback labId="lab" csrf="csrf" feedback="short" refreshLab={refreshLab} />);
   fireEvent.change(screen.getByLabelText("Student compiler feedback"), { target: { value: "none" } });
   fireEvent.click(screen.getByRole("button", { name: "Save compiler feedback" }));
   await waitFor(() => expect(refreshLab).toHaveBeenCalledTimes(1));
+});
+
+test('admin submission filters restore from the URL and reset pagination on change', async () => {
+  vi.stubGlobal('EventSource', class extends EventTarget { close = vi.fn(); });
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] });
+  vi.stubGlobal('fetch', fetchMock);
+  const { router } = renderRoute(<AdminSubmissions labId="lab" csrf="csrf" tasks={tasks}
+    students={[{ id: 'student', roll_number: '001', name: 'Ada' }]} />, '/admin/labs/lab/submissions?offset=100&student=student&task=revision');
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/submissions?offset=100&account_id=student&revision_id=revision', expect.anything()));
+  fireEvent.change(screen.getByLabelText('Filter by task'), { target: { value: '' } });
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/submissions?offset=0&account_id=student', expect.anything()));
+  expect(router.state.location.search).toBe('?student=student');
 });

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "./api";
-import { useAdminEvents } from "./Isolates";
 
 type Submission = { id: string; revision_id: string; filename: string; accepted_at: string; status: string;
   compiler_feedback: string | null; compiler_truncated: boolean };
@@ -74,37 +73,3 @@ export function StudentSubmissions({ labId, tasks, admission, csrf, refresh }: {
   </section>;
 }
 
-export function AdminSubmissions({ labId, csrf, feedback, refreshLab }: { labId: string; csrf: string; feedback?: string; refreshLab: () => Promise<void> }) {
-  const [rows, setRows] = useState<AdminSubmission[]>([]), [offset, setOffset] = useState(0), [error, setError] = useState("");
-  const [mode, setMode] = useState(feedback || "short");
-  async function refresh() {
-    try { setRows(await api<AdminSubmission[]>(`/admin/labs/${labId}/submissions?offset=${offset}`)); setError(""); }
-    catch (e) { setError((e as Error).message); }
-  }
-  useAdminEvents(refresh);
-  useEffect(() => { void refresh(); }, [labId, offset]);
-  async function retry(row: AdminSubmission) {
-    const reason = prompt("Reason to retry delayed judging"); if (!reason?.trim()) return;
-    try { await api(`/admin/labs/${labId}/submissions/${row.id}/retry`, { method: "POST", body: JSON.stringify({ reason }) }, csrf); await refresh(); }
-    catch (e) { setError((e as Error).message); }
-  }
-  async function saveFeedback() {
-    try { await api(`/admin/labs/${labId}/compiler-feedback`, { method: "PUT", body: JSON.stringify({ mode }) }, csrf); await refreshLab(); setError(""); }
-    catch (e) { setError((e as Error).message); }
-  }
-  return <section className="space-y-3 rounded border bg-white p-4">
-    <h2 className="font-semibold">Submissions and judging faults</h2>
-    <label>Student compiler feedback <select value={mode} onChange={(e) => setMode(e.target.value)}><option value="short">First 20 lines</option><option value="full">Full retained feedback</option><option value="none">Verdict only</option></select></label>{" "}
-    <button onClick={() => { void saveFeedback(); }}>Save compiler feedback</button>{" "}<button onClick={() => { void refresh(); }}>Refresh queue</button>
-    {error && <p role="alert" className="notice notice-danger">{error}</p>}
-    <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Accepted</th><th>Student</th><th>Source</th><th>Status</th><th>Attempts</th><th>IP / MAC</th><th>Fault</th></tr></thead>
-      <tbody>{rows.map((row) => <tr className="border-t align-top" key={row.id}><td>{new Date(row.accepted_at).toLocaleString()}</td><td>{row.roll_number} · {row.name}</td>
-        <td><a download href={`/api/admin/labs/${labId}/submissions/${row.id}/source`}>{row.filename}</a></td><td>{row.status}
-          {row.compiler_feedback && <details><summary>Compiler feedback</summary><pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></details>}</td>
-        <td>{row.attempt_count}</td><td>{row.client_ip}<br />{row.client_mac || "MAC unavailable"}</td><td>{row.fault || "—"}
-          {row.status === "Judging delayed" && <button onClick={() => { void retry(row); }}>Retry judging</button>}</td></tr>)}</tbody>
-    </table>{!rows.length && <p>No submissions.</p>}</div>
-    <div className="flex gap-2"><button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>Newer submissions</button>
-      <button disabled={rows.length < 100} onClick={() => setOffset(offset + 100)}>Older submissions</button></div>
-  </section>;
-}

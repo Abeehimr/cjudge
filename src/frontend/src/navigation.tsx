@@ -16,7 +16,7 @@ export function useUnsaved(dirty: boolean) {
   const blocker = useBlocker(dirty);
   useEffect(() => {
     if (blocker.state === "blocked") {
-      if (window.confirm("Leave this page? Unsaved changes or selected files will be lost.")) blocker.proceed();
+      if (window.confirm("Leave this page with unsaved changes or selected files?")) blocker.proceed();
       else blocker.reset();
     }
   }, [blocker]);
