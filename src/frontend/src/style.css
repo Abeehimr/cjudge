@@ -6,12 +6,12 @@
 }
 
 @layer base {
-  button { @apply rounded border border-blue-700 bg-blue-700 px-3 py-1 text-white; }
-  button:hover:not(:disabled) { @apply border-blue-800 bg-blue-800; }
-  button[aria-pressed="true"] { @apply border-blue-900 bg-blue-900 underline underline-offset-4; }
+  button { @apply rounded border border-blue-200 bg-blue-50 px-3 py-1 text-blue-900; }
+  button:hover:not(:disabled) { @apply border-blue-300 bg-blue-100; }
+  button[aria-pressed="true"] { @apply border-blue-300 bg-blue-100 underline underline-offset-4; }
   button:disabled { @apply cursor-not-allowed opacity-50; }
   input:not([type=checkbox]):not([type=file]), textarea, select { @apply rounded border border-slate-300 p-1; }
-  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { @apply outline-2 outline-offset-2 outline-blue-700; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { @apply outline-2 outline-offset-2 outline-blue-600; }
   td, th { @apply py-2 pr-3; }
 }
 .statement h1, .statement h2, .statement h3 { @apply my-3 text-lg font-semibold; }
@@ -32,10 +32,10 @@ input[type="file"] {
 input[type="file"]::file-selector-button {
   margin-right: .75rem;
   padding: .35rem .7rem;
-  border: 1px solid #1d4ed8;
+  border: 1px solid #bfdbfe;
   border-radius: .25rem;
-  background: #1d4ed8;
-  color: #fff;
+  background: #eff6ff;
+  color: #1e3a8a;
   cursor: pointer;
 }
 a[download] {
@@ -49,9 +49,9 @@ a[download] {
 }
 
 .notice { @apply rounded border p-3; }
-.notice-warning { @apply border-amber-300 bg-amber-50 text-amber-900; }
-.notice-danger { @apply border-red-300 bg-red-50 text-red-900; }
+.notice-warning { @apply border-amber-200 bg-amber-50 text-amber-800; }
+.notice-danger { @apply border-red-200 bg-red-50 text-red-800; }
 @media print {
   .notice, .notice-danger, .notice-warning { background: white; color: black; border-color: #64748b; }
 }
-input[type="file"]::file-selector-button:hover { background: #1e40af; border-color: #1e40af; }
+input[type="file"]::file-selector-button:hover { background: #dbeafe; border-color: #93c5fd; }
