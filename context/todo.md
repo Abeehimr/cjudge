@@ -51,6 +51,15 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 - [x] **Test:** acceptance races, worker/storage failures, duplicate requests, delayed judging, reconnects, live-data secrecy.
 - [x] Benchmark 150 integer-sum submissions with ten cases and two workers; deployment acceptance remains M9.
 
+## M5a — Structured Pages · requires M5
+
+- [x] Add browser URLs, role navigation, login return paths, and query-based pagination/filters.
+- [x] Separate task library lists, drafts, and published revision views.
+- [x] Separate admin lab overview, enrollment/student details, assignments/task details, and lab submissions.
+- [x] Separate student lab overview, task reading/upload/history, and own lab submissions.
+- [x] Preserve binding access, live updates, upload retries, and unsaved-work warnings.
+- [x] **Test:** deep links, Back/Forward, filters, revocation, binding loss, dirty forms, retry keys, existing integration gates, Docker build, and HTTPS nested URLs.
+
 ## M6 — Marks and Rejudge · v0.5 · requires M5
 
 - [ ] Implement best-score selection, rounding, and admin attempt ordering.

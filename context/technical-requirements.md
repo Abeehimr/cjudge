@@ -4,7 +4,7 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 
 ## Stack and Storage
 
-- FastAPI, SQLAlchemy 2, Alembic, PostgreSQL; React/TypeScript/Vite, Tailwind, TanStack Query; nginx with HTTPS and local assets.
+- FastAPI, SQLAlchemy 2, Alembic, PostgreSQL; React/TypeScript/Vite, Tailwind, React Router; nginx with HTTPS and local assets.
 - Docker Compose services: `web`, `api`, `db`, runtime `worker` (process pool + isolate/cgroup v2), and standalone `judge` gate. PostgreSQL queue with `FOR UPDATE SKIP LOCKED`; no Redis requirement.
 - Publish only web ports; keep API, database, and judge communication internal. Persist database/artifacts in volumes with service-specific access. Do not mount the Docker socket into application services.
 - Validate the judge container's cgroup delegation, capabilities, and mounts on target Linux before implementation depends on it. Keep required elevated permissions confined to `judge`; never silently enable privileged mode across services. Upstream cautions that containerized isolate may need privileged execution: [isolate installation notes](https://github.com/ioi/isolate/blob/master/isolate.1.txt). Docker service separation does not replace the inner execution sandbox.
@@ -12,6 +12,14 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 - Store metadata in PostgreSQL and artifacts at protected, application-generated paths. Use migrations, timezone-aware timestamps, and decimal/rational-safe score calculations.
 - Associate PDF attachments with labs; store optional task statements as Markdown text. Authorize both by enrollment and lab start time, and include both in lab archives.
 - Preserve immutable sources, revisions, and judge history. Publish accepted submission/job records only when source durability is assured; reconcile orphaned staged files after failures.
+
+## Navigation
+
+- Use browser routes and nginx's SPA fallback; keep API/download routes separate. Restore authenticated local destinations after login and enforce role checks on both frontend and API.
+- Persist lab/task selection in paths; put pagination, submission filters, roster search, and published revision selection in query parameters.
+- Filter submission histories by revision (and admin account) before pagination. Student histories remain restricted to the authenticated account and authorized browser binding.
+- Retain one student SSE subscription across a lab's pages. Abort stale reads, clear private views on denied sessions, and preserve dirty form values during snapshot refreshes.
+- Keep upload files and retry keys in lab-session memory, with navigation/reload warnings. Never persist credentials, source files, or session tokens in browser storage.
 
 ## Transactions and Interfaces
 

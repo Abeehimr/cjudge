@@ -33,6 +33,12 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 - Show Queued, Judging, Passed/Failed, configured compile-error feedback, or Judging delayed. Compile-error feedback defaults to approximately 20 lines, with full/verdict-only options.
 - During labs, expose no partial marks or hidden-case details. Scoreboards may be disabled, admin-only (default), or student-visible with solved tasks only.
 
+## Navigation
+
+- Separate lab overview, enrollment, assigned tasks, and submission review into meaningful pages. Keep reading and submission together on student task pages.
+- Admin student pages combine lab controls and student history; admin task pages show assigned revisions and per-task submissions. Keep submission lists per lab, newest first, with student/task filters.
+- Refresh, bookmarks, and browser history restore location and filters. Resume valid lab bindings without re-entering; warn before discarding unsaved forms or selected files.
+
 ## Grading and Corrections
 
 - Partial score = maximum marks × passed cases / total cases. All-or-nothing awards marks only when every case passes. Compile errors earn zero.

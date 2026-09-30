@@ -44,6 +44,15 @@ Use readable layouts, labeled controls, keyboard-accessible navigation, visible 
 
 Confirm destructive or grading-changing admin actions and show their effects. Collect required audit reasons. Separate archive download from permanent deletion.
 
+### Page Organization
+
+Navigation uses browser URLs, breadcrumbs, and lab sections. Refresh and Back/Forward retain the selected page; pagination, filters, and published revision selections use query parameters.
+
+- Admin: global Labs, Students, Task Library, and Isolates. Each lab has Overview (settings, schedule, PDFs, announcements, compiler feedback), Students (enrollment), Tasks (assignments), and Submissions (newest first).
+- Admin student detail: identity, binding/IP, freeze/release controls, and that student's lab submissions. Admin task detail: assigned revision statement/limits and task submissions; editing stays in the task library.
+- Student: assigned labs, lab overview with PDFs/announcements/task links, task statement/limits/upload/task history together, and own lab submission history. Submissions stay per lab; no global submission page.
+- Existing browser bindings resume through authorized reads. Creating a binding still requires explicit entry. Dirty forms warn before navigation; unconfirmed upload files/keys survive within the lab session. Reload requires file reselection and warns before discarding it. Credentials and sources are never stored in browser storage.
+
 ### UI Acceptance Checks
 
 - Student: login → lab PDFs / optional task statement → upload → result; verify multiple PDFs and tasks without Markdown.

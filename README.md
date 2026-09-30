@@ -40,6 +40,14 @@ Compose has no periodic health probes. Run `sh scripts/smoke.sh` when you want a
 
 The source of truth for product behavior and implementation modules is in `context/`.
 
+## Pages and navigation
+
+Admin navigation has **Labs**, **Students**, **Task Library**, and **Isolates**. Open a lab for **Overview**, **Students**, **Tasks**, and **Submissions**. Overview contains schedule/start controls, PDFs, announcements, and compiler feedback. Open a roster student for binding/IP and freeze/release controls with their submission history. Open an assigned task for its pinned revision and task submissions.
+
+Students open a lab overview, then a task page to read and submit together. **Submissions** lists their own lab attempts. Lists show newest submissions first; filters and pagination remain in the URL. There is no global submission page.
+
+Refresh or bookmark a nested URL, such as `/admin/labs/<lab-id>/students/<student-id>` or `/labs/<lab-id>/tasks/<revision-id>`. Login returns to the requested page; valid browser bindings resume without another **Enter lab**. Unsaved forms and selected files trigger navigation warnings. Unconfirmed uploads retain the same file/key while navigating within the lab, but files must be selected again after a reload. No new database migration is needed for this navigation update; rebuild API/web images and run `docker compose up -d web`.
+
 ## M2 accounts
 
 Student accounts are global: each roll number keeps one password across labs. Admin can add students manually or import UTF-8 CSV with `roll_number,name` headers, up to 1 MiB/1,000 rows. Existing roll numbers keep their name/password; name mismatches are reported. Admin can edit names, reveal/print selected credentials, and reset student passwords. Students cannot change passwords. Enroll global accounts from Admin → Labs.
@@ -54,7 +62,7 @@ Sessions last eight hours. Logout and password resets revoke sessions. Login is 
 
 ## M3 task library
 
-After updating an existing installation, run `docker compose build api web`, then `docker compose run --rm api alembic upgrade head` and `docker compose up -d web`. Under **Admin → Tasks**, create a draft, add pasted cases or a ZIP of flat `N.in`/`N.out` pairs, review settings/cases, and publish a revision. Task statements are optional Markdown; HTML and embedded images do not render. Case downloads remain admin-only; lab students see statements and public resource limits.
+After updating an existing installation, run `docker compose build api web`, then `docker compose run --rm api alembic upgrade head` and `docker compose up -d web`. Under **Admin → Task Library**, create a draft, add pasted cases or a ZIP of flat `N.in`/`N.out` pairs, review settings/cases, and publish a revision. Task statements are optional Markdown; HTML and embedded images do not render. Case downloads remain admin-only; lab students see statements and public resource limits.
 
 ZIPs are limited to 17 MiB compressed, 16 MiB expanded, 100 paired cases, and 1 MiB per input/answer. Exact checking compares bytes, optionally ignoring one final LF/CRLF. Token checking splits ASCII whitespace, with optional case and finite-number tolerances. `src/cjudge/tasks/grading.py` defines both comparison and rational scoring for M5. Published revisions retain their original configuration and cases. Draft edits use version checks and may return 409; reload before retrying.
 
@@ -109,7 +117,7 @@ Upgrade with `docker compose build api web worker`, then `docker compose run --r
 
 Set `.env` values `CJUDGE_SANDBOX_INSTANCES=2` and `CJUDGE_JUDGE_MEMORY_LIMIT=2g` for two workers. Defaults are one worker and 1 GiB. Allow at least 768 MiB per instance and leave CPU/RAM headroom for other services; startup rejects insufficient memory. Recreate both API and worker after changing the count: `docker compose --profile judging up -d --force-recreate api worker`. Do not scale worker containers with `--scale`.
 
-Students enter a running lab, select a task, and upload one nonempty `.c` file up to 64 KiB. Cooldown is 30 seconds across tasks; at most three submissions may be pending. An unconfirmed upload retains its idempotency key for **Retry upload**, including after closure. Accepted records and IP remain immutable. MAC displays as unavailable until a trusted LAN integration exists.
+Students enter a running lab, open a task page, and upload one nonempty `.c` file up to 64 KiB. Cooldown is 30 seconds across tasks; at most three submissions may be pending. An unconfirmed upload retains its idempotency key for **Retry upload**, including after closure. Accepted records and IP remain immutable. MAC displays as unavailable until a trusted LAN integration exists.
 
 Workers compile once and run every case independently. Students see opaque status and configured compiler feedback, not partial marks or hidden cases. Admin → Labs shows submissions, protected source downloads, and audited retries for delayed judging. Three infrastructure attempts exhaust the automatic budget; unresolved faults never become student zeros. Admin → Isolates shows configured/healthy/working counts, heartbeats, current work, and sanitized faults. Startup checks prove each sandbox works; 10-second busy and 30-second idle heartbeats establish liveness. SSE refreshes views; no recurring sandbox or HTTP health probes run.
 
