@@ -33,6 +33,8 @@ class SubmissionOutput(StrictModel):
 
 class AdminSubmission(SubmissionOutput):
     account_id: UUID
+    roll_number: str
+    name: str
     client_ip: str
     client_mac: str | None
     mac_source: str | None
@@ -62,11 +64,12 @@ def transaction():
 
 
 def query(lab_id: UUID):
-    return sa.select(store.submissions, store.jobs.c.state, store.jobs.c.attempt_count,
+    return sa.select(store.submissions, identity.accounts.c.roll_number, identity.accounts.c.name, store.jobs.c.state, store.jobs.c.attempt_count,
         store.runs.c.verdict, store.runs.c.compiler_feedback, store.runs.c.compiler_truncated,
         store.runs.c.passed, store.runs.c.total, store.runs.c.score_numerator, store.runs.c.score_denominator,
         store.attempts.c.fault).select_from(store.submissions.join(store.jobs,
-        store.jobs.c.submission_id == store.submissions.c.id).outerjoin(store.runs,
+        store.jobs.c.submission_id == store.submissions.c.id).join(identity.accounts,
+        identity.accounts.c.id == store.submissions.c.account_id).outerjoin(store.runs,
         store.runs.c.id == store.jobs.c.attempt_id).outerjoin(store.attempts,
         store.attempts.c.id == store.jobs.c.attempt_id)).where(store.submissions.c.lab_id == lab_id)
 
