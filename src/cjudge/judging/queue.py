@@ -87,7 +87,8 @@ def claim(conn: sa.Connection, slot: int, generation: UUID) -> dict | None:
         .limit(1).with_for_update(of=jobs, skip_locked=True)).mappings().first()
     timestamp = labs.now(conn)
     if not row:
-        worker_status(conn, slot, generation, 'Idle')
+        if worker['state'] != 'Idle' or (timestamp - worker['heartbeat_at']).total_seconds() >= 30:
+            worker_status(conn, slot, generation, 'Idle')
         return None
     attempt_id = uuid4()
     conn.execute(sa.insert(attempts).values(id=attempt_id, submission_id=row['id'], worker_slot=slot,
