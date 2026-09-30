@@ -11,6 +11,7 @@ metadata = identity.metadata
 labs = sa.Table('labs', metadata,
     sa.Column('id', sa.Uuid(), primary_key=True), sa.Column('title', sa.String(160)),
     sa.Column('version', sa.Integer()), sa.Column('strict_ip', sa.Boolean()),
+    sa.Column('compiler_feedback', sa.String(8)),
     sa.Column('starts_at', sa.DateTime(timezone=True)), sa.Column('ends_at', sa.DateTime(timezone=True)),
     sa.Column('first_released_at', sa.DateTime(timezone=True)), sa.Column('created_at', sa.DateTime(timezone=True)))
 assignments = sa.Table('lab_tasks', metadata,

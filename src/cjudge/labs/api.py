@@ -149,6 +149,7 @@ class RosterOutput(StrictModel):
 class AdminLab(LabSummary):
     version: int
     strict_ip: bool
+    compiler_feedback: str
     first_released_at: datetime | None
     tasks: list[AssignedTask]
     pdfs: list[AdminPdf]
@@ -161,6 +162,7 @@ class StudentLab(LabSummary):
     tasks: list[PublicTask]
     pdfs: list[PdfOutput]
     announcements: list[AnnouncementOutput]
+    admission: dict
 
 
 @contextmanager
@@ -202,7 +204,7 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
             *[labs.enrollments.c[key] for key in RosterOutput.model_fields if key not in ('id', 'roll_number', 'name')])
             .join(labs.enrollments, identity.accounts.c.id == labs.enrollments.c.account_id)
             .where(labs.enrollments.c.lab_id == lab['id']).order_by(identity.accounts.c.roll_number)).mappings()
-        result.update(version=lab['version'], strict_ip=lab['strict_ip'], first_released_at=lab['first_released_at'],
+        result.update(version=lab['version'], strict_ip=lab['strict_ip'], compiler_feedback=lab['compiler_feedback'], first_released_at=lab['first_released_at'],
             students=[dict(row) for row in roster], tasks=[{'position': row['position'], 'revision_id': row['id'],
                 'task_id': row['task_id'], 'number': row['number'], 'config': row['config']} for row in assigned])
     else:
@@ -211,7 +213,8 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
             config = TaskConfig.model_validate(row['config']).model_dump(mode='json')
             public_tasks.append({'position': row['position'], 'revision_id': row['id'],
                 **{key: config[key] for key in PublicTask.model_fields if key not in ('position', 'revision_id')}})
-        result.update(frozen=enrollment['frozen'], tasks=public_tasks)
+        from cjudge.submissions.service import allowance
+        result.update(frozen=enrollment['frozen'], tasks=public_tasks, admission=allowance(conn, lab, enrollment))
     return result
 
 
