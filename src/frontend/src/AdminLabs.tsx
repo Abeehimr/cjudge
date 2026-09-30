@@ -15,7 +15,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   const section = parts[0] || "overview", studentId = section === "students" ? parts[1] : undefined, revisionId = section === "tasks" ? parts[1] : undefined;
   const [params, setParams] = useSearchParams();
   const rosterSearch = params.get("search") || "";
-  const [created, setCreated] = useState<string | null>(null);
+  const [destination, setDestination] = useState<string | null>(null);
   const currentLab = useRef(labId); currentLab.current = labId;
   const savedLab = useRef<AdminLab | null>(null);
   const [failure, setFailure] = useState(0);
@@ -36,7 +36,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   async function list(page = offset) { setRows(await api<Summary[]>(`/admin/labs?offset=${page}`)); }
   useEffect(() => { if (!labId) void list().catch((e) => showError(e.message)); }, [offset, labId]);
-  useEffect(() => { if (created) { navigate(`/admin/labs/${created}`); setCreated(null); } }, [created]);
+  useEffect(() => { if (destination) { navigate(destination); setDestination(null); } }, [destination]);
   useEffect(() => {
     setLab(null); setMessage(""); setFailure(0);
     if (!labId) return;
@@ -75,7 +75,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   async function create(e: FormEvent) {
     e.preventDefault(); await perform(async () => {
       const result = await api<AdminLab>("/admin/labs", { method: "POST", body: JSON.stringify({ title: newTitle }) }, csrf);
-      setNewTitle(""); setCreated(result.id);
+      setNewTitle(""); setDestination(`/admin/labs/${result.id}`);
     });
   }
   async function upload(files: File[], replaces?: string) {
@@ -225,7 +225,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
             <td><span className={member.frozen ? "notice-danger rounded px-2 py-1" : ""}>{member.frozen ? `Frozen · ${member.freeze_reason}` : "Enabled during lab"}</span></td><td><div className="flex flex-wrap gap-2">
               <button disabled={busy} onClick={() => rosterAction(member, "freeze")}>{member.frozen ? "Unfreeze" : "Freeze"} {member.roll_number}</button>
               <button disabled={busy || !member.bound_at} onClick={() => rosterAction(member, "release")}>Release browser {member.roll_number}</button>
-              {setupOpen && <button disabled={busy} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?`)) void perform(async () => { await mutate(`/students/${member.id}?version=${lab.version}`, "DELETE"); if (studentId) navigate(`/admin/labs/${lab.id}/students`); }); }}>Remove student</button>}
+              {setupOpen && <button disabled={busy} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?`)) void perform(async () => { await mutate(`/students/${member.id}?version=${lab.version}`, "DELETE"); if (studentId) setDestination(`/admin/labs/${lab.id}/students`); }); }}>Remove student</button>}
             </div></td></tr>)}</tbody></table></div>
       </section>
       </>}

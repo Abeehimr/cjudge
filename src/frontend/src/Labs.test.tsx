@@ -102,7 +102,7 @@ test('unconfirmed source and retry key survive navigation within the lab', async
     return Promise.resolve({ ok: true, status: 200, json: async () => path.includes('/submissions') ? [] : path === '/api/labs' ? [summary] : current });
   });
   vi.stubGlobal('fetch', fetchMock);
-  const { router } = renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab/tasks/revision');
+  const { router } = renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab/tasks/revision?offset=100');
   const file = new File(['int main(void){return 0;}'], 'main.c');
   fireEvent.change(await screen.findByLabelText(/C file/), { target: { files: [file] } });
   fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
@@ -115,6 +115,8 @@ test('unconfirmed source and retry key survive navigation within the lab', async
   const calls = fetchMock.mock.calls.filter(([, options]) => options.method === 'POST');
   expect(calls[0][1].headers['Idempotency-Key']).toBe(calls[1][1].headers['Idempotency-Key']);
   expect(calls[1][1].body).toBe(file);
+  expect(router.state.location.search).toBe('');
+  expect(vi.mocked(confirm)).toHaveBeenCalledTimes(2);
 });
 
 test('lab navigation blocks dirty settings; refresh preserves typed settings', async () => {
@@ -149,4 +151,19 @@ test('a scheduled lab enables explicit entry when its start is reached', async (
   fireEvent.click(screen.getByRole('button', { name: 'Refresh lab' }));
   await waitFor(() => expect((screen.getByRole('button', { name: 'Enter lab' }) as HTMLButtonElement).disabled).toBe(false));
   expect(fetchMock.mock.calls.some(([path]) => path.endsWith('/enter'))).toBe(false);
+});
+
+test('removing enrollment from student detail returns to the roster with one confirmation', async () => {
+  live(); const member = { id: 'student', roll_number: '001A', name: 'Ada', frozen: false, bound_at: null };
+  let lab = { ...summary, phase: 'Draft', starts_at: null, ends_at: null, version: 1, strict_ip: false, first_released_at: null, tasks: [], pdfs: [], students: [member], announcements: [] };
+  const confirm = vi.fn().mockReturnValue(true); vi.stubGlobal('confirm', confirm);
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string, options: RequestInit) => {
+    if (options.method === 'DELETE') lab = { ...lab, students: [] };
+    return Promise.resolve({ ok: true, status: 200, json: async () => path.startsWith('/api/admin/labs/lab') && !path.includes('/submissions') ? lab : [] });
+  }));
+  const { router } = renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students/student');
+  fireEvent.click(await screen.findByRole('button', { name: 'Remove student' }));
+  expect(await screen.findByRole('heading', { name: 'Enrollment (0)' })).toBeTruthy();
+  expect(router.state.location.pathname).toBe('/admin/labs/lab/students');
+  expect(confirm).toHaveBeenCalledTimes(1);
 });

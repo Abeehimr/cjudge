@@ -49,7 +49,7 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
   const [busy, setBusy] = useState(false);
   const dirty = !!draft && JSON.stringify(config) !== JSON.stringify(draft.config);
 
-  useUnsaved(dirty || !!input || !!answer || !!title);
+  useUnsaved(dirty || !!input || !!answer || !!title, true);
   useEffect(() => { if (created) { navigate(`/admin/tasks/${created}`); setCreated(null); } }, [created]);
   useEffect(() => {
     setInput(""); setAnswer(""); setMessage("");

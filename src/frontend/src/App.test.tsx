@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import App from "./App";
 
@@ -134,7 +134,7 @@ test('admin stream revocation clears private pages immediately', async () => {
     json: async () => path.endsWith('/auth/session') ? account : { configured: 1, healthy: 0, working: 0, server_time: new Date().toISOString(), workers: [] } })));
   render(<App />);
   expect(await screen.findByRole('heading', { name: 'Isolates' })).toBeTruthy();
-  fireEvent(stream, new Event('denied'));
+  act(() => stream.dispatchEvent(new Event('denied')));
   expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeTruthy();
   expect(screen.queryByRole('heading', { name: 'Isolates' })).toBeNull();
 });

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useBlocker, useSearchParams } from "react-router";
 
 export function useOffset(): [number, (offset: number) => void] {
@@ -12,8 +12,10 @@ export function useOffset(): [number, (offset: number) => void] {
   })];
 }
 
-export function useUnsaved(dirty: boolean) {
-  const blocker = useBlocker(dirty);
+export function useUnsaved(dirty: boolean, watchSearch = false) {
+  const unsaved = useRef(dirty); unsaved.current = dirty;
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => unsaved.current &&
+    (currentLocation.pathname !== nextLocation.pathname || watchSearch && currentLocation.search !== nextLocation.search));
   useEffect(() => {
     if (blocker.state === "blocked") {
       if (window.confirm("Leave this page with unsaved changes or selected files?")) blocker.proceed();
