@@ -1,4 +1,8 @@
 """M5 gate against a disposable database; never changes real lab data."""
+import json
+import subprocess
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 import os
 from pathlib import Path
 import secrets
@@ -160,6 +164,76 @@ def checks() -> None:
     print('PASS: durability deadline boundary and storage failure rollback')
 
 
+def history_checks() -> None:
+    from cjudge.api import app
+    from cjudge.labs.binding import cookie_name
+    admin_id, student_id, other_id, lab_id, task_id, revision_a, revision_b = [uuid4() for _ in range(7)]
+    admin_token, student_token, binding = [secrets.token_urlsafe(32) for _ in range(3)]
+    with identity.engine().begin() as conn:
+        timestamp = labs.now(conn)
+        admin_id = conn.execute(sa.select(identity.accounts.c.id).where(identity.accounts.c.role == 'admin')).scalar_one()
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.ends_at > timestamp).values(ends_at=timestamp))
+        for role, key in [('student', student_id), ('student', other_id)]:
+            conn.execute(sa.insert(identity.accounts).values(id=key, role=role, name='History gate', password_hash='unused',
+                roll_number=str(key) if role == 'student' else None, encrypted_password=b'unused' if role == 'student' else None))
+        for key, token in [(admin_id, admin_token), (student_id, student_token)]:
+            conn.execute(sa.insert(identity.sessions).values(account_id=key, token_hash=identity.token_digest(token),
+                csrf_token='unused', expires_at=timestamp + timedelta(hours=1)))
+        conn.execute(sa.insert(labs.labs).values(id=lab_id, title='History gate', version=1, starts_at=timestamp,
+            ends_at=timestamp + timedelta(hours=1)))
+        conn.execute(sa.insert(labs.enrollments).values(lab_id=lab_id, account_id=student_id, binding_hash=identity.token_digest(binding)))
+        conn.execute(sa.insert(tasks.tasks).values(id=task_id, version=1, config={'title': 'History'}, case_count=1))
+        for number, revision in enumerate([revision_a, revision_b], 1):
+            conn.execute(sa.insert(tasks.revisions).values(id=revision, task_id=task_id, number=number,
+                draft_version=number, config={'title': 'History'}, case_count=1, cases_key=uuid4()))
+        for index in range(106):
+            key = uuid4()
+            conn.execute(sa.insert(submissions.submissions).values(id=key, lab_id=lab_id,
+                account_id=other_id if index == 105 else student_id, revision_id=revision_a if index < 103 or index == 105 else revision_b,
+                idempotency_key=uuid4(), filename='main.c', sha256='0' * 64, size=1,
+                accepted_at=timestamp + timedelta(microseconds=index), client_ip='192.0.2.1'))
+            conn.execute(sa.insert(submissions.jobs).values(submission_id=key))
+    def get(path, headers=None):
+        try:
+            response = urlopen(Request('http://127.0.0.1:8016' + path, headers=headers or {}), timeout=10)
+        except HTTPError as exc:
+            response = exc
+        return response.code, json.loads(response.read())
+    server = subprocess.Popen(['python', '-m', 'uvicorn', 'cjudge.api:app', '--host', '127.0.0.1',
+        '--port', '8016', '--no-proxy-headers'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        for _ in range(100):
+            try:
+                if get('/api/auth/session')[0] == 401:
+                    break
+            except URLError:
+                time.sleep(.1)
+        else:
+            raise AssertionError('History gate API failed to start')
+        student_headers = {'Cookie': f'cjudge_session={student_token}; {cookie_name(lab_id)}={binding}'}
+        admin_headers = {'Cookie': f'cjudge_session={admin_token}'}
+        path = f'/api/labs/{lab_id}/submissions?revision_id={revision_a}'
+        status, rows = get(path, student_headers)
+        assert status == 200, rows
+        assert len(rows) == 100 and all(row['revision_id'] == str(revision_a) for row in rows)
+        assert rows == sorted(rows, key=lambda row: row['accepted_at'], reverse=True)
+        assert not {'client_ip', 'client_mac', 'account_id', 'passed'} & rows[0].keys()
+        assert len(get(path + '&offset=100', student_headers)[1]) == 3
+        assert get(path + '&account_id=' + str(other_id), student_headers)[1] == rows
+        admin_path = f'/api/admin/labs/{lab_id}/submissions?revision_id={revision_a}&account_id={student_id}'
+        assert len(get(admin_path + '&offset=100', admin_headers)[1]) == 3
+        assert len(get(admin_path.replace(str(student_id), str(other_id)), admin_headers)[1]) == 1
+        assert get(admin_path, student_headers)[0] == 403
+        assert get(path)[0] == 401
+        assert get(path.replace(str(revision_a), 'invalid'), student_headers)[0] == 422
+        assert get(path.replace(str(lab_id), str(uuid4())), student_headers)[0] == 404
+        assert get(path, {'Cookie': f'cjudge_session={student_token}'})[0] == 423
+    finally:
+        server.terminate()
+        server.wait(timeout=10)
+    print('PASS: task/student history filters before pagination, newest-first ordering, ownership and binding')
+
+
 def main() -> None:
     database = 'submission_gate_' + secrets.token_hex(8)
     root_url = sa.make_url(os.environ['DATABASE_URL'])
@@ -172,6 +246,7 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as directory:
             os.environ['CJUDGE_SUBMISSION_FILES'] = directory
             checks()
+            history_checks()
     finally:
         identity.engine().dispose()
         identity.engine.cache_clear()

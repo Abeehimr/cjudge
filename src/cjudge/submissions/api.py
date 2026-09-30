@@ -108,11 +108,14 @@ async def upload(lab_id: UUID, request: Request, response: Response,
 
 
 @student_router.get('', response_model=list[SubmissionOutput])
-def history(lab_id: UUID, request: Request, offset: int = Query(default=0, ge=0), account: dict = Depends(student)):
+def history(lab_id: UUID, request: Request, offset: int = Query(default=0, ge=0),
+            revision_id: UUID | None = None, account: dict = Depends(student)):
     with transaction() as conn:
         lab, _, _ = student_access(conn, lab_id, account, request)
-        rows = conn.execute(query(lab_id).where(store.submissions.c.account_id == account['id'])
-            .order_by(store.submissions.c.accepted_at.desc(), store.submissions.c.id).offset(offset).limit(100)).mappings()
+        selection = query(lab_id).where(store.submissions.c.account_id == account['id'])
+        if revision_id:
+            selection = selection.where(store.submissions.c.revision_id == revision_id)
+        rows = conn.execute(selection.order_by(store.submissions.c.accepted_at.desc(), store.submissions.c.id).offset(offset).limit(100)).mappings()
         return [output(row, lab['compiler_feedback']) for row in rows]
 
 
@@ -128,12 +131,15 @@ def detail(lab_id: UUID, submission_id: UUID, request: Request, account: dict = 
 
 
 @admin_router.get('', response_model=list[AdminSubmission])
-def admin_history(lab_id: UUID, offset: int = Query(default=0, ge=0), account_id: UUID | None = None):
+def admin_history(lab_id: UUID, offset: int = Query(default=0, ge=0),
+                  account_id: UUID | None = None, revision_id: UUID | None = None):
     with transaction() as conn:
         labs.find(conn, lab_id, shared=True)
         selection = query(lab_id)
         if account_id:
             selection = selection.where(store.submissions.c.account_id == account_id)
+        if revision_id:
+            selection = selection.where(store.submissions.c.revision_id == revision_id)
         rows = conn.execute(selection.order_by(store.submissions.c.accepted_at.desc(), store.submissions.c.id)
                             .offset(offset).limit(100)).mappings()
         return [output(row, 'full', admin_view=True) for row in rows]
