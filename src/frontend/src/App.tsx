@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "./api";
 import TaskLibrary from "./TaskLibrary";
 import { AdminLabs, StudentLabs } from "./Labs";
+import Isolates from "./Isolates";
 
 type Session = { id: string; role: "admin" | "student"; roll_number: string | null; name: string; csrf_token: string };
 type Student = { id: string; roll_number: string; name: string };
@@ -10,7 +11,7 @@ type Credential = Student & { password: string };
 type ImportResult = { created: string[]; existing: string[]; name_mismatches: string[] };
 
 export default function App() {
-  const [page, setPage] = useState<"students" | "tasks" | "labs">("students");
+  const [page, setPage] = useState<"students" | "tasks" | "labs" | "isolates">("students");
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
@@ -123,6 +124,7 @@ export default function App() {
         <button aria-pressed={page === "students"} onClick={() => setPage("students")}>Students</button>
         <button aria-pressed={page === "labs"} onClick={() => { setPage("labs"); setCredentials([]); setMessage(""); }}>Labs</button>
         <button aria-pressed={page === "tasks"} onClick={() => { setPage("tasks"); setCredentials([]); setMessage(""); }}>Tasks</button>
+        <button aria-pressed={page === "isolates"} onClick={() => { setPage("isolates"); setCredentials([]); setMessage(""); }}>Isolates</button>
       </nav>}
       {loading ? <p role="status">Loading…</p> : !session ? <section className="mx-auto max-w-sm rounded border bg-white p-6">
         <h1 className="text-xl font-semibold">Sign in</h1>
@@ -137,7 +139,7 @@ export default function App() {
         <h1 className="text-xl font-semibold">{session.name}</h1>
         <p className="mt-2">Roll number: {session.roll_number}</p>
         <div className="mt-4"><StudentLabs csrf={session.csrf_token} /></div>
-      </section> : page === "labs" ? <AdminLabs csrf={session.csrf_token} /> : page === "tasks" ? <TaskLibrary csrf={session.csrf_token} /> : <div className="space-y-6">
+      </section> : page === "isolates" ? <Isolates /> : page === "labs" ? <AdminLabs csrf={session.csrf_token} /> : page === "tasks" ? <TaskLibrary csrf={session.csrf_token} /> : <div className="space-y-6">
         <h1 className="text-xl font-semibold">Students</h1>
         <section className="no-print rounded border bg-white p-4">
           <h2 className="font-semibold">Add student</h2>
