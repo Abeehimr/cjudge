@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "./api";
 import Statement from "./Statement";
+import { Link, useMatch, useNavigate, useSearchParams } from "react-router";
+import { NotFound, useOffset, useUnsaved } from "./navigation";
 
 type Checker = { kind: "exact" | "tokens"; ignore_final_newline: boolean; ignore_case: boolean;
   absolute_tolerance: string; relative_tolerance: string };
@@ -25,7 +27,13 @@ function Summary({ config }: { config: Config }) {
 
 export default function TaskLibrary({ csrf }: { csrf: string }) {
   const [rows, setRows] = useState<Task[]>([]);
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useOffset();
+  const match = useMatch("/admin/tasks/:taskId"), navigate = useNavigate();
+  const taskId = match?.params.taskId;
+  const listRoute = useMatch("/admin/tasks");
+  const [params, setParams] = useSearchParams();
+  const revisionId = params.get("revision");
+  const [created, setCreated] = useState<string | null>(null);
   const [draft, setDraft] = useState<Detail | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [published, setPublished] = useState<Published | null>(null);
@@ -41,8 +49,26 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
   const [busy, setBusy] = useState(false);
   const dirty = !!draft && JSON.stringify(config) !== JSON.stringify(draft.config);
 
-  async function refresh(page = offset) { setRows(await api<Task[]>(`/admin/tasks?offset=${page}`)); }
-  useEffect(() => { void refresh().catch((error) => showError(error.message)); }, [offset]);
+  useUnsaved(dirty || !!input || !!answer || !!title);
+  useEffect(() => { if (created) { navigate(`/admin/tasks/${created}`); setCreated(null); } }, [created]);
+  useEffect(() => {
+    if (!taskId) { setDraft(null); setConfig(null); return; }
+    const controller = new AbortController();
+    setDraft(null); setConfig(null); setInput(""); setAnswer(""); setMessage("");
+    void api<Detail>(`/admin/tasks/${taskId}`, { signal: controller.signal }).then(accept).catch((e) => { if (!controller.signal.aborted) showError(e.message); });
+    return () => controller.abort();
+  }, [taskId]);
+  useEffect(() => {
+    if (!draft || draft.id !== taskId) return;
+    const controller = new AbortController();
+    setPublished(null); setPreview(null); setReview(params.get("view") === "review"); setConfig(draft.config);
+    if (revisionId) void api<Published>(`/admin/tasks/${taskId}/revisions/${revisionId}`, { signal: controller.signal })
+      .then(setPublished).catch((e) => { if (!controller.signal.aborted) showError(e.message); });
+    return () => controller.abort();
+  }, [taskId, draft?.id, revisionId, params.get("view")]);
+
+  async function refresh(page = offset) { if (taskId) return; setRows(await api<Task[]>(`/admin/tasks?offset=${page}`)); }
+  useEffect(() => { if (!taskId) void refresh().catch((error) => showError(error.message)); }, [offset, taskId]);
 
   async function perform(action: () => Promise<void>) {
     setBusy(true); setMessage("");
@@ -61,13 +87,13 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
   function canLeave() { return !dirty || confirm("Discard unsaved task settings?"); }
   async function select(id: string) {
     if (!canLeave()) return;
-    await perform(async () => { accept(await api<Detail>(`/admin/tasks/${id}`)); setInput(""); setAnswer(""); });
+    await perform(async () => { accept(await api<Detail>(`/admin/tasks/${id}`)); setInput(""); setAnswer(""); setParams({}); });
   }
   async function create(event: FormEvent) {
     event.preventDefault(); if (!canLeave()) return;
     await perform(async () => {
-      accept(await api<Detail>("/admin/tasks", { method: "POST", body: JSON.stringify({ title }) }, csrf));
-      setTitle(""); setOffset(0); await refresh(0);
+      const result = await api<Detail>("/admin/tasks", { method: "POST", body: JSON.stringify({ title }) }, csrf);
+      setTitle(""); setCreated(result.id);
     });
   }
   async function save(event: FormEvent) {
@@ -102,7 +128,7 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
         method: "POST", body: JSON.stringify({ version: draft.version }),
       }, csrf);
       accept(await api<Detail>(`/admin/tasks/${draft.id}`)); setPublished(result);
-      setMessage(`Revision ${result.number} published.`);
+      setParams({ revision: result.id }); setMessage(`Revision ${result.number} published.`);
     });
   }
   function caseUrl(number: number, part: string) {
@@ -117,26 +143,30 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
     });
   }
 
+  if (!match && !listRoute) return <NotFound />;
   return <div className="space-y-4">
     <h1 className="text-xl font-semibold">Task library</h1>
-    <form onSubmit={create} className="flex flex-wrap gap-2 rounded border bg-white p-4">
+    {taskId && <nav aria-label="Task breadcrumbs"><Link to="/admin/tasks">Task Library</Link> / {draft?.config.title || "Task"}</nav>}
+    {!taskId && <><form onSubmit={create} className="flex flex-wrap gap-2 rounded border bg-white p-4">
       <label>New task title <input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
       <button disabled={busy}>Create draft</button>
     </form>
     <div className="overflow-x-auto rounded border bg-white p-4">
       <table className="w-full text-left text-sm"><thead><tr><th>Title</th><th>Draft version</th><th>Cases</th><th>Marks</th></tr></thead>
         <tbody>{rows.map((row) => <tr className="border-t" key={row.id}>
-          <td><button className="underline" disabled={busy} onClick={() => select(row.id)}>{row.config.title}</button></td>
+          <td><Link to={`/admin/tasks/${row.id}`}>{row.config.title}</Link></td>
           <td>{row.version}</td><td>{row.case_count}</td><td>{row.config.maximum_marks}</td>
         </tr>)}</tbody></table>
       <div className="mt-2 flex gap-2"><button disabled={busy || offset === 0} onClick={() => setOffset(offset - 100)}>Previous page</button>
         <button disabled={busy || rows.length < 100} onClick={() => setOffset(offset + 100)}>Next page</button></div>
     </div>
+    </>}
+    {taskId && !draft && !message && <p role="status">Loading task…</p>}
     {draft && config && <>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-semibold">{published ? `Revision ${published.number} (read-only)` : `Draft version ${draft.version}`}</h2>
-        <button disabled={busy} onClick={() => { setPublished(null); setReview(false); setPreview(null); }}>Edit draft</button>
-        <button disabled={busy || dirty} onClick={() => { setPublished(null); setReview(true); setPreview(null); }}>Review draft</button>
+        <button disabled={busy} onClick={() => setParams({})}>Edit draft</button>
+        <button disabled={busy || dirty} onClick={() => setParams({ view: "review" })}>Review draft</button>
         <button disabled={busy} onClick={() => select(draft.id)}>Reload draft</button>
         {dirty && <span role="status" className="notice notice-warning">Unsaved settings — save before changing cases or publishing.</span>}
       </div>
@@ -207,9 +237,7 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
       </section>
       <section className="rounded border bg-white p-4"><h2 className="font-semibold">Published revisions</h2>
         {draft.revisions.length ? <ul>{draft.revisions.map((revision) => <li key={revision.id}>
-          <button className="underline" disabled={busy} onClick={() => { if (canLeave()) void perform(async () => {
-            setPublished(await api<Published>(`/admin/tasks/${draft.id}/revisions/${revision.id}`)); setPreview(null);
-          }); }}>Revision {revision.number}</button> · draft {revision.draft_version} · {new Date(revision.created_at).toLocaleString()}
+          <Link to={`?revision=${revision.id}`}>Revision {revision.number}</Link> · draft {revision.draft_version} · {new Date(revision.created_at).toLocaleString()}
         </li>)}</ul> : <p>No published revisions.</p>}
       </section>
     </>}

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import TaskLibrary from "./TaskLibrary";
+import { renderRoute } from "./testRouter";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -24,7 +25,7 @@ test("admin creates draft, adds case, reviews and publishes once", async () => {
   });
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("confirm", vi.fn(() => true));
-  render(<TaskLibrary csrf="csrf" />);
+  renderRoute(<TaskLibrary csrf="csrf" />, "/admin/tasks");
   fireEvent.change(screen.getByLabelText("New task title"), { target: { value: "Sum" } });
   fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
   expect(await screen.findByText("Draft version 1")).toBeTruthy();
