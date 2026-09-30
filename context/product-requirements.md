@@ -24,7 +24,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 - Require explicit Enter lab to bind the browser, including after the lab ends.
 - Admin may stop a running lab immediately with confirmation and a reason. Stop closes new uploads but finishes accepted judging; reopening remains possible before first release.
 - Admin may freeze/unfreeze new submissions per student and lab with an audit reason; retain materials access and prior accepted work. Unfreezing adds no time.
-- Admin posts plain-text announcements; enrolled students can read the full history after start.
+- Admin posts plain-text announcements; enrolled students can read public and their own private history after start. Lab time, PDF, problem, rejudge and result changes automatically announce the action and any supplied reason. Individual submission, freeze and binding actions notify only the affected student; admins see every notice and its audience.
 - Use a common server-authoritative deadline. Allow whole-lab extensions and reopening before first release; never reopen after release, even if results are hidden again.
 - Prevent overlapping labs. Require explicit rescheduling before an extension conflicts with another lab.
 - Accept one `.c` file up to 64 KiB only after complete upload, validation, and durable acceptance strictly before the deadline. Queued judging may finish afterward.
@@ -44,7 +44,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 
 - Partial score = maximum marks × passed cases / total cases. All-or-nothing awards marks only when every case passes. Compile errors earn zero.
 - Count the best active submission by unrounded score; ties use earliest acceptance, then submission ID. Display two decimals with half-up rounding and sum displayed task marks for totals.
-- Show admin attempts best to worst, separating pending/deleted attempts. Soft deletion requires a reason, excludes the attempt from marks/student history, preserves evidence, and permits restoration. Recompute marks on either action.
+- Show admin attempts best to worst, separating pending/deleted attempts. Soft deletion requires a reason, excludes the attempt from marks, preserves evidence, and permits restoration. Students retain their own deleted rows with the reason and exclusion label; detailed evidence remains release-gated. Recompute marks on either action.
 - Shade the newest highest-scoring active official attempt per student/task in admin and released student lists, labeled Best for review. This review preference does not change the earliest-tie rule for counted marks.
 - No submission means zero; unresolved infrastructure failure means pending, never zero.
 - Allow corrections during running or ended labs, including after release with a warning and audit reason; never reopen a released lab. Corrections publish a new revision and rejudge every active attempt for the affected lab task. Preserve earlier results and replace official marks consistently after completion. Support single-submission rejudges without changing grading configuration.

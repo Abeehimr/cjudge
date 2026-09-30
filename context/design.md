@@ -63,7 +63,7 @@ Navigation uses browser URLs, breadcrumbs, and lab sections. Refresh and Back/Fo
 ## Data Model
 
 - Account, revocable session, and per-lab browser binding.
-- Lab with versioned PDF attachments, announcements, frozen/bound enrollment, and ordered pinned task revisions.
+- Lab with versioned PDF attachments, public/private announcements, frozen/bound enrollment, and ordered pinned task revisions. Admin changes automatically announce their effect and supplied reason; individual actions address only the affected student.
 - Reusable task with optional Markdown statement, immutable revision, and test cases.
 - Submission with immutable source, acceptance time, and soft-delete metadata.
 - Submission network snapshot: client IP, optional trusted MAC, MAC source/observation time. Admin attempt review displays addresses, unavailable MACs, and possible PC-switch flags across the student's lab submissions.

@@ -79,6 +79,8 @@ Students select their assigned lab and explicitly **Enter lab** after start. Thi
 
 Test announcements and PDF replacement with a student tab open: SSE refreshes materials and deadlines. Previous PDFs remain admin-only. Test **Freeze/Unfreeze**, browser release, whole-lab extension, and pre-release reopening; reasons are audited. Freeze blocks new submissions while materials stay readable.
 
+Lab time, PDF, problem/correction, and result changes automatically post announcements, including supplied reasons. Individual deletion/restoration, rejudge/retry, freeze, and binding-release notices reach only the affected student; admins see their audience. Deleted student submissions remain listed with their reason and exclusion from marks; source and judging details remain release-gated. This update adds migration `20261006_notices`: rebuild API/web/worker, stop API/worker, migrate, then restart.
+
 Back up `lab_files` with PostgreSQL. PDFs have immutable UUID paths, up to 10 active files of 20 MiB each. Interrupted transactions may leave unreferenced files; retain the volume until cleanup support arrives. API owns this volume as UID/GID 10001; if an older image initialized it as root, run `docker compose run --rm --user root api chown 10001:10001 /var/lib/cjudge-labs` before use.
 
 ## M1 sandbox checks
