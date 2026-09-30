@@ -2,6 +2,15 @@
 
 Offline C lab judge. M0 provides an HTTPS frontend and database. M1 adds an isolated runner. M2 adds global student accounts and login. M3 adds an admin task library with immutable grading revisions. M4 adds labs, browser binding, protected PDFs, and live announcements. Submissions remain M5.
 
+## Repository layout
+
+- `src/cjudge/`: backend, grouped into `identity/`, `tasks/`, and `labs/` packages; `api.py` assembles routes and `runner.py` provides the sandbox runner.
+- `src/frontend/`: React app, package configuration, and component tests.
+- `deploy/`: nginx configuration and judge entrypoint/isolate configuration.
+- `tests/`, `migrations/`, `scripts/`, `context/`: backend checks, schema revisions, local operations, and requirements.
+
+Compose, Dockerfiles, and Python package configuration stay at the repository root. Account setup commands remain `python -m cjudge.identity ...`.
+
 ## Local setup
 
 Requires Docker Compose, OpenSSL, and Node.js for local frontend checks.
@@ -20,7 +29,7 @@ Stop services with `docker compose down`. The PostgreSQL volume survives contain
 ## Checks
 
 - Backend: `uv sync --locked && uv run pytest -q`
-- Frontend: `npm ci --prefix frontend && npm run test --prefix frontend && npm run build --prefix frontend`
+- Frontend: `npm ci --prefix src/frontend && npm run test --prefix src/frontend && npm run build --prefix src/frontend`
 - Compose: `docker compose config --quiet && docker compose up -d --build web && sh scripts/smoke.sh`
 - Identity gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/identity_gate.py`
 - Task gate: `docker compose run --rm -v ./tests:/app/tests:ro api python tests/tasks_gate.py`
@@ -42,7 +51,7 @@ Sessions last eight hours. Logout and password resets revoke sessions. Login is 
 
 After updating an existing installation, run `docker compose build api web`, then `docker compose run --rm api alembic upgrade head` and `docker compose up -d web`. Under **Admin → Tasks**, create a draft, add pasted cases or a ZIP of flat `N.in`/`N.out` pairs, review settings/cases, and publish a revision. Task statements are optional Markdown; HTML and embedded images do not render. Case downloads remain admin-only; lab students see statements and public resource limits. Judging remains M5.
 
-ZIPs are limited to 17 MiB compressed, 16 MiB expanded, 100 paired cases, and 1 MiB per input/answer. Exact checking compares bytes, optionally ignoring one final LF/CRLF. Token checking splits ASCII whitespace, with optional case and finite-number tolerances. `src/cjudge/task_grading.py` defines both comparison and rational scoring for M5. Published revisions retain their original configuration and cases. Draft edits use version checks and may return 409; reload before retrying.
+ZIPs are limited to 17 MiB compressed, 16 MiB expanded, 100 paired cases, and 1 MiB per input/answer. Exact checking compares bytes, optionally ignoring one final LF/CRLF. Token checking splits ASCII whitespace, with optional case and finite-number tolerances. `src/cjudge/tasks/grading.py` defines both comparison and rational scoring for M5. Published revisions retain their original configuration and cases. Draft edits use version checks and may return 409; reload before retrying.
 
 The `task_files` volume contains protected case sets and must be backed up with PostgreSQL. Losing it makes published tests unavailable. Replacing draft cases can leave unreferenced files after interrupted transactions; keep the volume until archive/cleanup support arrives.
 

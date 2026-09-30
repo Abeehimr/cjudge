@@ -4,15 +4,15 @@
 
 This repository is building cJudge, an offline C programming lab judge.
 
-- `src/cjudge/`: Python package; `__init__.py` defines the CLI entry point.
-- `frontend/`: React/TypeScript app and component tests.
-- `judge/`: isolate configuration and container entrypoint.
+- `src/cjudge/`: Python package; feature packages are `identity/`, `tasks/`, and `labs/`; `api.py` assembles routes.
+- `src/frontend/`: React/TypeScript app and component tests.
+- `deploy/`: nginx configuration and judge container configuration/entrypoint.
 - `migrations/`: Alembic migration environment and future revisions.
 - `pyproject.toml`: package metadata, Python requirement, build backend, and console script.
 - `context/`: product requirements, design, technical requirements, and module checklist.
 - `README.md`: local setup and checks.
 
-M1 has a standalone sandbox runner. M2 has global accounts and sessions. M3 has admin task drafts and published revisions. Labs and submissions remain planned.
+M1 has a standalone sandbox runner. M2 has global accounts and sessions. M3 has admin task drafts and published revisions. M4 has labs, protected PDFs, and browser binding. Submissions remain planned.
 
 ## Build, Test, and Development Commands
 
@@ -23,12 +23,13 @@ Use Python 3.14 or newer and uv:
 - `uv build`: build source and wheel distributions.
 
 - `uv run pytest -q`: run backend tests.
-- `npm run test --prefix frontend`: run frontend tests.
-- `npm run build --prefix frontend`: type-check and build frontend.
+- `npm run test --prefix src/frontend`: run frontend tests.
+- `npm run build --prefix src/frontend`: type-check and build frontend.
 - `docker compose up -d --build web`: start web, API, and database after M2 setup in `README.md`.
 - `docker compose run --rm judge`: run the M1 isolation gate in a temporary container.
 - `docker compose run --rm -v ./tests:/app/tests:ro api python tests/identity_gate.py`: run M2 integration checks.
 - `docker compose run --rm -v ./tests:/app/tests:ro api python tests/tasks_gate.py`: run M3 integration checks.
+- `docker compose run --rm -v ./tests:/app/tests:ro api python tests/labs_gate.py`: run M4 integration checks.
 
 ## Coding Style & Naming Conventions
 
@@ -38,7 +39,7 @@ Keep modules focused and place application logic inside `src/cjudge/`. Declare d
 
 ## Testing Guidelines
 
-Backend uses pytest under `tests/test_*.py`; frontend uses Vitest under `frontend/src/*.test.tsx`. Real-database gates are `tests/identity_gate.py` (M2) and `tests/tasks_gate.py` (M3). No coverage threshold is set. Complete each module gate before starting its dependents.
+Backend uses pytest under `tests/test_*.py`; frontend uses Vitest under `src/frontend/src/*.test.tsx`. Real-database gates are `tests/identity_gate.py` (M2), `tests/tasks_gate.py` (M3), and `tests/labs_gate.py` (M4). No coverage threshold is set. Complete each module gate before starting its dependents.
 
 Prioritize grading correctness, deadline boundaries, authorization, and worker recovery as those features arrive. Sandbox integration tests should document required Linux tooling.
 
