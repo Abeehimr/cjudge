@@ -23,7 +23,7 @@ import sqlalchemy as sa
 
 from cjudge import identity, labs, tasks, submissions as store
 from cjudge.labs import archive, files as pdf_files
-from cjudge.submissions import files, service
+from cjudge.submissions import files, service, review
 
 
 def exercise(directory):
@@ -106,6 +106,7 @@ def exercise(directory):
         assert call(private + '/details', student_view=True)[0] == 403
         assert call(private + '/source', student_view=True)[0] == 403
         assert 'marks' not in call(private, student_view=True)[1]
+        assert not any(row['best_for_review'] for row in call(f'/labs/{lab_id}/submissions', student_view=True)[1])
         assert call(base + '/stop', 'POST', {'version': 1, 'reason': 'Finished'}, bad_csrf=True)[0] == 403
         assert call(base + '/stop', 'POST', {'version': 1, 'reason': 'Finished'}, student_view=True)[0] == 403
         with ThreadPoolExecutor(2) as pool:
@@ -154,6 +155,18 @@ def exercise(directory):
         assert call(f'/labs/{lab_id}/submissions/{alien}/details', student_view=True)[0] == 404
         assert call(private + '/details', student_view=True, bound=False)[0] == 423
         assert call(private + '/source', student_view=True)[1] == source
+        assert next(row for row in call(base + '/submissions')[1] if row['id'] == str(submission))['best_for_review']
+        assert call(f'/labs/{lab_id}/submissions', student_view=True)[1][0]['best_for_review']
+        # Newest equal-score attempt is preferred for review; counted marks still use earliest.
+        with identity.engine().begin() as conn:
+            tie, _ = seed(conn, student)
+            assert next(row for row in review.marks(conn, lab_id) if row['id'] == student)['tasks'][0]['best_submission_id'] == submission
+        admin_rows = call(base + '/submissions')[1]
+        assert next(row for row in admin_rows if row['id'] == str(tie))['best_for_review']
+        assert not next(row for row in admin_rows if row['id'] == str(submission))['best_for_review']
+        assert call(f'/labs/{lab_id}/submissions', student_view=True)[1][0]['best_for_review']
+        assert call(base + f'/submissions/{tie}/review', 'PUT', {'reason': 'Exclude review tie', 'deleted': True})[0] == 204
+        assert call(f'/labs/{lab_id}/submissions', student_view=True)[1][0]['best_for_review']
         assert results(False)[0] == 200
         assert call(private + '/details', student_view=True)[0] == 403
         assert results()[0] == 200
@@ -188,7 +201,7 @@ def exercise(directory):
             assert f'sources/{excluded}.c' in zipped_file.namelist()
             assert f'pdfs/{pdf}.pdf' in zipped_file.namelist()
             evidence = json.loads(zipped_file.read('snapshot.json'))
-            assert len(evidence['runs']) == 2 and evidence['reviews'] and evidence['marks']
+            assert len(evidence['runs']) == 3 and evidence['reviews'] and evidence['marks']
             assert b'password_hash' not in zipped_file.read('snapshot.json') and b'binding_hash' not in zipped_file.read('snapshot.json')
             for entry in manifest['entries']:
                 content = zipped_file.read(entry['path'])

@@ -30,6 +30,7 @@ class SubmissionOutput(StrictModel):
     status: str
     compiler_feedback: str | None = None
     compiler_truncated: bool = False
+    best_for_review: bool = False
 
 
 class AdminSubmission(SubmissionOutput):
@@ -96,8 +97,8 @@ def query(lab_id: UUID):
 def output(row: dict, feedback: str, *, admin_view: bool = False) -> dict:
     status = ('Passed' if row['verdict'] == 'AC' else 'Compile error' if row['verdict'] == 'CE' else 'Failed') if row['run_id'] else {
         'queued': 'Queued', 'judging': 'Judging', 'delayed': 'Judging delayed', 'complete': 'Judging'}[row['state']]
-    result = {key: row[key] for key in SubmissionOutput.model_fields if key not in ('status', 'compiler_feedback', 'compiler_truncated')}
-    result.update(status=status, compiler_feedback=None, compiler_truncated=False)
+    result = {key: row[key] for key in SubmissionOutput.model_fields if key not in ('status', 'compiler_feedback', 'compiler_truncated', 'best_for_review')}
+    result.update(status=status, compiler_feedback=None, compiler_truncated=False, best_for_review=False)
     result['revision_id'] = row['current_revision_id'] or row['revision_id']
     if row['verdict'] == 'CE' and (admin_view or feedback != 'none'):
         diagnostic = row['compiler_feedback'] or ''
@@ -143,7 +144,8 @@ def history(lab_id: UUID, request: Request, offset: int = Query(default=0, ge=0)
             selection = selection.where(tasks.revisions.c.task_id == sa.select(tasks.revisions.c.task_id)
                 .where(tasks.revisions.c.id == revision_id).scalar_subquery())
         rows = conn.execute(selection.order_by(store.submissions.c.accepted_at.desc(), store.submissions.c.id).offset(offset).limit(100)).mappings()
-        return [output(row, lab['compiler_feedback']) for row in rows]
+        best = review.best_for_review(conn, lab_id, account['id']) if lab['first_released_at'] and lab['reveal_results'] else set()
+        return [dict(output(row, lab['compiler_feedback']), best_for_review=row['id'] in best) for row in rows]
 
 
 @student_router.get('/{submission_id}', response_model=SubmissionOutput)
@@ -179,7 +181,8 @@ def admin_history(lab_id: UUID, offset: int = Query(default=0, ge=0),
             rows = conn.execute(selection.order_by(store.submissions.c.accepted_at.desc(), store.submissions.c.id)
                                 .offset(offset).limit(100)).mappings()
         flags = review.network_flags(conn, lab_id)
-        return [dict(output(row, 'full', admin_view=True), **flags.get(row['account_id'], {})) for row in rows]
+        best = review.best_for_review(conn, lab_id, account_id)
+        return [dict(output(row, 'full', admin_view=True), best_for_review=row['id'] in best, **flags.get(row['account_id'], {})) for row in rows]
 
 
 @admin_router.get('/{submission_id}/source')

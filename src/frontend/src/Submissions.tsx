@@ -4,7 +4,7 @@ import { api } from "./api";
 import { useOffset } from "./navigation";
 
 type Submission = { id: string; revision_id: string; filename: string; accepted_at: string; status: string;
-  compiler_feedback: string | null; compiler_truncated: boolean };
+  compiler_feedback: string | null; compiler_truncated: boolean; best_for_review?: boolean };
 type Admission = { allowed: boolean; reason: string; code: string; pending: number; retry_at: string | null; server_time: string };
 type Task = { revision_id: string; title: string };
 export type UploadDraft = { file: File | null; pending: { file: File; revision: string; key: string } | null };
@@ -12,9 +12,9 @@ export type UploadDraft = { file: File | null; pending: { file: File; revision: 
 function History({ rows, tasks, labId, visible }: { rows: Submission[]; tasks: Task[]; labId: string; visible?: boolean }) {
   return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>
     <th>Accepted</th><th>Task</th><th>File</th><th>Status / compiler feedback</th>
-  </tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-t align-top">
+  </tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-t align-top" data-best={visible && row.best_for_review || undefined}>
     <td>{new Date(row.accepted_at).toLocaleString()}</td><td><Link to={`/labs/${labId}/tasks/${row.revision_id}`}>{tasks.find((task) => task.revision_id === row.revision_id)?.title || row.revision_id}</Link></td>
-    <td>{visible ? <Link to={`/labs/${labId}/submissions/${row.id}`}>{row.filename}</Link> : row.filename}</td><td><span className="submission-status" data-status={row.status}>{row.status}</span>{row.compiler_feedback && <pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre>}
+    <td>{visible ? <Link to={`/labs/${labId}/submissions/${row.id}`}>{row.filename}</Link> : row.filename}{visible && row.best_for_review && <span className="block text-green-800">Best for review</span>}</td><td><span className="submission-status" data-status={row.status}>{row.status}</span>{row.compiler_feedback && <pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre>}
       {row.compiler_truncated && <p>Compiler feedback truncated.</p>}</td>
   </tr>)}</tbody></table>{!rows.length && <p>No submissions.</p>}</div>;
 }

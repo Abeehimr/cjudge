@@ -5,7 +5,7 @@ import { useAdminEvents } from "./Isolates";
 import { useOffset, useUnsaved } from "./navigation";
 
 type Submission = { id: string; revision_id: string; filename: string; accepted_at: string; status: string;
-  compiler_feedback: string | null; compiler_truncated: boolean };
+  compiler_feedback: string | null; compiler_truncated: boolean; best_for_review?: boolean };
 type AdminSubmission = Submission & { account_id: string; roll_number: string; name: string; attempt_count: number; fault: string | null;
   client_ip: string; client_mac: string | null; passed: number | null; total: number | null; marks: string | null;
   deleted_at: string | null; delete_reason: string | null; rejudge_status: string | null; ip_changed: boolean; mac_changed: boolean };
@@ -69,10 +69,10 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
     </div>
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Accepted</th><th>Student</th><th>Task</th><th>Source</th><th>Status</th><th>Attempts</th><th>IP / MAC</th><th>Fault</th></tr></thead>
-      <tbody>{rows.map((row) => <tr className="border-t align-top" key={row.id}><td>{new Date(row.accepted_at).toLocaleString()}</td>
+      <tbody>{rows.map((row) => <tr className="border-t align-top" data-best={row.best_for_review || undefined} key={row.id}><td>{new Date(row.accepted_at).toLocaleString()}</td>
         <td><Link to={`/admin/labs/${labId}/students/${row.account_id}`}>{row.roll_number} · {row.name}</Link></td>
         <td><Link to={`/admin/labs/${labId}/tasks/${row.revision_id}`}>{tasks.find((task) => task.revision_id === row.revision_id)?.title || row.revision_id}</Link></td>
-        <td><Link to={`/admin/labs/${labId}/submissions/${row.id}`}>{row.filename}</Link></td><td><span className="submission-status" data-status={row.status}>{row.status}</span>
+        <td><Link to={`/admin/labs/${labId}/submissions/${row.id}`}>{row.filename}</Link>{row.best_for_review && <span className="block text-green-800">Best for review</span>}</td><td><span className="submission-status" data-status={row.status}>{row.status}</span>
           {row.deleted_at && <p className="text-red-800">Deleted · {row.delete_reason}</p>}
           {row.marks != null && <p>{row.marks} marks · {row.passed}/{row.total} cases</p>}
           {row.rejudge_status && <p className="text-amber-800">Rejudge: {row.rejudge_status}</p>}

@@ -88,3 +88,20 @@ test('admin submission filters restore from the URL and reset pagination on chan
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/submissions?offset=0&account_id=student', expect.anything()));
   expect(router.state.location.search).toBe('?student=student');
 });
+
+test('admin and released student lists shade review-best submissions with a text label', async () => {
+  vi.stubGlobal('EventSource', class extends EventTarget { close = vi.fn(); });
+  const row = { id: 'best', filename: 'review.c', revision_id: 'revision', accepted_at: admission.server_time,
+    status: 'Passed', best_for_review: true, account_id: 'student', roll_number: '001', name: 'Ada',
+    compiler_feedback: null, client_ip: '192.0.2.1', marks: '10.00', passed: 1, total: 1 };
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [row] }));
+  renderRoute(<AdminSubmissions labId="lab" csrf="csrf" tasks={tasks} students={[]} />, '/admin/labs/lab/submissions');
+  const adminLink = await screen.findByRole('link', { name: 'review.c' });
+  expect(adminLink.closest('tr')!.getAttribute('data-best')).toBe('true');
+  expect(screen.getByText('Best for review')).toBeTruthy();
+  cleanup();
+  renderRoute(<StudentSubmissions labId="lab" csrf="csrf" tasks={tasks} visible refresh={async () => {}} draft={{ file: null, pending: null }} setDraft={vi.fn()} />, '/labs/lab/submissions');
+  const studentLink = await screen.findByRole('link', { name: 'review.c' });
+  expect(studentLink.closest('tr')!.getAttribute('data-best')).toBe('true');
+  expect(screen.getByText('Best for review')).toBeTruthy();
+});

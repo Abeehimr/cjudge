@@ -60,6 +60,19 @@ def marks(conn: sa.Connection, lab_id: UUID) -> list[dict]:
     return result
 
 
+def best_for_review(conn: sa.Connection, lab_id: UUID, account_id: UUID | None = None) -> set[UUID]:
+    selection = official_query(lab_id).where(reviews.c.deleted_at.is_(None), reviews.c.run_id.is_not(None))
+    if account_id:
+        selection = selection.where(submissions.c.account_id == account_id)
+    best = {}
+    for row in conn.execute(selection).mappings():
+        key = (row['account_id'], row['task_id'])
+        priority = (exact(row), row['accepted_at'], -row['id'].int)
+        if key not in best or priority > best[key][0]:
+            best[key] = (priority, row['id'])
+    return {row[1] for row in best.values()}
+
+
 def network_flags(conn: sa.Connection, lab_id: UUID) -> dict[UUID, dict]:
     rows = conn.execute(sa.select(submissions.c.account_id, submissions.c.client_ip, submissions.c.client_mac)
         .where(submissions.c.lab_id == lab_id)).mappings()
