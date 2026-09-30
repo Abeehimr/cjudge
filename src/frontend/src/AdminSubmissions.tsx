@@ -62,7 +62,7 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
       <tbody>{rows.map((row) => <tr className="border-t align-top" key={row.id}><td>{new Date(row.accepted_at).toLocaleString()}</td>
         <td><Link to={`/admin/labs/${labId}/students/${row.account_id}`}>{row.roll_number} · {row.name}</Link></td>
         <td><Link to={`/admin/labs/${labId}/tasks/${row.revision_id}`}>{tasks.find((task) => task.revision_id === row.revision_id)?.title || row.revision_id}</Link></td>
-        <td><a download href={`/api/admin/labs/${labId}/submissions/${row.id}/source`}>{row.filename}</a></td><td>{row.status}
+        <td><a download href={`/api/admin/labs/${labId}/submissions/${row.id}/source`}>{row.filename}</a></td><td><span className="submission-status" data-status={row.status}>{row.status}</span>
           {row.compiler_feedback && <details><summary>Compiler feedback</summary><pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></details>}
           {row.compiler_truncated && <p>Compiler feedback truncated.</p>}</td>
         <td>{row.attempt_count}</td><td>{row.client_ip}<br />{row.client_mac || "MAC unavailable"}</td><td>{row.fault || "—"}

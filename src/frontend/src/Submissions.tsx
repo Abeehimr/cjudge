@@ -14,7 +14,7 @@ function History({ rows, tasks, labId }: { rows: Submission[]; tasks: Task[]; la
     <th>Accepted</th><th>Task</th><th>File</th><th>Status / compiler feedback</th>
   </tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-t align-top">
     <td>{new Date(row.accepted_at).toLocaleString()}</td><td><Link to={`/labs/${labId}/tasks/${row.revision_id}`}>{tasks.find((task) => task.revision_id === row.revision_id)?.title || row.revision_id}</Link></td>
-    <td>{row.filename}</td><td>{row.status}{row.compiler_feedback && <pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre>}
+    <td>{row.filename}</td><td><span className="submission-status" data-status={row.status}>{row.status}</span>{row.compiler_feedback && <pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre>}
       {row.compiler_truncated && <p>Compiler feedback truncated.</p>}</td>
   </tr>)}</tbody></table>{!rows.length && <p>No submissions.</p>}</div>;
 }
@@ -82,4 +82,3 @@ export function StudentSubmissions({ labId, tasks, admission, csrf, refresh, rev
       <button disabled={rows.length < 100} onClick={() => setOffset(offset + 100)}>Older submissions</button><button onClick={() => { void history(); void refresh(); }}>Refresh submissions</button></div>
   </section>;
 }
-

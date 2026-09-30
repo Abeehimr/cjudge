@@ -50,6 +50,13 @@ a[download] {
 
 .notice { @apply rounded border p-3; }
 .notice-warning { @apply border-amber-200 bg-amber-50 text-amber-800; }
+.submission-status { @apply inline-block whitespace-nowrap rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700; }
+.submission-status[data-status="Passed"] { @apply border-green-200 bg-green-50 text-green-800; }
+.submission-status[data-status="Failed"],
+.submission-status[data-status="Compile error"] { @apply border-red-200 bg-red-50 text-red-800; }
+.submission-status[data-status="Queued"],
+.submission-status[data-status="Judging delayed"] { @apply border-amber-200 bg-amber-50 text-amber-800; }
+.submission-status[data-status="Judging"] { @apply border-blue-200 bg-blue-50 text-blue-800; }
 .notice-danger { @apply border-red-200 bg-red-50 text-red-800; }
 @media print {
   .notice, .notice-danger, .notice-warning { background: white; color: black; border-color: #64748b; }
