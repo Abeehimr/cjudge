@@ -27,6 +27,9 @@ jobs = sa.Table('judge_jobs', metadata,
     sa.Column('attempt_count', sa.Integer(), nullable=False, server_default='0'),
     sa.Column('retry_until', sa.Integer(), nullable=False, server_default='3'),
     sa.Column('ready_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column('kind', sa.String(16), nullable=False, server_default='initial'),
+    sa.Column('revision_id', sa.Uuid(), sa.ForeignKey('task_revisions.id')),
+    sa.Column('batch_id', sa.Uuid()),
     sa.CheckConstraint("state IN ('queued', 'judging', 'delayed', 'complete')"))
 sa.Index('jobs_ready', jobs.c.state, jobs.c.ready_at)
 
@@ -74,3 +77,28 @@ cases = sa.Table('judge_case_results', metadata,
     sa.Column('stdout_truncated', sa.Boolean(), nullable=False), sa.Column('stderr_truncated', sa.Boolean(), nullable=False))
 
 TABLES = (submissions, jobs, turns, workers, attempts, runs, cases)
+
+# Mutable review state is separate from immutable accepted evidence.
+reviews = sa.Table('submission_reviews', metadata,
+    sa.Column('submission_id', sa.Uuid(), sa.ForeignKey('submissions.id'), primary_key=True),
+    sa.Column('run_id', sa.Uuid(), sa.ForeignKey('judge_runs.id')),
+    sa.Column('deleted_at', sa.DateTime(timezone=True)),
+    sa.Column('deleted_by', sa.Uuid(), sa.ForeignKey('accounts.id')),
+    sa.Column('delete_reason', sa.String(500)))
+batches = sa.Table('correction_batches', metadata,
+    sa.Column('id', sa.Uuid(), primary_key=True),
+    sa.Column('lab_id', sa.Uuid(), sa.ForeignKey('labs.id'), nullable=False),
+    sa.Column('task_id', sa.Uuid(), sa.ForeignKey('tasks.id'), nullable=False),
+    sa.Column('base_revision_id', sa.Uuid(), sa.ForeignKey('task_revisions.id'), nullable=False),
+    sa.Column('revision_id', sa.Uuid(), sa.ForeignKey('task_revisions.id'), nullable=False),
+    sa.Column('state', sa.String(16), nullable=False, server_default='judging'),
+    sa.Column('reason', sa.String(500), nullable=False),
+    sa.Column('actor_id', sa.Uuid(), sa.ForeignKey('accounts.id'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column('published_at', sa.DateTime(timezone=True)))
+sa.Index('one_active_correction', batches.c.lab_id, batches.c.task_id, unique=True,
+    postgresql_where=batches.c.state == 'judging')
+members = sa.Table('correction_members', metadata,
+    sa.Column('batch_id', sa.Uuid(), sa.ForeignKey('correction_batches.id'), primary_key=True),
+    sa.Column('submission_id', sa.Uuid(), sa.ForeignKey('submissions.id'), primary_key=True),
+    sa.Column('run_id', sa.Uuid(), sa.ForeignKey('judge_runs.id')))

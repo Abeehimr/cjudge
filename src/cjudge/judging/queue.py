@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
 from cjudge import events, identity, labs
-from cjudge.submissions import submissions, jobs, attempts, workers, turns, runs, cases
+from cjudge.submissions import submissions, jobs, attempts, workers, turns, runs, cases, reviews, members
 
 SCHEDULER_LOCK = 51002
 ADMIN_CHANNEL = UUID(int=0)
@@ -80,10 +80,10 @@ def claim(conn: sa.Connection, slot: int, generation: UUID) -> dict | None:
     if worker['attempt_id'] and conn.execute(sa.select(jobs.c.submission_id).where(
             jobs.c.attempt_id == worker['attempt_id'], jobs.c.state == 'judging')).first():
         return None
-    row = conn.execute(sa.select(submissions, jobs.c.attempt_count).join(jobs,
+    row = conn.execute(sa.select(submissions, jobs.c.attempt_count, jobs.c.revision_id.label('judge_revision_id')).join(jobs,
         jobs.c.submission_id == submissions.c.id).join(turns, turns.c.account_id == submissions.c.account_id)
         .where(jobs.c.state == 'queued', jobs.c.ready_at <= labs.now(conn))
-        .order_by(turns.c.claimed_at.asc().nulls_first(), submissions.c.accepted_at, submissions.c.id)
+        .order_by(sa.case((jobs.c.kind == 'initial', 0), else_=1), turns.c.claimed_at.asc().nulls_first(), submissions.c.accepted_at, submissions.c.id)
         .limit(1).with_for_update(of=jobs, skip_locked=True)).mappings().first()
     timestamp = labs.now(conn)
     if not row:
@@ -99,7 +99,7 @@ def claim(conn: sa.Connection, slot: int, generation: UUID) -> dict | None:
     conn.execute(sa.update(workers).where(workers.c.slot == slot, workers.c.generation == generation).values(
         state='Judging', attempt_id=attempt_id, heartbeat_at=timestamp, fault=None))
     notify(conn, row['account_id'])
-    return dict(row) | {'attempt_id': attempt_id}
+    return dict(row) | {'attempt_id': attempt_id, 'revision_id': row['judge_revision_id'] or row['revision_id']}
 
 
 def heartbeat(conn: sa.Connection, slot: int, generation: UUID, attempt_id: UUID) -> bool:
@@ -122,6 +122,8 @@ def heartbeat(conn: sa.Connection, slot: int, generation: UUID, attempt_id: UUID
 
 
 def finish(conn: sa.Connection, slot: int, generation: UUID, submission: dict, result: dict) -> bool:
+    # Lab-before-job ordering agrees with admin corrections and admission.
+    labs.find(conn, submission['lab_id'], shared=True)
     attempt_id = submission['attempt_id']
     job = conn.execute(sa.select(jobs).where(jobs.c.submission_id == submission['id'])
                        .with_for_update()).mappings().one()
@@ -140,6 +142,12 @@ def finish(conn: sa.Connection, slot: int, generation: UUID, submission: dict, r
         conn.execute(sa.insert(cases), [row | {'run_id': attempt_id} for row in case_rows])
     conn.execute(sa.update(attempts).where(attempts.c.id == attempt_id).values(finished_at=timestamp, outcome='complete'))
     conn.execute(sa.update(jobs).where(jobs.c.submission_id == submission['id']).values(state='complete'))
+    if job['batch_id']:
+        conn.execute(sa.update(members).where(members.c.batch_id == job['batch_id'],
+            members.c.submission_id == submission['id']).values(run_id=attempt_id))
+    else:
+        conn.execute(insert(reviews).values(submission_id=submission['id'], run_id=attempt_id)
+            .on_conflict_do_update(index_elements=['submission_id'], set_={'run_id': attempt_id}))
     conn.execute(sa.update(workers).where(workers.c.slot == slot, workers.c.generation == generation).values(
         state='Idle', attempt_id=None, completed=workers.c.completed + 1, heartbeat_at=timestamp, fault=None))
     notify(conn, submission['account_id'])

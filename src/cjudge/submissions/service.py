@@ -5,8 +5,8 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
-from cjudge import events, labs
-from cjudge.submissions import submissions, jobs, turns
+from cjudge import events, labs, tasks
+from cjudge.submissions import submissions, jobs, turns, reviews, batches
 from cjudge.submissions import files
 
 
@@ -21,7 +21,7 @@ def allowance(conn: sa.Connection, lab: dict, enrollment: dict) -> dict:
     where = (submissions.c.lab_id == lab['id'], submissions.c.account_id == enrollment['account_id'])
     last = conn.execute(sa.select(sa.func.max(submissions.c.accepted_at)).where(*where)).scalar_one()
     pending = conn.execute(sa.select(sa.func.count()).select_from(submissions.join(
-        jobs, jobs.c.submission_id == submissions.c.id)).where(*where, jobs.c.state != 'complete')).scalar_one()
+        jobs, jobs.c.submission_id == submissions.c.id)).where(*where, jobs.c.kind == 'initial', jobs.c.state != 'complete')).scalar_one()
     retry_at = last + timedelta(seconds=30) if last else None
     reason, code = '', ''
     if labs.phase(lab, timestamp) != 'Running':
@@ -48,7 +48,7 @@ def accept(conn: sa.Connection, lab: dict, enrollment: dict, revision_id: UUID, 
     assigned = conn.execute(sa.select(labs.assignments.c.revision_id).where(
         labs.assignments.c.lab_id == lab['id'], labs.assignments.c.revision_id == revision_id)).first()
     if not assigned:
-        raise SubmissionError(400, 'invalid_task', 'Task revision is not assigned to this lab')
+        raise SubmissionError(409, 'invalid_task', 'Task revision changed or is not assigned; refresh the task page')
     policy = allowance(conn, lab, enrollment)
     if not policy['allowed']:
         raise SubmissionError(429 if policy['code'] in ('cooldown', 'pending_limit') else 423 if policy['code'] == 'frozen' else 403,
@@ -63,7 +63,12 @@ def accept(conn: sa.Connection, lab: dict, enrollment: dict, revision_id: UUID, 
                size=len(source), accepted_at=timestamp, client_ip=ip,
                client_mac=None, mac_source=None, mac_observed_at=None)
     conn.execute(sa.insert(submissions).values(**row))
-    conn.execute(sa.insert(jobs).values(submission_id=submission_id))
+    task_id = conn.execute(sa.select(tasks.revisions.c.task_id)
+        .where(tasks.revisions.c.id == revision_id)).scalar_one()
+    batch_id = conn.execute(sa.select(batches.c.id).where(batches.c.lab_id == lab['id'],
+        batches.c.task_id == task_id, batches.c.state == 'judging')).scalar_one_or_none()
+    conn.execute(sa.insert(jobs).values(submission_id=submission_id, revision_id=revision_id, batch_id=batch_id))
+    conn.execute(sa.insert(reviews).values(submission_id=submission_id))
     conn.execute(insert(turns).values(account_id=enrollment['account_id']).on_conflict_do_nothing())
     conn.execute(sa.select(sa.func.pg_notify('cjudge_jobs', '')))
     events.publish(conn, account_id=enrollment['account_id'])

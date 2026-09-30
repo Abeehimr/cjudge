@@ -13,7 +13,19 @@ def upgrade() -> None:
     from cjudge import labs, tasks
     from cjudge.submissions import TABLES
     for table in TABLES:
-        table.create(op.get_bind())
+        if table.name == 'judge_jobs':
+            # Keep the original queue schema independent of later declarations.
+            op.create_table('judge_jobs',
+                sa.Column('submission_id', sa.Uuid(), sa.ForeignKey('submissions.id'), primary_key=True),
+                sa.Column('state', sa.String(16), nullable=False, server_default='queued'),
+                sa.Column('attempt_id', sa.Uuid()),
+                sa.Column('attempt_count', sa.Integer(), nullable=False, server_default='0'),
+                sa.Column('retry_until', sa.Integer(), nullable=False, server_default='3'),
+                sa.Column('ready_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+                sa.CheckConstraint("state IN ('queued', 'judging', 'delayed', 'complete')"))
+            op.create_index('jobs_ready', 'judge_jobs', ['state', 'ready_at'])
+        else:
+            table.create(op.get_bind())
     op.add_column('labs', sa.Column('compiler_feedback', sa.String(8), nullable=False, server_default='short'))
     op.create_check_constraint('lab_compiler_feedback', 'labs', "compiler_feedback IN ('short', 'full', 'none')")
     op.execute("""CREATE FUNCTION reject_submission_change() RETURNS trigger LANGUAGE plpgsql AS $$
