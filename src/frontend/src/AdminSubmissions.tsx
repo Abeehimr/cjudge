@@ -86,7 +86,7 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
   </section>;
 }
 
-export function AdminSubmissionDetail({ labId, submissionId, csrf, released }: { labId: string; submissionId: string; csrf: string; released?: boolean }) {
+export function AdminSubmissionDetail({ labId, submissionId, csrf, released, archived }: { labId: string; submissionId: string; csrf: string; released?: boolean; archived?: boolean }) {
   const [row, setRow] = useState<SubmissionDetail | null>(null), [error, setError] = useState("");
   const [params, setParams] = useSearchParams(), [busy, setBusy] = useState(false);
   const run = params.get('run') || '';
@@ -118,9 +118,9 @@ export function AdminSubmissionDetail({ labId, submissionId, csrf, released }: {
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
     {!row && !error && <p role="status">Loading submission…</p>}
     {row && <>
-      <div className="flex flex-wrap gap-3"><button disabled={busy} onClick={() => { void action('review'); }}>{row.deleted_at ? 'Restore submission' : 'Delete submission'}</button>
-        <button disabled={busy || !!row.deleted_at || !!row.rejudge_status || !row.official_run_id} onClick={() => { void action('rejudge'); }}>Rejudge submission</button>
-        {(row.status === 'Judging delayed' || row.rejudge_status === 'delayed') && <button disabled={busy} onClick={() => { void action('retry'); }}>Retry judging</button>}</div>
+      <div className="flex flex-wrap gap-3"><button disabled={busy || archived} onClick={() => { void action('review'); }}>{row.deleted_at ? 'Restore submission' : 'Delete submission'}</button>
+        <button disabled={busy || archived || !!row.deleted_at || !!row.rejudge_status || !row.official_run_id} onClick={() => { void action('rejudge'); }}>Rejudge submission</button>
+        {(row.status === 'Judging delayed' || row.rejudge_status === 'delayed') && <button disabled={busy || archived} onClick={() => { void action('retry'); }}>Retry judging</button>}</div>
       {row.deleted_at && <p className="notice notice-danger">Deleted from marks and student history · {row.delete_reason}</p>}
       {row.rejudge_status && <p className="notice notice-warning">Rejudge: {row.rejudge_status}. Previous official results remain visible until replacement.</p>}
       {(row.ip_changed || row.mac_changed) && <p className="notice notice-warning">Possible PC switch: {row.ip_changed && 'IP changed'}{row.ip_changed && row.mac_changed && ', '}{row.mac_changed && 'MAC changed'}. Address differences are not proof.</p>}

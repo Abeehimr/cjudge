@@ -124,7 +124,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
           <Statement text={task.statement} />
           <nav aria-label="Task navigation" className="flex flex-wrap gap-3">{detail.tasks.map((item) => <NavLink key={item.revision_id} className="nav-link" to={`/labs/${detail.id}/tasks/${item.revision_id}`}>{item.position}. {item.title}</NavLink>)}</nav>
         </section>}
-        {(task || section === 'submissions') && <StudentSubmissions visible={!!detail.results_visible} key={revisionId || 'history'} labId={detail.id} tasks={detail.tasks} admission={detail.admission} csrf={csrf} refresh={refresh}
+        {(task || section === 'submissions' && !submissionId) && <StudentSubmissions visible={!!detail.results_visible} key={revisionId || 'history'} labId={detail.id} tasks={detail.tasks} admission={detail.admission} csrf={csrf} refresh={refresh}
           revisionId={task?.revision_id} draft={drafts[revisionId || ''] || { file: null, pending: null }} setDraft={(draft) => setDrafts((old) => ({ ...old, [revisionId || '']: draft }))} />}
       </>}
     </>}

@@ -139,11 +139,11 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       <nav aria-label="Lab breadcrumbs"><Link to="/admin/labs">Labs</Link> / <Link to={`/admin/labs/${lab.id}`}>{lab.title}</Link>{studentId && ` / ${member?.roll_number}`}{revisionId && ` / ${task?.config.title}`}</nav>
       <nav aria-label="Lab navigation" className="flex flex-wrap gap-2">{[["", "Overview"], ["students", "Students"], ["tasks", "Tasks"], ["submissions", "Submissions"]].map(([path, title]) => <NavLink end={!path} className="nav-link" key={path} to={`/admin/labs/${lab.id}${path ? "/" + path : ""}`}>{title}</NavLink>)}</nav>
       <section className="rounded border bg-white p-4"><div className="flex justify-between"><h2 className="font-semibold">{lab.title} · {lab.phase}</h2>
-        <button disabled={busy || !!lab?.archived_at} onClick={() => perform(() => reload())}>Refresh lab</button></div>
+        <button disabled={busy} onClick={() => perform(() => reload())}>Refresh lab</button></div>
         <LabClock serverTime={lab.server_time} start={lab.starts_at} end={lab.ends_at} refresh={() => { void reload().catch((e) => showError(e.message)); }} />
       </section>
       {section === "overview" && <>
-      <Release lab={lab} csrf={csrf} accept={accept} />
+      <Release lab={lab} csrf={csrf} accept={accept} deleted={() => setDestination("/admin/labs")} />
       <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("", "PUT", { version: lab.version, title, strict_ip: strict })); }} className="rounded border bg-white p-4">
         <fieldset disabled={busy || !setupOpen} className="space-y-2"><legend className="font-semibold">Lab settings</legend>
           <label className="block">Lab title <input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
@@ -169,7 +169,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       </section>
       </>}
       {section === "overview" && <>
-      <Release lab={lab} csrf={csrf} accept={accept} />
+      <Release lab={lab} csrf={csrf} accept={accept} deleted={() => setDestination("/admin/labs")} />
       <section className="rounded border bg-white p-4"><h2 className="font-semibold">Schedule ({zone})</h2>
         {setupOpen ? <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("/schedule", "POST", {
           version: lab.version, starts_at: new Date(start).toISOString(), ends_at: new Date(end).toISOString(),
@@ -241,7 +241,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       </section>
       </>}
       {section === "overview" && <>
-      <Release lab={lab} csrf={csrf} accept={accept} />
+      <Release lab={lab} csrf={csrf} accept={accept} deleted={() => setDestination("/admin/labs")} />
       <form onSubmit={(e) => { e.preventDefault(); void perform(async () => { await mutate("/announcements", "POST", { body: announcement }); setAnnouncement(""); }); }} className="rounded border bg-white p-4">
         <label className="block">Message to lab<textarea required maxLength={4000} rows={3} value={announcement} onChange={(e) => setAnnouncement(e.target.value)} className="mt-1 block w-full" /></label>
         <button disabled={busy || !!lab?.archived_at}>Post announcement</button>
@@ -253,8 +253,8 @@ export function AdminLabs({ csrf }: { csrf: string }) {
         <Statement text={task.config.statement} /><p><Link to={`/admin/tasks/${task.task_id}?revision=${task.revision_id}`}>View library revision and cases</Link></p>
       </section>}
       {(section === 'overview' || studentId || task) && <Marks labId={lab.id} accountId={studentId} taskId={task?.task_id} />}
-      {task && <Corrections key={task.task_id} lab={lab} task={task} csrf={csrf} refreshLab={() => reload()} onDirty={setCorrectionDirty} />}
-      {submissionId && <AdminSubmissionDetail key={submissionId} labId={lab.id} submissionId={submissionId} csrf={csrf} released={!!lab.first_released_at} />}
+      {task && !lab.archived_at && <Corrections key={task.task_id} lab={lab} task={task} csrf={csrf} refreshLab={() => reload()} onDirty={setCorrectionDirty} />}
+      {submissionId && <AdminSubmissionDetail key={submissionId} labId={lab.id} submissionId={submissionId} csrf={csrf} released={!!lab.first_released_at} archived={!!lab.archived_at} />}
       {(!submissionId && section === 'submissions' || studentId || revisionId) && <AdminSubmissions key={`${lab.id}/${studentId || revisionId || 'all'}`} labId={lab.id} csrf={csrf}
         tasks={lab.tasks.map((t) => ({ revision_id: t.revision_id, title: t.config.title }))} students={lab.students} accountId={studentId} revisionId={revisionId} />}
     </>}
