@@ -155,3 +155,20 @@ def source(lab_id: UUID, submission_id: UUID):
             raise HTTPException(404, 'Submission not found')
         return Response(files.read(row), media_type='application/octet-stream', headers={'Cache-Control': 'no-store',
             'X-Content-Type-Options': 'nosniff', 'Content-Disposition': f'attachment; filename="{submission_id}.c"'})
+
+
+@admin_router.get('/{submission_id}')
+def admin_detail(lab_id: UUID, submission_id: UUID):
+    with transaction() as conn:
+        labs.find(conn, lab_id, shared=True)
+        row = conn.execute(query(lab_id).where(store.submissions.c.id == submission_id)).mappings().first()
+        if not row:
+            raise HTTPException(404, 'Submission not found')
+        result = output(row, 'full', admin_view=True)
+        result['source'] = files.read(row).decode('utf-8', errors='replace')
+        case_rows = conn.execute(sa.select(store.cases).join(store.runs, store.runs.c.id == store.cases.c.run_id)
+            .join(store.jobs, store.jobs.c.attempt_id == store.runs.c.id)
+            .where(store.jobs.c.submission_id == submission_id).order_by(store.cases.c.number)).mappings()
+        result['cases'] = [{**case, 'stdout': case['stdout'].decode('utf-8', errors='replace'),
+                           'stderr': case['stderr'].decode('utf-8', errors='replace')} for case in case_rows]
+        return result

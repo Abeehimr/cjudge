@@ -188,11 +188,27 @@ def history_checks() -> None:
                 draft_version=number, config={'title': 'History'}, case_count=1, cases_key=uuid4()))
         for index in range(106):
             key = uuid4()
+            source = b'<script>alert(1)</script>\xff'
+            digest = files.validate('main.c', source)
+            if index == 0:
+                detail_id = key
+                files.save(key, source)
             conn.execute(sa.insert(submissions.submissions).values(id=key, lab_id=lab_id,
                 account_id=other_id if index == 105 else student_id, revision_id=revision_a if index < 103 or index == 105 else revision_b,
-                idempotency_key=uuid4(), filename='main.c', sha256='0' * 64, size=1,
+                idempotency_key=uuid4(), filename='main.c', sha256=digest, size=len(source),
                 accepted_at=timestamp + timedelta(microseconds=index), client_ip='192.0.2.1'))
             conn.execute(sa.insert(submissions.jobs).values(submission_id=key))
+        attempt_id = uuid4()
+        conn.execute(sa.insert(submissions.attempts).values(id=attempt_id, submission_id=detail_id,
+            worker_slot=0, worker_generation=uuid4(), started_at=timestamp, lease_until=timestamp + timedelta(seconds=60)))
+        conn.execute(sa.insert(submissions.runs).values(id=attempt_id, submission_id=detail_id, revision_id=revision_a,
+            verdict='WA', passed=0, total=1, score_numerator='0', score_denominator='1',
+            compiler_feedback='', compiler_truncated=False, finished_at=timestamp))
+        conn.execute(sa.insert(submissions.cases).values(run_id=attempt_id, number=1, verdict='WA',
+            cpu_seconds=.1, wall_seconds=.2, memory_kib=1024, stdout=b'<img src=x>\xff', stderr=b'diagnostic',
+            stdout_truncated=True, stderr_truncated=False))
+        conn.execute(sa.update(submissions.jobs).where(submissions.jobs.c.submission_id == detail_id)
+            .values(state='complete', attempt_id=attempt_id, attempt_count=1))
     def get(path, headers=None):
         try:
             response = urlopen(Request('http://127.0.0.1:8016' + path, headers=headers or {}), timeout=10)
@@ -224,6 +240,18 @@ def history_checks() -> None:
         assert len(get(admin_path + '&offset=100', admin_headers)[1]) == 3
         assert len(get(admin_path.replace(str(student_id), str(other_id)), admin_headers)[1]) == 1
         assert get(admin_path, student_headers)[0] == 403
+        detail_path = f'/api/admin/labs/{lab_id}/submissions/{detail_id}'
+        status, detail = get(detail_path, admin_headers)
+        assert status == 200 and detail['source'] == source.decode('utf-8', errors='replace'), detail
+        assert detail['client_ip'] == '192.0.2.1' and detail['status'] == 'Failed'
+        assert len(detail['cases']) == 1 and detail['cases'][0]['stdout'] == '<img src=x>\ufffd'
+        assert detail['cases'][0]['stdout_truncated'] and detail['cases'][0]['verdict'] == 'WA'
+        assert get(detail_path, student_headers)[0] == 403
+        assert get(detail_path)[0] == 401
+        assert get(detail_path.replace(str(lab_id), str(uuid4())), admin_headers)[0] == 404
+        assert get(detail_path.replace(str(detail_id), str(uuid4())), admin_headers)[0] == 404
+        student_detail = get(f'/api/labs/{lab_id}/submissions/{detail_id}', student_headers)[1]
+        assert not {'source', 'cases', 'passed', 'client_ip'} & student_detail.keys()
         assert get(path)[0] == 401
         assert get(path.replace(str(revision_a), 'invalid'), student_headers)[0] == 422
         assert get(path.replace(str(lab_id), str(uuid4())), student_headers)[0] == 404
@@ -231,7 +259,7 @@ def history_checks() -> None:
     finally:
         server.terminate()
         server.wait(timeout=10)
-    print('PASS: task/student history filters before pagination, newest-first ordering, ownership and binding')
+    print('PASS: history filters, admin source/case details, student secrecy, ownership and binding')
 
 
 def main() -> None:
