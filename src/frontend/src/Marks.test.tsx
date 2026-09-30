@@ -66,7 +66,7 @@ test('submission deletion preserves the page and requires an audited reason', as
   renderRoute(<AdminSubmissionDetail labId="lab" submissionId="submission" csrf="csrf" />, '/admin/labs/lab/submissions/submission');
   fireEvent.click(await screen.findByRole('button', { name: 'Delete submission' }));
   expect(await screen.findByRole('button', { name: 'Restore submission' })).toBeTruthy();
-  expect(screen.getByText(/Deleted from marks and student history/)).toBeTruthy();
+  expect(screen.getByText(/Deleted · Excluded from marks/)).toBeTruthy();
   const put = fetchMock.mock.calls.find(([, options]) => options.method === 'PUT')!;
   expect(JSON.parse(put[1].body as string)).toEqual({ deleted: true, reason: 'Duplicate evidence' });
   expect(put[1].headers['X-CSRF-Token']).toBe('csrf');

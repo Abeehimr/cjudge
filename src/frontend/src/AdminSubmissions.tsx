@@ -69,7 +69,7 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
     </div>
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Accepted</th><th>Student</th><th>Task</th><th>Source</th><th>Status</th><th>Attempts</th><th>IP / MAC</th><th>Fault</th></tr></thead>
-      <tbody>{rows.map((row) => <tr className="border-t align-top" data-best={row.best_for_review || undefined} key={row.id}><td>{new Date(row.accepted_at).toLocaleString()}</td>
+      <tbody>{rows.map((row) => <tr className="border-t align-top" data-best={row.best_for_review || undefined} data-deleted={!!row.deleted_at || undefined} key={row.id}><td>{new Date(row.accepted_at).toLocaleString()}</td>
         <td><Link to={`/admin/labs/${labId}/students/${row.account_id}`}>{row.roll_number} · {row.name}</Link></td>
         <td><Link to={`/admin/labs/${labId}/tasks/${row.revision_id}`}>{tasks.find((task) => task.revision_id === row.revision_id)?.title || row.revision_id}</Link></td>
         <td><Link to={`/admin/labs/${labId}/submissions/${row.id}`}>{row.filename}</Link>{row.best_for_review && <span className="block text-green-800">Best for review</span>}</td><td><span className="submission-status" data-status={row.status}>{row.status}</span>
@@ -121,7 +121,7 @@ export function AdminSubmissionDetail({ labId, submissionId, csrf, released, arc
       <div className="flex flex-wrap gap-3"><button disabled={busy || archived} onClick={() => { void action('review'); }}>{row.deleted_at ? 'Restore submission' : 'Delete submission'}</button>
         <button disabled={busy || archived || !!row.deleted_at || !!row.rejudge_status || !row.official_run_id} onClick={() => { void action('rejudge'); }}>Rejudge submission</button>
         {(row.status === 'Judging delayed' || row.rejudge_status === 'delayed') && <button disabled={busy || archived} onClick={() => { void action('retry'); }}>Retry judging</button>}</div>
-      {row.deleted_at && <p className="notice notice-danger">Deleted from marks and student history · {row.delete_reason}</p>}
+      {row.deleted_at && <p className="notice notice-danger">Deleted · Excluded from marks · {row.delete_reason}</p>}
       {row.rejudge_status && <p className="notice notice-warning">Rejudge: {row.rejudge_status}. Previous official results remain visible until replacement.</p>}
       {(row.ip_changed || row.mac_changed) && <p className="notice notice-warning">Possible PC switch: {row.ip_changed && 'IP changed'}{row.ip_changed && row.mac_changed && ', '}{row.mac_changed && 'MAC changed'}. Address differences are not proof.</p>}
       <p><Link to={`/admin/labs/${labId}/students/${row.account_id}`}>{row.roll_number} · {row.name}</Link>{" · "}

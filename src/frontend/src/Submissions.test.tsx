@@ -106,10 +106,17 @@ test('admin and released student lists shade review-best submissions with a text
   expect(screen.getByText('Best for review')).toBeTruthy();
 });
 
-test('student history retains deleted submissions with their reason and no best marker', async () => {
+test('admin and student histories shade deleted submissions with their reason and no best marker', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [{ id: 'deleted',
     revision_id: 'revision', filename: 'deleted.c', accepted_at: admission.server_time, status: 'Passed',
     deleted_at: admission.server_time, delete_reason: 'Duplicate attempt', best_for_review: false }] }));
+  vi.stubGlobal('EventSource', class extends EventTarget { close = vi.fn(); });
+  renderRoute(<AdminSubmissions labId="lab" csrf="csrf" tasks={tasks} students={[]} />, '/admin/labs/lab/submissions');
+  const adminLink = await screen.findByRole('link', { name: 'deleted.c' });
+  expect(adminLink.closest('tr')!.getAttribute('data-deleted')).toBe('true');
+  expect(screen.getByText('Deleted · Duplicate attempt')).toBeTruthy();
+  expect(screen.queryByText('Best for review')).toBeNull();
+  cleanup();
   renderRoute(<StudentSubmissions labId="lab" csrf="csrf" tasks={tasks} visible refresh={async () => {}} draft={{ file: null, pending: null }} setDraft={vi.fn()} />, '/labs/lab/submissions');
   const link = await screen.findByRole('link', { name: 'deleted.c' });
   expect(link.closest('tr')!.getAttribute('data-deleted')).toBe('true');
