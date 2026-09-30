@@ -79,6 +79,10 @@ class ReasonInput(StrictModel):
     reason: str = Field(min_length=1, max_length=500)
 
 
+class StopInput(ReasonInput, VersionInput):
+    pass
+
+
 class FreezeInput(ReasonInput):
     frozen: bool
 
@@ -502,3 +506,12 @@ async def lab_events(lab_id: UUID, request: Request, account: dict = Depends(stu
             yield 'event: reconnect\ndata: {}\n\n'
     return StreamingResponse(stream(), media_type='text/event-stream', headers={'Cache-Control': 'no-store',
         'X-Accel-Buffering': 'no', 'X-Content-Type-Options': 'nosniff'})
+
+
+@admin_router.post('/{lab_id}/stop', response_model=AdminLab)
+async def stop_lab(lab_id: UUID, request: Request, actor: dict = Depends(admin_write)):
+    body = await json_input(request, StopInput)
+    def perform():
+        with transaction() as conn:
+            return snapshot(conn, labs.stop(conn, labs.find(conn, lab_id, body.version), body.reason, actor['id']))
+    return await run_in_threadpool(perform)

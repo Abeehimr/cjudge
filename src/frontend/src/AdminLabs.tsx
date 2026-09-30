@@ -184,6 +184,11 @@ export function AdminLabs({ csrf }: { csrf: string }) {
             <label>Deadline reason <input required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
             <button>{lab.phase === "Ended" ? "Reopen lab" : "Extend lab"}</button>
           </fieldset></form>}
+        {lab.phase === "Running" && <button disabled={busy} onClick={() => {
+          if (!confirm("Stop this lab now? New submissions will close. Accepted submissions continue judging.")) return;
+          const why = prompt("Reason for stopping the lab"); if (!why?.trim()) return;
+          void perform(() => mutate("/stop", "POST", { version: lab.version, reason: why.trim() }));
+        }}>Stop now</button>}
       </section>
       <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Lab PDFs</h2>
         <fieldset disabled={busy || lab.phase === "Ended" || !!lab.first_released_at}><label>Upload lab PDFs (up to 10, 20 MiB each)

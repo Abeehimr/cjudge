@@ -140,6 +140,17 @@ def deadline(conn: sa.Connection, lab: dict, end: datetime, action: str, reason:
     return changed(conn, lab, actor, 'lab_' + action, ends_at=end)
 
 
+def stop(conn: sa.Connection, lab: dict, reason: str, actor: UUID) -> dict:
+    timestamp = now(conn)
+    if phase(lab, timestamp) != 'Running' or lab['first_released_at']:
+        raise LabError(409, 'Stop requires a running lab before release')
+    if not reason.strip():
+        raise LabError(400, 'Reason required')
+    identity.audit(conn, 'lab_stop_reason', actor, detail={'lab_id': str(lab['id']),
+        'reason': reason.strip(), 'previous_deadline': lab['ends_at'].isoformat()})
+    return changed(conn, lab, actor, 'lab_stopped', ends_at=timestamp)
+
+
 def submission_allowed(lab: dict, enrollment: dict, timestamp: datetime) -> None:
     """M5 must call under the lab/enrollment locks before durable acceptance."""
     if phase(lab, timestamp) != 'Running':
