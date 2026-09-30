@@ -169,6 +169,8 @@ def admin_history(lab_id: UUID, offset: int = Query(default=0, ge=0),
             selection = selection.where(tasks.revisions.c.task_id == sa.select(tasks.revisions.c.task_id)
                 .where(tasks.revisions.c.id == revision_id).scalar_subquery())
         if order == 'best':
+            # ponytail: exact rational sorting loads filtered history; move ordering
+            # into PostgreSQL if per-lab histories outgrow server memory.
             rows = list(conn.execute(selection).mappings())
             rows.sort(key=lambda row: (2 if row['deleted_at'] else 1 if row['run_id'] is None else 0,
                 -review.exact(row) if row['run_id'] else 0, row['accepted_at'], str(row['id'])))

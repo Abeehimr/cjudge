@@ -7,7 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
 from cjudge import identity, labs, tasks
-from cjudge.submissions import submissions, jobs, runs, reviews, batches, members
+from cjudge.submissions import submissions, jobs, runs, reviews, batches, members, attempts
 
 
 def displayed(value: Fraction) -> str:
@@ -49,7 +49,7 @@ def marks(conn: sa.Connection, lab_id: UUID) -> list[dict]:
             scored = [row for row in rows if row['run_id'] is not None]
             best = min(scored, key=lambda row: (-exact(row), row['accepted_at'], str(row['id']))) if scored else None
             value = displayed(exact(best)) if best else '0.00'
-            pending = task['task_id'] in active_batches or any(row['state'] != 'complete' or row['run_id'] is None for row in rows)
+            pending = bool(rows) and task['task_id'] in active_batches or any(row['state'] != 'complete' or row['run_id'] is None for row in rows)
             cells.append(dict(task_id=task['task_id'], revision_id=task['id'], title=task['config']['title'],
                 marks=value if best or not pending else None, pending=pending,
                 best_submission_id=best['id'] if best else None, passed=best['passed'] if best else None,
@@ -107,6 +107,10 @@ def active_batch(conn: sa.Connection, lab_id: UUID, task_id: UUID) -> dict | Non
 
 def enqueue(conn: sa.Connection, submission_id: UUID, revision_id: UUID, kind: str, batch_id: UUID | None = None) -> None:
     # Reset the current job token; already running attempts are fenced at finish.
+    job = conn.execute(sa.select(jobs).where(jobs.c.submission_id == submission_id).with_for_update()).mappings().one()
+    if job['state'] == 'judging' and job['attempt_id']:
+        conn.execute(sa.update(attempts).where(attempts.c.id == job['attempt_id']).values(
+            outcome='superseded', finished_at=labs.now(conn), lease_until=labs.now(conn)))
     conn.execute(sa.update(jobs).where(jobs.c.submission_id == submission_id).values(
         kind=kind, revision_id=revision_id, batch_id=batch_id, state='queued', attempt_id=None,
         retry_until=jobs.c.attempt_count + 3, ready_at=labs.now(conn)))
@@ -175,8 +179,9 @@ def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, ac
         raise labs.LabError(409, 'Select a different revision and wait for the current correction')
     selection = sa.select(submissions.c.id).join(tasks.revisions, tasks.revisions.c.id == submissions.c.revision_id)
     ids = conn.execute(selection.where(submissions.c.lab_id == lab['id'], tasks.revisions.c.task_id == task_id)).scalars().all()
-    if ids and conn.execute(sa.select(jobs.c.submission_id).where(jobs.c.submission_id.in_(ids),
-            jobs.c.kind != 'initial', jobs.c.state != 'complete')).first():
+    if ids and conn.execute(sa.select(jobs.c.submission_id).outerjoin(reviews,
+            reviews.c.submission_id == jobs.c.submission_id).where(jobs.c.submission_id.in_(ids),
+            reviews.c.deleted_at.is_(None), jobs.c.kind != 'initial', jobs.c.state != 'complete')).first():
         raise labs.LabError(409, 'Wait for current rejudges')
     batch_id = uuid4()
     conn.execute(sa.insert(batches).values(id=batch_id, lab_id=lab['id'], task_id=task_id,

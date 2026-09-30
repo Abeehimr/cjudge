@@ -134,15 +134,13 @@ def checks() -> None:
         labs.enroll(conn, short, [student_id], admin_id)
         timestamp = labs.now(conn)
         labs.schedule(conn, labs.find(conn, short['id']), None, timestamp + timedelta(seconds=2), admin_id)
-    original_save = files.save
-    def delayed_save(key, source):
-        original_save(key, source)
-        time.sleep(.25)
     with identity.engine().begin() as conn:
-        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == short['id'])
-                     .values(ends_at=labs.now(conn) + timedelta(seconds=.1)))
+        deadline = labs.now(conn) + timedelta(hours=1)
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == short['id']).values(ends_at=deadline))
     try:
-        with identity.engine().begin() as conn, patch('cjudge.submissions.files.save', side_effect=delayed_save):
+        # Advance the authoritative clock across durability without wall-clock races.
+        with identity.engine().begin() as conn, patch('cjudge.labs.now',
+                side_effect=[deadline - timedelta(microseconds=1), deadline]):
             service.accept(conn, labs.find(conn, short['id'], shared=True),
                 labs.enrollment(conn, short['id'], student_id), revision_id, uuid4(), 'late.c', source, '192.0.2.1')
     except labs.LabError:

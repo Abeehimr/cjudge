@@ -74,24 +74,33 @@ def exercise(directory: str) -> None:
             conn.execute(sa.insert(tasks.revisions).values(id=revision, task_id=task_id, number=number,
                 draft_version=number, config=config, case_count=3, cases_key=tasks.save_cases(pairs)))
         conn.execute(sa.insert(labs.assignments).values(lab_id=lab_id, position=1, revision_id=revisions[0]))
-        first = seed(conn, seconds=1)
-        tie = seed(conn, seconds=2, ip='192.0.2.2')
+        first = seed(conn, seconds=1, mac='02:00:00:00:00:01')
+        tie = seed(conn, seconds=2, ip='192.0.2.2', mac='02:00:00:00:00:02')
         zero = seed(conn, score=Fraction(0), seconds=3)
         pending = seed(conn, owner=other_id, pending=True)
         deleted = seed(conn, score=Fraction(7), seconds=4)
+        excluded = seed(conn, owner=other_id, score=Fraction(7), seconds=5)
         review.set_deleted(conn, labs.find(conn, lab_id), deleted, True, admin_id, 'Excluded evidence')
+        review.set_deleted(conn, labs.find(conn, lab_id), excluded, True, admin_id, 'Excluded throughout correction')
         queue.register(conn, 0, generation); queue.worker_status(conn, 0, generation, 'Idle')
     # Backfill existing official results through the actual migration path.
     command.downgrade(Config('alembic.ini'), '20260930_submissions')
     command.upgrade(Config('alembic.ini'), 'head')
     with identity.engine().begin() as conn:
         review.set_deleted(conn, labs.find(conn, lab_id), deleted, True, admin_id, 'Reapply deletion after migration check')
+        review.set_deleted(conn, labs.find(conn, lab_id), excluded, True, admin_id, 'Reapply excluded evidence')
         result = {row['id']: row for row in review.marks(conn, lab_id)}
         assert result[student_id]['tasks'][0]['best_submission_id'] == first
         assert result[student_id]['total'] == '2.33' and not result[student_id]['pending']
         assert result[other_id]['tasks'][0]['marks'] is None and result[other_id]['pending']
+        savepoint = conn.begin_nested()
+        review.set_deleted(conn, labs.find(conn, lab_id), pending, True, admin_id, 'No active submissions check')
+        empty = next(row for row in review.marks(conn, lab_id) if row['id'] == other_id)
+        assert empty['total'] == '0.00' and not empty['pending']
+        savepoint.rollback()
         flags = review.network_flags(conn, lab_id)
-        assert flags[student_id] == {'ip_changed': True, 'mac_changed': False}
+        assert flags[student_id] == {'ip_changed': True, 'mac_changed': True}
+        assert flags[other_id] == {'ip_changed': False, 'mac_changed': False}
     print('PASS: migration backfill, exact best/ties, later CE, half-up marks, deleted evidence and pending versus zero')
 
     def call(path, method='GET', body=None, student=False, csrf_value=csrf, authenticated=True):
@@ -125,7 +134,7 @@ def exercise(directory: str) -> None:
         assert call(detail + '/review', 'PUT', {'deleted': True, 'reason': 'x'}, csrf_value='bad')[0] == 403
         assert call(detail + '/review', 'PUT', {'deleted': True, 'reason': ' '})[0] == 400
         rows = call(base + '/submissions?order=best')[1]
-        assert rows[0]['id'] == str(first) and rows[-1]['id'] == str(deleted)
+        assert rows[0]['id'] == str(first) and {row['id'] for row in rows[-2:]} == {str(deleted), str(excluded)}
         assert call(detail)[1]['ip_changed']
         student_path = f'/labs/{lab_id}/submissions'
         assert not {'passed', 'run_id', 'deleted_at', 'ip_changed', 'rejudge_status'} & call(student_path, student=True)[1][0].keys()
@@ -147,6 +156,14 @@ def exercise(directory: str) -> None:
                 score_numerator='7', score_denominator='1', compiler_feedback='', compiler_truncated=False, cases=[]))
             active = queue.claim(conn, 0, generation)
             assert active['id'] == first
+            conn.execute(sa.update(store.jobs).where(store.jobs.c.submission_id == first).values(retry_until=1))
+            assert queue.fail(conn, active['attempt_id'], 'Single rejudge infrastructure fault')
+        assert call(detail)[1]['official_run_id'] == original
+        assert call(detail)[1]['rejudge_status'] == 'delayed'
+        assert call(detail + '/retry', 'POST', {'reason': 'Repair single rejudge'})[0] == 204
+        with identity.engine().begin() as conn:
+            active = queue.claim(conn, 0, generation)
+            assert active['id'] == first
             assert queue.finish(conn, 0, generation, active, dict(verdict='CE', passed=0, total=3,
                 score_numerator='0', score_denominator='1', compiler_feedback='error', compiler_truncated=False, cases=[]))
             assert not queue.finish(conn, 0, generation, active, {})
@@ -156,6 +173,10 @@ def exercise(directory: str) -> None:
         assert call(detail + '?run_id=' + str(uuid4()))[0] == 404
         print('PASS: admin contracts, CSRF, deletion/restoration, student secrecy, live-job priority and retained rejudge history')
 
+        with identity.engine().begin() as conn:
+            superseded_id = seed(conn, owner=other_id, pending=True)
+            stale = queue.claim(conn, 0, generation)
+            assert stale['id'] == superseded_id
         version = call(base)[1]['version']
         correction = f'{base}/tasks/{task_id}/corrections'
         body = {'version': version, 'revision_id': str(revisions[1]), 'reason': 'Correct tests'}
@@ -163,6 +184,10 @@ def exercise(directory: str) -> None:
             responses = list(pool.map(lambda _: call(correction, 'POST', body), range(2)))
         assert sorted(status for status, _ in responses) == [201, 409], responses
         batch_id = UUID(next(payload['id'] for status, payload in responses if status == 201))
+        assert call(f'{base}/submissions/{zero}/review', 'PUT', {'deleted': True, 'reason': 'Delete during correction'})[0] == 204
+        with identity.engine().begin() as conn:
+            assert not queue.finish(conn, 0, generation, stale, {})
+            assert conn.execute(sa.select(store.attempts.c.outcome).where(store.attempts.c.id == stale['attempt_id'])).scalar_one() == 'superseded'
         assert call(detail)[1]['official_run_id'] != original
         with identity.engine().begin() as conn:
             current = labs.find(conn, lab_id, shared=True)
@@ -179,6 +204,7 @@ def exercise(directory: str) -> None:
         with identity.engine().begin() as conn:
             lab = labs.find(conn, lab_id)
             review.set_deleted(conn, lab, deleted, False, admin_id, 'Restore during correction')
+            review.set_deleted(conn, lab, zero, False, admin_id, 'Restore a deleted batch member')
             assert conn.execute(sa.select(store.members.c.submission_id).where(store.members.c.batch_id == batch_id,
                 store.members.c.submission_id == deleted)).first()
         originals = {}
@@ -221,7 +247,7 @@ def exercise(directory: str) -> None:
             review.publish_ready(conn, lab_id)
             assert conn.execute(sa.select(store.batches.c.state).where(store.batches.c.id == batch_id)).scalar_one() == 'published'
             scored_revisions = set(conn.execute(sa.select(store.runs.c.revision_id).join(store.reviews,
-                store.reviews.c.run_id == store.runs.c.id)).scalars())
+                store.reviews.c.run_id == store.runs.c.id).where(store.reviews.c.deleted_at.is_(None))).scalars())
             assert scored_revisions == {revisions[1]}
             assert all(row['total'] == '7.00' and not row['pending'] for row in review.marks(conn, lab_id))
             assert files.read(review.find_submission(conn, lab_id, first)) == GOOD
@@ -229,8 +255,20 @@ def exercise(directory: str) -> None:
         if selected['cases']: assert selected['cases'][0]['stdin'] == '2 0\n'
         assert all(row['revision_id'] == str(revisions[1]) for row in call(student_path, student=True)[1])
         assert len(call(student_path + '?revision_id=' + str(revisions[1]), student=True)[1]) == 5
+        assert str(revisions[0]) in call(f'/labs/{lab_id}', student=True)[1]['tasks'][0]['previous_revision_ids']
+        with identity.engine().begin() as conn:
+            review.set_deleted(conn, labs.find(conn, lab_id), excluded, False, admin_id, 'Restore after publication')
+            assert conn.execute(sa.select(store.reviews.c.run_id).where(store.reviews.c.submission_id == excluded)).scalar_one() is None
+            assert conn.execute(sa.select(store.jobs.c.revision_id).where(store.jobs.c.submission_id == excluded)).scalar_one() == revisions[1]
+            active = queue.claim(conn, 0, generation)
+            assert active['id'] == excluded
+            assert queue.finish(conn, 0, generation, active, dict(verdict='AC', passed=3, total=3,
+                score_numerator='7', score_denominator='1', compiler_feedback='', compiler_truncated=False, cases=[]))
         with identity.engine().begin() as conn:
             conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab_id).values(first_released_at=labs.now(conn), ends_at=labs.now(conn)))
+            review.set_deleted(conn, labs.find(conn, lab_id), excluded, True, admin_id, 'Exclude unresolved historical rejudge')
+            review.enqueue(conn, excluded, revisions[1], 'rejudge')
+            conn.execute(sa.update(store.jobs).where(store.jobs.c.submission_id == excluded).values(state='delayed'))
         version = call(base)[1]['version']
         assert call(correction, 'POST', {'version': version, 'revision_id': str(revisions[2]), 'reason': 'Post-release correction'})[0] == 201
         assert call(base)[1]['phase'] == 'Ended'
