@@ -220,14 +220,110 @@ def admin_detail(lab_id: UUID, submission_id: UUID, run_id: UUID | None = None):
             .where(store.attempts.c.submission_id == submission_id).order_by(store.attempts.c.started_at.desc())).mappings()]
         result.update(review.network_flags(conn, lab_id).get(row['account_id'], {}))
         result['source'] = files.read(row).decode('utf-8', errors='replace')
-        case_rows = conn.execute(sa.select(store.cases).where(store.cases.c.run_id == row['run_id'])
-            .order_by(store.cases.c.number)).mappings().all()
-        inputs = []
-        if case_rows:
-            cases_key = conn.execute(sa.select(tasks.revisions.c.cases_key)
-                .where(tasks.revisions.c.id == row['result_revision_id'])).scalar_one()
-            inputs = tasks.load_cases(cases_key)
-        result['cases'] = [{**case, 'stdin': inputs[case['number'] - 1][0].decode('utf-8', errors='replace'),
-                           'stdout': case['stdout'].decode('utf-8', errors='replace'),
-                           'stderr': case['stderr'].decode('utf-8', errors='replace')} for case in case_rows]
+        result['cases'] = case_details(conn, row['run_id'], row['result_revision_id'], admin_view=True)
         return result
+
+
+def preview(data: bytes) -> tuple[str, bool]:
+    return data[:65536].decode('utf-8', errors='replace'), len(data) > 65536
+
+
+def case_details(conn: sa.Connection, run_id: UUID | None, revision_id: UUID | None, *, admin_view: bool = False) -> list[dict]:
+    case_rows = conn.execute(sa.select(store.cases).where(store.cases.c.run_id == run_id)
+        .order_by(store.cases.c.number)).mappings().all()
+    pairs = []
+    if case_rows:
+        key = conn.execute(sa.select(tasks.revisions.c.cases_key).where(tasks.revisions.c.id == revision_id)).scalar_one()
+        pairs = tasks.load_cases(key)
+    result = []
+    for case in case_rows:
+        item = {key: case[key] for key in ('number', 'verdict', 'cpu_seconds', 'wall_seconds', 'memory_kib')}
+        disclosed = admin_view or case['verdict'] != 'AC'
+        for part, data in (('stdin', pairs[case['number'] - 1][0]), ('expected', pairs[case['number'] - 1][1]),
+                           ('stdout', case['stdout']), ('stderr', case['stderr'])):
+            value, truncated = preview(data)
+            item[part] = value if disclosed else None
+            item[part + '_truncated'] = bool(disclosed and (truncated or case.get(part + '_truncated', False)))
+        result.append(item)
+    return result
+
+
+class ReleasedCase(StrictModel):
+    number: int
+    verdict: str
+    cpu_seconds: float
+    wall_seconds: float
+    memory_kib: int
+    stdin: str | None
+    expected: str | None
+    stdout: str | None
+    stderr: str | None
+    stdin_truncated: bool
+    expected_truncated: bool
+    stdout_truncated: bool
+    stderr_truncated: bool
+
+
+class ReleasedRun(StrictModel):
+    id: UUID
+    revision_id: UUID
+    verdict: str
+    finished_at: datetime
+
+
+class ReleasedSubmission(SubmissionOutput):
+    source: str
+    official_run_id: UUID | None
+    run_id: UUID | None
+    result_revision_id: UUID | None
+    marks: str | None
+    official_marks: str | None
+    passed: int | None
+    total: int | None
+    grading_pending: bool
+    history: list[ReleasedRun]
+    cases: list[ReleasedCase]
+
+
+def released_row(conn: sa.Connection, lab_id: UUID, submission_id: UUID, request: Request, account: dict) -> tuple[dict, dict]:
+    from cjudge.labs.release import visible
+    lab, _, _ = student_access(conn, lab_id, account, request)
+    row = conn.execute(query(lab_id).where(store.submissions.c.id == submission_id,
+        store.submissions.c.account_id == account['id'], store.reviews.c.deleted_at.is_(None))).mappings().first()
+    if not row:
+        raise HTTPException(404, 'Submission not found')
+    visible(lab)
+    return lab, dict(row)
+
+
+@student_router.get('/{submission_id}/details', response_model=ReleasedSubmission)
+def released_detail(lab_id: UUID, submission_id: UUID, request: Request, run_id: UUID | None = None,
+                    account: dict = Depends(student)):
+    with transaction() as conn:
+        lab, row = released_row(conn, lab_id, submission_id, request, account)
+        official_run_id = row['run_id']
+        official_marks = review.displayed(review.exact(row)) if official_run_id else None
+        if run_id:
+            selected = conn.execute(sa.select(store.runs).where(store.runs.c.id == run_id,
+                store.runs.c.submission_id == submission_id)).mappings().first()
+            if not selected:
+                raise HTTPException(404, 'Judge run not found')
+            row.update({key: selected[key] for key in ('verdict', 'compiler_feedback', 'compiler_truncated',
+                'passed', 'total', 'score_numerator', 'score_denominator')})
+            row.update(run_id=run_id, result_revision_id=selected['revision_id'])
+        return output(row, 'full') | dict(source=files.read(row).decode('utf-8', errors='replace'),
+            official_run_id=official_run_id, official_marks=official_marks, run_id=row['run_id'],
+            result_revision_id=row['result_revision_id'], marks=review.displayed(review.exact(row)) if row['run_id'] else None,
+            passed=row['passed'], total=row['total'], grading_pending=row['state'] != 'complete' or bool(row['batch_id']),
+            history=[dict(item) for item in conn.execute(sa.select(store.runs.c.id, store.runs.c.revision_id,
+                store.runs.c.verdict, store.runs.c.finished_at).where(store.runs.c.submission_id == submission_id)
+                .order_by(store.runs.c.finished_at.desc())).mappings()],
+            cases=case_details(conn, row['run_id'], row['result_revision_id']))
+
+
+@student_router.get('/{submission_id}/source')
+def released_source(lab_id: UUID, submission_id: UUID, request: Request, account: dict = Depends(student)):
+    with transaction() as conn:
+        _, row = released_row(conn, lab_id, submission_id, request, account)
+        return Response(files.read(row), media_type='application/octet-stream', headers={'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff', 'Content-Disposition': f'attachment; filename="{submission_id}.c"'})

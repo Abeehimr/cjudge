@@ -14,7 +14,7 @@ type SubmissionDetail = AdminSubmission & { size: number; source: string; score_
   history: { id: string; revision_id: string; verdict: string; finished_at: string }[];
   attempts: { id: string; started_at: string; outcome: string | null; fault: string | null }[];
   cases: { number: number; verdict: string; cpu_seconds: number; wall_seconds: number; memory_kib: number;
-    stdin: string; stdout: string; stderr: string; stdout_truncated: boolean; stderr_truncated: boolean }[] };
+    stdin: string; expected: string; stdin_truncated: boolean; expected_truncated: boolean; stdout: string; stderr: string; stdout_truncated: boolean; stderr_truncated: boolean }[] };
 type Task = { revision_id: string; title: string };
 type Student = { id: string; roll_number: string; name: string };
 export function CompilerFeedback({ labId, csrf, feedback, refreshLab, onDirty }: { labId: string; csrf: string; feedback?: string;
@@ -144,7 +144,8 @@ export function AdminSubmissionDetail({ labId, submissionId, csrf, released }: {
       {!row.cases.length && <p>No case results available.</p>}
       {row.cases.map((item) => <details className="rounded border p-3" key={item.number}>
         <summary>Case {item.number}: {item.verdict} · CPU {item.cpu_seconds}s · Wall {item.wall_seconds}s · Memory {item.memory_kib} KiB</summary>
-        <h4>Standard input</h4><pre className="overflow-x-auto whitespace-pre-wrap">{item.stdin || "(empty)"}</pre>
+        <h4>Standard input{item.stdin_truncated ? " (truncated)" : ""}</h4><pre className="overflow-x-auto whitespace-pre-wrap">{item.stdin || "(empty)"}</pre>
+        <h4>Expected output{item.expected_truncated ? " (truncated)" : ""}</h4><pre className="overflow-x-auto whitespace-pre-wrap">{item.expected || "(empty)"}</pre>
         <h4>Standard output{item.stdout_truncated ? " (truncated)" : ""}</h4><pre className="overflow-x-auto whitespace-pre-wrap">{item.stdout || "(empty)"}</pre>
         <h4>Standard error{item.stderr_truncated ? " (truncated)" : ""}</h4><pre className="overflow-x-auto whitespace-pre-wrap">{item.stderr || "(empty)"}</pre>
       </details>)}

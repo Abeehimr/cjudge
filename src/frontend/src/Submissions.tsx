@@ -9,19 +9,19 @@ type Admission = { allowed: boolean; reason: string; code: string; pending: numb
 type Task = { revision_id: string; title: string };
 export type UploadDraft = { file: File | null; pending: { file: File; revision: string; key: string } | null };
 
-function History({ rows, tasks, labId }: { rows: Submission[]; tasks: Task[]; labId: string }) {
+function History({ rows, tasks, labId, visible }: { rows: Submission[]; tasks: Task[]; labId: string; visible?: boolean }) {
   return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>
     <th>Accepted</th><th>Task</th><th>File</th><th>Status / compiler feedback</th>
   </tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-t align-top">
     <td>{new Date(row.accepted_at).toLocaleString()}</td><td><Link to={`/labs/${labId}/tasks/${row.revision_id}`}>{tasks.find((task) => task.revision_id === row.revision_id)?.title || row.revision_id}</Link></td>
-    <td>{row.filename}</td><td><span className="submission-status" data-status={row.status}>{row.status}</span>{row.compiler_feedback && <pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre>}
+    <td>{visible ? <Link to={`/labs/${labId}/submissions/${row.id}`}>{row.filename}</Link> : row.filename}</td><td><span className="submission-status" data-status={row.status}>{row.status}</span>{row.compiler_feedback && <pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre>}
       {row.compiler_truncated && <p>Compiler feedback truncated.</p>}</td>
   </tr>)}</tbody></table>{!rows.length && <p>No submissions.</p>}</div>;
 }
 
-export function StudentSubmissions({ labId, tasks, admission, csrf, refresh, revisionId, draft, setDraft }: {
+export function StudentSubmissions({ labId, tasks, admission, csrf, refresh, revisionId, draft, setDraft, visible }: {
   labId: string; tasks: Task[]; admission?: Admission; csrf: string; refresh: () => Promise<void>; revisionId?: string;
-  draft: UploadDraft; setDraft: (draft: UploadDraft) => void;
+  visible?: boolean; draft: UploadDraft; setDraft: (draft: UploadDraft) => void;
 }) {
   const [rows, setRows] = useState<Submission[]>([]), [offset, setOffset] = useOffset();
   const [params, setParams] = useSearchParams();
@@ -77,7 +77,7 @@ export function StudentSubmissions({ labId, tasks, admission, csrf, refresh, rev
     {!revisionId && <label>Filter by task <select value={revision} onChange={(e) => setParams(e.target.value ? { task: e.target.value } : {})}>
       <option value="">All tasks</option>{tasks.map((task) => <option key={task.revision_id} value={task.revision_id}>{task.title}</option>)}
     </select></label>}
-    <History rows={rows} tasks={tasks} labId={labId} />
+    <History rows={rows} tasks={tasks} labId={labId} visible={visible} />
     <div className="flex flex-wrap gap-2"><button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>Newer submissions</button>
       <button disabled={rows.length < 100} onClick={() => setOffset(offset + 100)}>Older submissions</button><button onClick={() => { void history(); void refresh(); }}>Refresh submissions</button></div>
   </section>;
