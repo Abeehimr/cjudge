@@ -5,154 +5,22 @@ Organization for the requirements in [product-requirements.md](product-requireme
 ## System
 
 ```mermaid
-flowchart TB
-    subgraph Browser["Browser — React / TypeScript; locally bundled assets"]
-        Login["Shared login<br/>admin or student roll number"]
-        StudentUI["Student screens<br/>Lab entry, PDFs, Markdown, countdown<br/>C upload, history, compiler feedback"]
-        AdminUI["Admin screens<br/>Accounts, task library, labs<br/>Submission review, retries, Isolates"]
-        Client["HTTP client<br/>Session and binding cookies; CSRF token"]
-        LiveUI["EventSource<br/>Invalidation triggers authoritative refetch"]
-        Login --> StudentUI
-        Login --> AdminUI
-        Login --> Client
-        StudentUI --> Client
-        AdminUI --> Client
-        LiveUI --> Client
-    end
-
-    subgraph Deployment["Docker Compose — Linux host / cgroup v2"]
-        subgraph DefaultNetwork["Default network — web / api / db"]
-            subgraph Web["web container — only published ports: 8080 / 8443"]
-                Nginx["nginx<br/>HTTP redirect, HTTPS termination<br/>API proxy; unbuffered SSE"]
-                Assets["Static frontend<br/>HTML, JavaScript, CSS"]
-                Nginx --> Assets
-            end
-            subgraph API["api container — FastAPI; private port 8000"]
-                Routes["HTTP routes<br/>Trusted hosts; separate role response models"]
-                Identity["identity<br/>Accounts, encrypted credential reprints<br/>Sessions, role / origin / CSRF guards"]
-                Tasks["tasks<br/>Drafts, case validation, immutable revisions"]
-                Labs["labs<br/>Scheduling, enrollment, PDFs, announcements<br/>Binding, strict IP, freeze, deadlines"]
-                Admission["submissions<br/>Bounded upload, idempotency, durable source<br/>Locked deadline / cooldown / pending checks"]
-                Controls["judging admin API<br/>Isolates status, audited fault retry<br/>Compiler-feedback visibility"]
-                SQL["SQLAlchemy Core<br/>Short PostgreSQL transactions and locks"]
-                Events["SSE event hub<br/>One PostgreSQL LISTEN connection<br/>Coalesced invalidations; session revalidation"]
-                Routes --> Identity
-                Identity --> Tasks
-                Identity --> Labs
-                Identity --> Admission
-                Identity --> Controls
-                Admission -->|"reuse lab / enrollment / binding policy"| Labs
-                Tasks --> SQL
-                Labs --> SQL
-                Admission --> SQL
-                Controls --> SQL
-                Identity --> SQL
-            end
-            Nginx -->|"HTTP requests; trusted client IP"| Routes
-            Events -->|"SSE stream"| Nginx
-        end
-
-        subgraph Database["db container — PostgreSQL 17; joins both networks"]
-            PG["SQL + transactional NOTIFY / LISTEN"]
-            AccountsDB["Accounts, sessions, login attempts, audits"]
-            AuthoringDB["Task drafts / revisions<br/>Labs, ordered assignments, enrollments<br/>PDF versions, announcements"]
-            SubmissionDB["Immutable submission evidence<br/>Acceptance time, source hash, IP / nullable MAC"]
-            QueueDB["Fair queue and student turns<br/>Jobs, attempts, lease IDs, worker generations<br/>Worker status and heartbeats"]
-            ResultsDB["Judge runs and case results<br/>Exact scores, diagnostics, bounded previews"]
-            PG --- AccountsDB
-            PG --- AuthoringDB
-            PG --- SubmissionDB
-            PG --- QueueDB
-            PG --- ResultsDB
-        end
-
-        subgraph JudgeNetwork["judge_queue network — internal; worker / db only"]
-            subgraph WorkerContainer["worker container — one supervised process pool"]
-                Supervisor["Supervisor<br/>CJUDGE_SANDBOX_INSTANCES = N<br/>Restart backoff; container memory budget"]
-                Pool["Workers 0 .. N-1<br/>One active submission per worker<br/>Startup compile / execute check"]
-                Scheduler["PostgreSQL queue client<br/>Round-robin students; FIFO submissions<br/>Claims, lease renewal, retry / crash recovery"]
-                Runner["runner<br/>Compile once; execute every case<br/>Per-worker box ID, metadata and lock"]
-                Checker["Built-in exact / token comparison<br/>Full permitted stdout checked outside sandbox<br/>Exact scoring; bounded preview retention"]
-                Publish["Fenced result transaction<br/>Current attempt + generation + live lease<br/>Run / cases / completion + notifications"]
-                subgraph Isolation["isolate boundary — distinct UID / cgroup per worker"]
-                    Compile["Compilation profile<br/>GCC C11 / libm; bounded subprocesses"]
-                    Execute["Execution profile<br/>Fresh writable state per case<br/>One process; CPU / wall / memory / output limits"]
-                    Restrictions["No network, answers, credentials<br/>or other submissions<br/>Sandbox cleanup after each run"]
-                end
-                Supervisor --> Pool
-                Pool --> Scheduler
-                Scheduler -->|"leased submission + pinned revision"| Runner
-                Runner --> Compile
-                Compile -->|"executable returned to worker memory"| Runner
-                Runner --> Execute
-                Compile --- Restrictions
-                Execute --- Restrictions
-                Execute -->|"bounded output + execution metrics"| Checker
-                Checker --> Publish
-                Runner -->|"compile error / diagnostics"| Publish
-            end
-        end
-
-        subgraph Storage["Persistent Docker volumes — retained across container recreation"]
-            DBVolume[("postgres_data<br/>Metadata, queue, results, audits")]
-            Keys[("credential_keys<br/>Encrypted-credential key")]
-            Cases[("task_files<br/>Immutable input / answer case sets")]
-            PDFs[("lab_files<br/>Versioned lab PDF attachments")]
-            Sources[("submission_files<br/>Immutable UUID source files")]
-        end
-
-        subgraph Operations["Explicit setup / test operations — not runtime probes"]
-            KeyInit["key-init container<br/>One-time key creation"]
-            Migrations["API image CLI<br/>Alembic schema migrations"]
-            Gate["Standalone judge container<br/>M1 isolation gate; no network or app volumes<br/>Run with runtime worker stopped"]
-        end
-
-        subgraph Future["Planned modules — M6–M8; not implemented"]
-            Marks["M6: marks, attempt ordering, deletion / restoration<br/>Network-change review; single / batch rejudge"]
-            Authoring["M7: Python authoring<br/>Sandboxed custom checkers<br/>Generators + reference solution + draft review"]
-            Release["M8: release gates and result disclosure<br/>Scoreboards, mark sheets, versioned archives"]
-        end
-    end
-
-    Client -->|"HTTPS API / protected downloads"| Nginx
-    Assets -->|"frontend bundle"| Browser
-    Nginx -->|"HTTPS SSE"| LiveUI
-    SQL -->|"read / write; cjudge_jobs + cjudge_events NOTIFY"| PG
-    PG -->|"cjudge_events LISTEN"| Events
-    Scheduler <-->|"claim / renew / status; cjudge_jobs LISTEN"| PG
-    PG -->|"revision and case metadata"| Runner
-    Publish -->|"atomic result write + cjudge_events NOTIFY"| PG
-    PG --- DBVolume
-    Identity -->|"read only"| Keys
-    Tasks -->|"read / write"| Cases
-    Labs -->|"read / write"| PDFs
-    Admission -->|"fsync source before acceptance; protected reads"| Sources
-    Cases -->|"read-only worker mount; answers stay outside execution box"| Checker
-    Cases -->|"read-only worker mount; input passed to execution"| Runner
-    Sources -->|"read-only worker mount"| Runner
-    KeyInit -->|"initial write"| Keys
-    Migrations -->|"schema changes"| PG
-    Marks -.->|"future APIs and result publication"| PG
-    Marks -.->|"future rejudge jobs"| Scheduler
-    Authoring -.->|"future checker / generator profiles"| Runner
-    Authoring -.->|"future reviewed case publication"| Cases
-    Release -.->|"future official marks / history reads"| PG
-    Release -.->|"future authorized release / downloads"| Routes
-    Release -.->|"future archive reads: sources / PDFs / cases"| Storage
-
-    classDef planned fill:#fff7ed,stroke:#c4a77d,stroke-dasharray:5 5,color:#5b4636
-    class Marks,Authoring,Release planned
+flowchart LR
+    Browser[Student / admin browser] -->|HTTPS| Nginx[nginx]
+    Nginx --> Assets[Local frontend assets]
+    Nginx --> API[FastAPI and SSE]
+    API --> DB[(PostgreSQL)]
+    API --> Files[(Protected artifacts)]
+    Workers[Judge container: workers] --> DB
+    Workers --> Files
+    Workers --> Sandbox[isolate]
 ```
 
-**Legend:** solid arrows show implemented requests, data access, or execution; plain lines group storage / constraints. Dashed arrows and shaded nodes show planned modules. Container and network boundaries describe Compose deployment; database groups are logical table families.
+Docker Compose separates `web`, `api`, `db`, and runtime `worker`; standalone `judge` runs isolation gates without networking. The worker container holds an environment-configured process pool, with independent isolate boxes/cgroups/UIDs. PostgreSQL distributes fair leased jobs. The API owns authentication, lab policy, and admission; marks/release remain planned. Only web ports are public. Protected volumes hold artifacts; workers mount source/test data read-only.
 
-- **Access:** only nginx publishes ports, bound to localhost by default; LAN deployment changes the web binding and certificate/origin configuration. The browser cannot connect directly to PostgreSQL or workers. Protected downloads pass through API authorization.
-- **Admission:** the API stores and fsyncs source before acceptance, then applies server-time policy under lab/enrollment locks and commits submission/job records. Idempotent retries recover the original record. Source cleanup coordinates with admission through an artifact lock.
-- **Judging:** one runtime container hosts N independent worker processes and isolate identities. Compilation and execution use separate profiles sequentially within each worker's box; every case gets clean writable state. Workers keep answers outside student sandboxes and publish only under a valid lease. Infrastructure faults remain pending rather than becoming student zeros.
-- **Live status:** PostgreSQL notifications wake workers and invalidate browser snapshots. Worker heartbeats establish liveness; SSE refreshes authorized views. Isolates expires stale status locally. No recurring sandbox or HTTP health probes run.
-- **Persistence:** back up PostgreSQL with the credential key and all artifact volumes. Worker mounts are read-only; writable sandbox files, executables, and metadata are temporary. MAC capture remains unavailable until a trusted LAN integration exists.
+Admin Isolates uses worker registration, startup sandbox checks, and heartbeat freshness rather than periodic probes. Admin SSE carries invalidations; stale workers become Offline locally even if updates disconnect. Student SSE refreshes admission/history without exposing hidden grading data.
 
-Backend packages currently implement identity, tasks, labs, submissions, and judging. Marks/rejudge, Python authoring, release, and exports extend these boundaries in later modules.
+Suggested backend boundaries: identity, tasks, labs, submissions, judging, results, and exports. Keep scoring and timing policy separate from HTTP handlers; keep sandbox management in worker-only code.
 
 ## Screens
 
