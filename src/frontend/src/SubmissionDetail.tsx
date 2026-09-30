@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "./api";
 
@@ -15,11 +15,15 @@ export default function SubmissionDetail({ labId, submissionId, visible, refresh
 }) {
   const [params, setParams] = useSearchParams(), run = params.get("run") || "";
   const [row, setRow] = useState<Detail | null>(null), [error, setError] = useState("");
+  const requested = useRef("");
   useEffect(() => {
-    const controller = new AbortController(); setRow(null); setError("");
+    const identity = `${labId}/${submissionId}/${run}`;
+    if (requested.current !== identity || !visible) setRow(null);
+    requested.current = identity;
+    const controller = new AbortController(); setError("");
     if (visible) void api<Detail>(`/labs/${labId}/submissions/${submissionId}/details${run ? `?run_id=${encodeURIComponent(run)}` : ""}`,
       { signal: controller.signal }).then((value) => { if (!controller.signal.aborted) setRow(value); })
-      .catch((e) => { if (!controller.signal.aborted) setError(e.message); });
+      .catch((e) => { if (!controller.signal.aborted) { setRow(null); setError(e.message); } });
     return () => controller.abort();
   }, [labId, submissionId, visible, refreshKey, run]);
   if (!visible) return <p className="notice notice-warning">Submission details are hidden until results are released and reveal is enabled.</p>;
@@ -41,6 +45,7 @@ export default function SubmissionDetail({ labId, submissionId, visible, refresh
       <h3 className="font-semibold">Case results</h3>{!row.cases.length && <p>No case results available.</p>}
       {row.cases.map((item) => <details className="rounded border p-3" key={item.number}>
         <summary>Case {item.number}: {item.verdict} · CPU {item.cpu_seconds}s · Wall {item.wall_seconds}s · Memory {item.memory_kib} KiB</summary>
+        {item.stdin === null && <p>Passed case. Test streams are shown only for failed cases.</p>}
         {(["stdin", "expected", "stdout", "stderr"] as const).map((part) => item[part] !== null && <div key={part}>
           <h4>{{ stdin: "Standard input", expected: "Expected output", stdout: "Standard output", stderr: "Standard error" }[part]}{item[`${part}_truncated`] ? " (truncated)" : ""}</h4>
           <pre className="overflow-x-auto whitespace-pre-wrap">{item[part] || "(empty)"}</pre></div>)}
