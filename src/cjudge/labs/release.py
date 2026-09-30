@@ -75,7 +75,8 @@ def reveal(conn: sa.Connection, lab: dict, enabled: bool, acknowledge: bool, act
         values['first_released_at'] = labs.now(conn)
     identity.audit(conn, 'lab_reveal_reason', actor, detail={'lab_id': str(lab['id']),
         'reason': reason.strip(), 'reuse_acknowledged': acknowledge})
-    return labs.changed(conn, lab, actor, 'lab_results_revealed' if enabled else 'lab_results_hidden', **values)
+    return labs.changed(conn, lab, actor, 'lab_results_revealed' if enabled else 'lab_results_hidden',
+        message=f'Results {"released / revealed" if enabled else "hidden"}. Reason: {reason.strip()}', **values)
 
 
 def archive(conn: sa.Connection, lab: dict, actor: UUID, reason: str) -> dict:
@@ -94,4 +95,4 @@ def archive(conn: sa.Connection, lab: dict, actor: UUID, reason: str) -> dict:
             .values(outcome='superseded', finished_at=labs.now(conn), lease_until=labs.now(conn)))
         conn.execute(sa.update(jobs).where(jobs.c.submission_id.in_(ids)).values(state='complete', attempt_id=None))
     identity.audit(conn, 'lab_archive_reason', actor, detail={'lab_id': str(lab['id']), 'reason': reason.strip()})
-    return labs.changed(conn, lab, actor, 'lab_archived', archived_at=labs.now(conn))
+    return labs.changed(conn, lab, actor, 'lab_archived', archived_at=labs.now(conn), message=f'Lab archived; grading edits are locked. Reason: {reason.strip()}')

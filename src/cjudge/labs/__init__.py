@@ -31,7 +31,7 @@ pdfs = sa.Table('lab_pdfs', metadata,
     sa.Column('created_at', sa.DateTime(timezone=True)))
 announcements = sa.Table('lab_announcements', metadata,
     sa.Column('id', sa.Uuid(), primary_key=True), sa.Column('lab_id', sa.Uuid()), sa.Column('author_id', sa.Uuid()),
-    sa.Column('body', sa.String(4000)), sa.Column('created_at', sa.DateTime(timezone=True)))
+    sa.Column('body', sa.String(4000)), sa.Column('recipient_id', sa.Uuid(), sa.ForeignKey('accounts.id')), sa.Column('created_at', sa.DateTime(timezone=True)))
 
 
 class LabError(ValueError):
@@ -75,17 +75,38 @@ def notify(conn: sa.Connection, *, lab_id: UUID | None = None, account_id: UUID 
     events.publish(conn, lab_id=lab_id, account_id=account_id)
 
 
+def announce(conn: sa.Connection, lab_id: UUID, body: str, actor: UUID, recipient_id: UUID | None = None) -> None:
+    if not body.strip() or len(body) > 4000:
+        raise LabError(400, 'Announcement must contain 1–4000 characters')
+    conn.execute(sa.insert(announcements).values(id=uuid4(), lab_id=lab_id, author_id=actor,
+        body=body, recipient_id=recipient_id))
+    identity.audit(conn, 'lab_announcement_posted', actor, recipient_id,
+        detail={'lab_id': str(lab_id), 'recipient_id': str(recipient_id) if recipient_id else None})
+    from cjudge.judging import queue
+    queue.notify(conn, recipient_id)
+    if recipient_id is None:
+        notify(conn, lab_id=lab_id)
+
+
 def editable(lab: dict) -> None:
     if lab.get('archived_at'):
         raise LabError(409, 'Archived lab is read-only')
 
 
-def changed(conn: sa.Connection, lab: dict, actor: UUID, action: str, **values) -> dict:
+def changed(conn: sa.Connection, lab: dict, actor: UUID, action: str, *, message: str | None = None, **values) -> dict:
     if action not in ('lab_results_revealed', 'lab_results_hidden'):
         editable(lab)
     conn.execute(sa.update(labs).where(labs.c.id == lab['id']).values(version=lab['version'] + 1, **values))
     identity.audit(conn, action, actor, detail={'lab_id': str(lab['id']), **{
         key: value.isoformat() if isinstance(value, datetime) else value for key, value in values.items()}})
+    defaults = {
+        'lab_edited': 'Lab settings updated.', 'lab_tasks_updated': 'Assigned problems updated.',
+        'lab_scheduled': f"Lab schedule updated: {values.get('starts_at')} to {values.get('ends_at')}.",
+        'lab_compiler_feedback': f"Compiler feedback policy changed to {values.get('compiler_feedback')}.",
+    }
+    message = message or defaults.get(action)
+    if message:
+        announce(conn, lab['id'], message, actor)
     notify(conn, lab_id=lab['id'])
     return find(conn, lab['id'])
 
@@ -157,7 +178,8 @@ def deadline(conn: sa.Connection, lab: dict, end: datetime, action: str, reason:
     if end <= timestamp or end <= lab['ends_at']:
         raise LabError(400, 'New deadline must be later than now and the current deadline')
     identity.audit(conn, 'lab_deadline_reason', actor, detail={'lab_id': str(lab['id']), 'reason': reason})
-    return changed(conn, lab, actor, 'lab_' + action, ends_at=end)
+    return changed(conn, lab, actor, 'lab_' + action, ends_at=end,
+        message=f'Lab {"reopened" if action == "reopen" else "deadline extended"}. New deadline: {end.isoformat()}. Reason: {reason}')
 
 
 def stop(conn: sa.Connection, lab: dict, reason: str, actor: UUID) -> dict:
@@ -168,7 +190,8 @@ def stop(conn: sa.Connection, lab: dict, reason: str, actor: UUID) -> dict:
         raise LabError(400, 'Reason required')
     identity.audit(conn, 'lab_stop_reason', actor, detail={'lab_id': str(lab['id']),
         'reason': reason.strip(), 'previous_deadline': lab['ends_at'].isoformat()})
-    return changed(conn, lab, actor, 'lab_stopped', ends_at=timestamp)
+    return changed(conn, lab, actor, 'lab_stopped', ends_at=timestamp,
+        message=f'Lab stopped. New submissions are closed; accepted work continues judging. Reason: {reason.strip()}')
 
 
 def submission_allowed(lab: dict, enrollment: dict, timestamp: datetime) -> None:
@@ -232,4 +255,4 @@ def freeze(conn: sa.Connection, lab: dict, account_id: UUID, frozen: bool, reaso
                  .values(frozen=frozen, freeze_reason=reason if frozen else None))
     identity.audit(conn, 'lab_student_frozen' if frozen else 'lab_student_unfrozen', actor, account_id,
                    detail={'lab_id': str(lab['id']), 'reason': reason})
-    notify(conn, lab_id=lab['id'], account_id=account_id)
+    announce(conn, lab['id'], f'Submissions {"paused" if frozen else "resumed"}. Reason: {reason}', actor, account_id)

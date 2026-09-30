@@ -74,4 +74,4 @@ def release(conn: sa.Connection, lab: dict, account_id: UUID, reason: str, actor
                                                           bound_at=None, ip_changed=False))
     conn.execute(sa.delete(identity.sessions).where(identity.sessions.c.account_id == account_id))
     identity.audit(conn, 'lab_binding_released', actor, account_id, detail={'lab_id': str(lab['id']), 'reason': reason})
-    labs.notify(conn, account_id=account_id)
+    labs.announce(conn, lab['id'], f'Browser binding released. Sign in and enter the lab again. Reason: {reason}', actor, account_id)

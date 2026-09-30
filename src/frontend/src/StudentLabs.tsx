@@ -108,7 +108,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
           Upload acceptance unconfirmed. <Link to={`/labs/${labId}/tasks/${id}`}>Return to {detail.tasks.find((item) => item.revision_id === id)?.title || 'task'} to retry</Link>.
         </aside>)}
         {detail.frozen && <p role="status" className="notice notice-danger">Submissions paused by administrator. You can still read lab materials.</p>}
-        {section !== 'overview' && detail.announcements.length > 0 && <aside className="notice notice-warning"><strong>Latest announcement</strong>
+        {section !== 'overview' && detail.announcements.length > 0 && <aside className="notice notice-warning"><strong>Latest announcement · {detail.announcements[detail.announcements.length - 1].audience || "Everyone"}</strong>
           <p className="whitespace-pre-wrap">{detail.announcements[detail.announcements.length - 1].body}</p><Link to={`/labs/${labId}`}>All announcements</Link></aside>}
         {(section === 'overview' || task) && <section className="rounded border bg-white p-4"><h2 className="font-semibold">Lab PDFs</h2>
           {detail.pdfs.length ? <ul>{detail.pdfs.map((pdf) => <li key={pdf.id}><a download href={`/api/labs/${detail.id}/pdfs/${pdf.id}`}>{pdf.name}</a></li>)}</ul>

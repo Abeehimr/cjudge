@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from cjudge import labs
+from cjudge import labs, identity
 
 
 def test_stop_uses_server_time_and_preserves_accepted_work():
@@ -50,3 +50,13 @@ def test_archive_verification_rejects_corrupt_content(tmp_path):
         archive.writestr('manifest.json', b'{}')
     manifest = {'entries': [{'path': 'data', 'size': 5, 'sha256': hashlib.sha256(b'right').hexdigest()}]}
     with pytest.raises(OSError): verify(path, manifest)
+
+
+def test_private_notice_targets_only_recipient_and_admin_events():
+    from unittest.mock import MagicMock
+    from cjudge.judging import queue
+    conn, lab_id, student_id, admin_id = MagicMock(), uuid4(), uuid4(), uuid4()
+    with patch.object(identity, 'audit'), patch.object(queue, 'notify') as queued, patch.object(labs, 'notify') as public:
+        labs.announce(conn, lab_id, 'Private reason', admin_id, student_id)
+        queued.assert_called_once_with(conn, student_id)
+        public.assert_not_called()

@@ -145,7 +145,7 @@ def pdf_checks(admin_id, student_id, revision_id):
             lab = labs.find(conn, lab['id'])
             lab_files.upload(conn, lab, data, 'Updated.pdf', admin_id, originals[0])
             assert conn.execute(sa.select(sa.func.count()).select_from(labs.announcements).where(
-                labs.announcements.c.lab_id == lab['id'])).scalar_one() == 1
+                labs.announcements.c.lab_id == lab['id'])).scalar_one() == 3
             assert lab_files.read(conn, lab['id'], originals[0], active_only=False) == data
             try:
                 lab_files.read(conn, lab['id'], originals[0], active_only=True)
@@ -228,7 +228,7 @@ def api_checks(admin_id, student_id, revision_id):
             assert status == 200
             binding = headers['Set-Cookie'].split(';', 1)[0]
             assert 'HttpOnly' in headers['Set-Cookie'] and 'Secure' in headers['Set-Cookie'] and 'SameSite=lax' in headers['Set-Cookie']
-            assert student_view['announcements'][0]['body'] == 'Before start'
+            assert any(row['body'] == 'Before start' for row in student_view['announcements'])
             assert 'checker' not in student_view['tasks'][0] and 'cases' not in student_view['tasks'][0]
             assert call('/labs', role='outsider')[1] == []
             for suffix in ['', '/pdfs/' + pdf_id, '/events']:
@@ -272,6 +272,8 @@ def api_checks(admin_id, student_id, revision_id):
             status, lab, _ = call(path + '/deadline', 'POST', {'version': lab['version'], 'action': 'extend',
                 'reason': 'Extra time', 'ends_at': (identity.now() + timedelta(minutes=3)).isoformat()})
             assert status == 200
+            assert any('Extra time' in row['body'] and row['audience'] == 'Everyone'
+                for row in call(student_path, role='student', binding=binding)[1]['announcements'])
             with identity.engine().begin() as conn:
                 conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab['id']).values(first_released_at=labs.now(conn)))
             assert call(path + '/deadline', 'POST', {'version': lab['version'], 'action': 'extend',

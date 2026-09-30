@@ -173,4 +173,5 @@ def retry(conn: sa.Connection, lab_id: UUID, submission_id: UUID, actor: UUID, r
     identity.audit(conn, 'submission_retry', actor, row['account_id'],
                    detail={'lab_id': str(lab_id), 'submission_id': str(submission_id), 'reason': reason})
     conn.execute(sa.select(sa.func.pg_notify('cjudge_jobs', '')))
+    labs.announce(conn, lab_id, f'Submission {submission_id} judging retry queued. Reason: {reason}', actor, row['account_id'])
     notify(conn, row['account_id'])

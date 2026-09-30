@@ -138,6 +138,7 @@ class AnnouncementOutput(StrictModel):
     id: UUID
     body: str
     created_at: datetime
+    audience: str = 'Everyone'
 
 
 class RosterOutput(StrictModel):
@@ -207,8 +208,15 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
     if not admin_view:
         pdf_query = pdf_query.where(labs.pdfs.c.active)
     pdf_rows = [dict(row) for row in conn.execute(pdf_query.order_by(labs.pdfs.c.created_at, labs.pdfs.c.id)).mappings()]
-    messages = [dict(row) for row in conn.execute(sa.select(labs.announcements).where(
-        labs.announcements.c.lab_id == lab['id']).order_by(labs.announcements.c.created_at, labs.announcements.c.id)).mappings()]
+    message_query = sa.select(labs.announcements, identity.accounts.c.roll_number, identity.accounts.c.name).outerjoin(
+        identity.accounts, identity.accounts.c.id == labs.announcements.c.recipient_id).where(labs.announcements.c.lab_id == lab['id'])
+    if not admin_view:
+        message_query = message_query.where(sa.or_(labs.announcements.c.recipient_id.is_(None),
+            labs.announcements.c.recipient_id == enrollment['account_id']))
+    messages = []
+    for row in conn.execute(message_query.order_by(labs.announcements.c.created_at, labs.announcements.c.id)).mappings():
+        audience = 'Everyone' if row['recipient_id'] is None else f"Only {row['roll_number']} · {row['name']}" if admin_view else 'Only you'
+        messages.append(dict(row, audience=audience))
     result = summary(conn, lab) | {'pdfs': [{key: row[key] for key in (AdminPdf if admin_view else PdfOutput).model_fields}
                                           for row in pdf_rows],
         'announcements': [{key: row[key] for key in AnnouncementOutput.model_fields} for row in messages]}
@@ -420,7 +428,7 @@ async def post_announcement(lab_id: UUID, request: Request, actor: dict = Depend
         with transaction() as conn:
             lab = labs.find(conn, lab_id, shared=True)
             labs.editable(lab)
-            lab_files.announcement(conn, lab_id, body.body.strip(), actor['id'])
+            labs.announce(conn, lab_id, body.body.strip(), actor['id'])
             return snapshot(conn, lab)
     return await run_in_threadpool(post)
 

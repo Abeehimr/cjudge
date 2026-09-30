@@ -160,6 +160,7 @@ def set_deleted(conn: sa.Connection, lab: dict, submission_id: UUID, deleted: bo
                 enqueue(conn, submission_id, revision, 'rejudge')
     identity.audit(conn, 'submission_deleted' if deleted else 'submission_restored', actor, row['account_id'],
         detail={'lab_id': str(lab['id']), 'submission_id': str(submission_id), 'reason': reason})
+    labs.announce(conn, lab['id'], f'Submission {submission_id} {"deleted from marks" if deleted else "restored"}. Reason: {reason}', actor, row['account_id'])
     queue.notify(conn, row['account_id'])
 
 
@@ -179,6 +180,7 @@ def rejudge(conn: sa.Connection, lab: dict, submission_id: UUID, actor: UUID, re
     enqueue(conn, submission_id, current_revision(conn, lab['id'], task_id), 'rejudge')
     identity.audit(conn, 'submission_rejudge', actor, row['account_id'],
         detail={'lab_id': str(lab['id']), 'submission_id': str(submission_id), 'reason': reason})
+    labs.announce(conn, lab['id'], f'Submission {submission_id} queued for rejudge. Reason: {reason}', actor, row['account_id'])
     queue.notify(conn, row['account_id'])
 
 
@@ -214,7 +216,9 @@ def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, ac
             enqueue(conn, key, revision_id, 'correction', batch_id)
     conn.execute(sa.update(labs.assignments).where(labs.assignments.c.lab_id == lab['id'],
         labs.assignments.c.revision_id == base).values(revision_id=revision_id))
-    labs.changed(conn, lab, actor, 'task_correction_started')
+    title = conn.execute(sa.select(tasks.revisions.c.config).where(tasks.revisions.c.id == revision_id)).scalar_one()['title']
+    labs.changed(conn, lab, actor, 'task_correction_started',
+        message=f'Problem {title} updated; active submissions are being rejudged. Reason: {reason}')
     identity.audit(conn, 'task_correction', actor, detail={'lab_id': str(lab['id']), 'task_id': str(task_id),
         'batch_id': str(batch_id), 'revision_id': str(revision_id), 'reason': reason, 'reuse_acknowledged': acknowledge_reuse})
     queue.notify(conn)
@@ -237,7 +241,8 @@ def publish_ready(conn: sa.Connection, lab_id: UUID) -> None:
         conn.execute(sa.update(batches).where(batches.c.id == batch['id']).values(state='published', published_at=labs.now(conn)))
         conn.execute(sa.update(jobs).where(jobs.c.batch_id == batch['id']).values(batch_id=None))
         identity.audit(conn, 'task_correction_published', batch['actor_id'], detail={'lab_id': str(lab_id), 'batch_id': str(batch['id'])})
-        labs.notify(conn, lab_id=lab_id)
+        title = conn.execute(sa.select(tasks.revisions.c.config).where(tasks.revisions.c.id == batch['revision_id'])).scalar_one()['title']
+        labs.announce(conn, lab_id, f'Problem {title}: rejudge completed; official results updated.', batch['actor_id'])
         accounts = conn.execute(sa.select(labs.enrollments.c.account_id).where(labs.enrollments.c.lab_id == lab_id)).scalars()
         for account in accounts:
             queue.notify(conn, account)

@@ -40,12 +40,6 @@ def save(data: bytes) -> UUID:
     return key
 
 
-def announcement(conn: sa.Connection, lab_id: UUID, body: str, actor: UUID) -> None:
-    conn.execute(sa.insert(labs.announcements).values(id=uuid4(), lab_id=lab_id, author_id=actor, body=body))
-    identity.audit(conn, 'lab_announcement_posted', actor, detail={'lab_id': str(lab_id)})
-    labs.notify(conn, lab_id=lab_id)
-
-
 def upload(conn: sa.Connection, lab: dict, data: bytes, name: str, actor: UUID, replaces: UUID | None = None) -> dict:
     state = labs.phase(lab, labs.now(conn))
     if state == 'Ended' or lab['first_released_at']:
@@ -62,9 +56,8 @@ def upload(conn: sa.Connection, lab: dict, data: bytes, name: str, actor: UUID, 
     if replaces:
         conn.execute(sa.update(labs.pdfs).where(labs.pdfs.c.id == replaces).values(active=False))
     conn.execute(sa.insert(labs.pdfs).values(id=key, lab_id=lab['id'], name=name, size=len(data), replaces_id=replaces))
-    if state == 'Running':
-        announcement(conn, lab['id'], f'Lab PDF {"replaced" if replaces else "added"}: {name}', actor)
-    return labs.changed(conn, lab, actor, 'lab_pdf_uploaded')
+    return labs.changed(conn, lab, actor, 'lab_pdf_uploaded',
+        message=f'Lab PDF {"replaced" if replaces else "added"}: {name}')
 
 
 def remove(conn: sa.Connection, lab: dict, pdf_id: UUID, actor: UUID) -> dict:
@@ -79,7 +72,7 @@ def remove(conn: sa.Connection, lab: dict, pdf_id: UUID, actor: UUID) -> dict:
                                                 for row in labs.task_rows(conn, lab['id'])):
         raise labs.LabError(400, 'Scheduled lab still needs a PDF or Markdown for every task')
     conn.execute(sa.update(labs.pdfs).where(labs.pdfs.c.id == pdf_id).values(active=False))
-    return labs.changed(conn, lab, actor, 'lab_pdf_removed')
+    return labs.changed(conn, lab, actor, 'lab_pdf_removed', message=f'Lab PDF removed: {current["name"]}')
 
 
 def read(conn: sa.Connection, lab_id: UUID, pdf_id: UUID, *, active_only: bool) -> bytes:
