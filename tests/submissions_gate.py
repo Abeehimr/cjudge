@@ -6,6 +6,8 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from uuid import uuid4
+from unittest.mock import patch
+import time
 from sqlalchemy.exc import DBAPIError
 
 from alembic import command
@@ -55,11 +57,15 @@ def checks() -> None:
     assert upload(student_id, retry_key, b'changed') == 'idempotency_conflict'
     assert upload(student_id, uuid4()) == 'cooldown'
     with identity.engine().begin() as conn:
-        for _ in range(3):
+        for _ in range(2):
             key = uuid4()
             conn.execute(sa.insert(submissions.submissions).values(**(row | {'id': key, 'account_id': other_id,
                 'idempotency_key': uuid4(), 'accepted_at': timestamp - timedelta(seconds=60)})))
             conn.execute(sa.insert(submissions.jobs).values(submission_id=key))
+    with ThreadPoolExecutor(2) as pool:
+        pending_race = list(pool.map(lambda _: upload(other_id, uuid4()), range(2)))
+    assert sum(isinstance(result, tuple) for result in pending_race) == 1
+    assert 'pending_limit' in pending_race
     assert upload(other_id, uuid4()) == 'pending_limit'
     with identity.engine().begin() as conn:
         current = labs.find(conn, lab['id'], shared=True)
@@ -83,7 +89,6 @@ def checks() -> None:
     assert files.cleanup() == 1 and files.read(row) == source
     print('PASS: atomic admission, duplicate retries, cooldown, pending limit, freeze, deadline, immutable IP, orphan cleanup')
     with identity.engine().begin() as conn:
-        conn.execute(sa.insert(submissions.turns).values(account_id=other_id))
         generation_a, generation_b = uuid4(), uuid4()
         for slot, generation in [(0, generation_a), (1, generation_b)]:
             queue.register(conn, slot, generation)
@@ -119,6 +124,40 @@ def checks() -> None:
         assert queue.finish(conn, 0, generation_a, active, result)
         assert not queue.finish(conn, 0, generation_a, active, {})
     print('PASS: fair distinct claims, lease fencing, stale writes, retry exhaustion, admin retry, atomic publication')
+    with identity.engine().begin() as conn:
+        short = labs.create(conn, 'Deadline durability', False, admin_id)
+        labs.set_tasks(conn, short, [revision_id], admin_id)
+        labs.enroll(conn, short, [student_id], admin_id)
+        timestamp = labs.now(conn)
+        labs.schedule(conn, labs.find(conn, short['id']), None, timestamp + timedelta(seconds=2), admin_id)
+    original_save = files.save
+    def delayed_save(key, source):
+        original_save(key, source)
+        time.sleep(.25)
+    with identity.engine().begin() as conn:
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == short['id'])
+                     .values(ends_at=labs.now(conn) + timedelta(seconds=.1)))
+    try:
+        with identity.engine().begin() as conn, patch('cjudge.submissions.files.save', side_effect=delayed_save):
+            service.accept(conn, labs.find(conn, short['id'], shared=True),
+                labs.enrollment(conn, short['id'], student_id), revision_id, uuid4(), 'late.c', source, '192.0.2.1')
+    except labs.LabError:
+        pass
+    else:
+        raise AssertionError('Source became durable after deadline but was accepted')
+    with identity.engine().begin() as conn:
+        assert conn.execute(sa.select(sa.func.count()).select_from(submissions.submissions).where(
+            submissions.submissions.c.lab_id == short['id'])).scalar_one() == 0
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == short['id']).values(ends_at=labs.now(conn) + timedelta(seconds=10)))
+    try:
+        with identity.engine().begin() as conn, patch('cjudge.submissions.files.save', side_effect=OSError('Synthetic disk full')):
+            service.accept(conn, labs.find(conn, short['id'], shared=True),
+                labs.enrollment(conn, short['id'], student_id), revision_id, uuid4(), 'disk.c', source, '192.0.2.1')
+    except OSError:
+        pass
+    else:
+        raise AssertionError('Failed storage accepted')
+    print('PASS: durability deadline boundary and storage failure rollback')
 
 
 def main() -> None:
