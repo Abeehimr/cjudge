@@ -21,7 +21,10 @@ export default function App() {
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [roll, setRoll] = useState("");
   const [name, setName] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessageText] = useState("");
+  const [messageError, setMessageError] = useState(false);
+  function setMessage(text: string) { setMessageError(false); setMessageText(text); }
+  function showError(text: string) { setMessageError(true); setMessageText(text); }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -32,7 +35,7 @@ export default function App() {
 
   useEffect(() => {
     if (session?.role === "admin") api<Student[]>("/admin/students")
-      .then(setStudents).catch((error) => setMessage(error.message));
+      .then(setStudents).catch((error) => showError(error.message));
   }, [session]);
 
   async function login(event: FormEvent) {
@@ -46,7 +49,7 @@ export default function App() {
         method: "POST", body: JSON.stringify({ identifier: username, password }),
       });
       setPassword(""); setIdentifier(""); setSession(account);
-    } catch (error) { setMessage((error as Error).message); }
+    } catch (error) { showError((error as Error).message); }
     finally { setSigningIn(false); }
   }
 
@@ -55,7 +58,7 @@ export default function App() {
     try {
       await api<void>("/auth/logout", { method: "POST" }, session.csrf_token);
       setSession(null); setPage("students"); setStudents([]); setSelected([]); setCredentials([]); setMessage("");
-    } catch (error) { setMessage((error as Error).message); }
+    } catch (error) { showError((error as Error).message); }
   }
 
   async function addStudent(event: FormEvent) {
@@ -66,7 +69,7 @@ export default function App() {
       }, session!.csrf_token);
       setStudents((rows) => [...rows, student].sort((a, b) => a.roll_number.localeCompare(b.roll_number)));
       setRoll(""); setName(""); setMessage(`${student.roll_number} created. Select account to show credentials.`);
-    } catch (error) { setMessage((error as Error).message); }
+    } catch (error) { showError((error as Error).message); }
   }
 
   async function importFile(file?: File) {
@@ -76,7 +79,7 @@ export default function App() {
       const result = await api<ImportResult>("/admin/students/import", { method: "POST", body: file }, session!.csrf_token);
       setStudents(await api<Student[]>("/admin/students"));
       setMessage(`${result.created.length} created; ${result.existing.length} existing. Name mismatches: ${result.name_mismatches.join(", ") || "none"}.`);
-    } catch (error) { setMessage((error as Error).message); }
+    } catch (error) { showError((error as Error).message); }
   }
 
   async function showCredentials() {
@@ -85,7 +88,7 @@ export default function App() {
         method: "POST", body: JSON.stringify({ ids: selected }),
       }, session!.csrf_token));
       setMessage("");
-    } catch (error) { setMessage((error as Error).message); }
+    } catch (error) { showError((error as Error).message); }
   }
 
   async function resetStudent(student: Student) {
@@ -93,7 +96,7 @@ export default function App() {
     try {
       setCredentials([await api<Credential>(`/admin/students/${student.id}/reset`, { method: "POST" }, session!.csrf_token)]);
       setMessage("Password reset. Print or save new credential now.");
-    } catch (error) { setMessage((error as Error).message); }
+    } catch (error) { showError((error as Error).message); }
   }
 
   async function renameStudent(student: Student) {
@@ -105,7 +108,7 @@ export default function App() {
       }, session!.csrf_token);
       setStudents((rows) => rows.map((row) => row.id === updated.id ? updated : row));
       setCredentials([]); setMessage("Name updated.");
-    } catch (error) { setMessage((error as Error).message); }
+    } catch (error) { showError((error as Error).message); }
   }
 
   return <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -128,7 +131,7 @@ export default function App() {
             autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} /></label>
           <label>Password<input className="mt-1 w-full rounded border p-2" type="password" required autoComplete="current-password"
             value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-          <button disabled={signingIn} className="rounded bg-slate-900 p-2 text-white">{signingIn ? "Signing in…" : "Sign in"}</button>
+          <button disabled={signingIn} className="rounded p-2">{signingIn ? "Signing in…" : "Sign in"}</button>
         </form>
       </section> : session.role === "student" ? <section className="rounded border bg-white p-6">
         <h1 className="text-xl font-semibold">{session.name}</h1>
@@ -141,7 +144,7 @@ export default function App() {
           <form className="mt-3 flex flex-wrap gap-2" onSubmit={addStudent}>
             <label>Roll number <input className="ml-1 rounded border p-2" required value={roll} onChange={(event) => setRoll(event.target.value)} /></label>
             <label>Name <input className="ml-1 rounded border p-2" required value={name} onChange={(event) => setName(event.target.value)} /></label>
-            <button className="rounded bg-slate-900 px-3 py-2 text-white">Add</button>
+            <button className="rounded px-3 py-2">Add</button>
           </form>
           <label className="mt-4 block">Import CSV (roll_number,name)
             <input className="mt-1 block" type="file" accept=".csv,text/csv"
@@ -174,7 +177,7 @@ export default function App() {
               <td>{entry.name}</td><td className="font-mono">{entry.password}</td></tr>)}</tbody></table>
         </section>}
       </div>}
-      {message && <p role="status" className="no-print mt-4 rounded border bg-white p-3">{message}</p>}
+      {message && <p role={messageError ? "alert" : "status"} className={`no-print mt-4 notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
     </main>
   </div>;
 }

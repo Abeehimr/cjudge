@@ -22,7 +22,7 @@ Suggested backend boundaries: identity, tasks, labs, submissions, judging, resul
 
 ## Screens
 
-Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use a light theme, restrained colors, and native form controls. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.
+Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use a light theme and native form controls: consistent blue buttons, yellow notices/announcements, and red frozen/blocked states or errors. Keep labels and visible focus; do not rely on color alone. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.
 
 | Student | Admin |
 | --- | --- |
@@ -31,6 +31,8 @@ Use a DOMjudge-inspired layout for both student and admin interfaces: compact na
 | Optional task Markdown, file upload, submission history table | Task library, Markdown textarea/preview, test editor, generation review, revisions |
 | Submission status and released details | Submission filters, best-to-worst attempts, deleted runs, judging faults |
 | Optional solved-task scoreboard | Corrections, release, marks, archive export |
+
+Use one login form with username/roll number and password. Detect `admin` automatically, case-insensitively; reserve that identifier from student roll numbers.
 
 Keep the student path short: read, upload, check status. Explain disabled uploads with the actual reason: closed lab, cooldown, or pending limit. Server checks remain authoritative. Show infrastructure faults separately from student failures.
 

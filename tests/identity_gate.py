@@ -69,6 +69,10 @@ def main():
                 account_id=admin_id, csrf_token=admin_csrf, expires_at=store.now() + timedelta(hours=8)))
     try:
         assert call("/admin/students", cookie=admin_cookie)[0] == 200
+        assert call("/admin/students", "POST", {"roll_number": " admin ", "name": "Reserved"},
+                    admin_cookie, admin_csrf)[0] == 400
+        assert call("/admin/students/import", "POST", b"roll_number,name\nADMIN,Reserved\n",
+                    admin_cookie, admin_csrf, "text/csv")[0] == 400
         assert call("/admin/students", method="POST", body={"roll_number": roll, "name": "Ada"},
                     cookie=admin_cookie)[0] == 403
         assert call("/admin/students", method="POST", body={"roll_number": roll, "name": "Ada"},

@@ -45,6 +45,10 @@ Student accounts are global: each roll number keeps one password across labs. Ad
 
 Admin password is hash-only. Student passwords are hashed for login and separately encrypted for admin reprints. Keep the `credential_keys` Docker volume with database backups; losing it makes existing student passwords unrecoverable. The API mounts that volume read-only. `key-init` refuses to overwrite an existing key. Never copy the key, password sheets, or `.env` into Git. To reset the admin password, run `docker compose run --rm api python -m cjudge.identity reset-admin`; existing admin sessions are revoked.
 
+Before upgrading another installation, check for an existing student roll `ADMIN` and resolve that identifier collision.
+
+The shared login form accepts `admin` or a student roll number; `ADMIN` is reserved and cannot be imported or created as a student. The UI uses a light theme with blue actions, yellow notices, and red errors/frozen states.
+
 Sessions last eight hours. Logout and password resets revoke sessions. Login is rate-limited per account, while nginx allows a shared lab IP burst. Credential responses are not cached. No public registration exists.
 
 ## M3 task library

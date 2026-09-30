@@ -27,7 +27,8 @@ test("student enters explicitly, receives live updates, and loses materials on r
   expect(fetchMock).toHaveBeenCalledWith("/api/labs/lab/enter", expect.objectContaining({ method: "POST", headers: { "X-CSRF-Token": "csrf" } }));
   current = { ...materials, frozen: true };
   act(() => Live.instance.dispatchEvent(new Event("refresh")));
-  expect(await screen.findByText(/Submissions paused/)).toBeTruthy();
+  expect((await screen.findByText(/Submissions paused/)).className).toContain("notice-danger");
+  expect(screen.getByRole("heading", { name: "Announcements" }).parentElement?.className).toContain("notice-warning");
   act(() => Live.instance.dispatchEvent(new Event("denied")));
   expect(screen.queryByText("Add two numbers.")).toBeNull();
   expect(Live.instance.close).toHaveBeenCalled();

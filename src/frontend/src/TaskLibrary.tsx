@@ -34,16 +34,19 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
   const [input, setInput] = useState("");
   const [answer, setAnswer] = useState("");
   const [preview, setPreview] = useState<{ name: string; text: string; truncated: boolean } | null>(null);
-  const [message, setMessage] = useState("");
+  const [message, setMessageText] = useState("");
+  const [messageError, setMessageError] = useState(false);
+  function setMessage(text: string) { setMessageError(false); setMessageText(text); }
+  function showError(text: string) { setMessageError(true); setMessageText(text); }
   const [busy, setBusy] = useState(false);
   const dirty = !!draft && JSON.stringify(config) !== JSON.stringify(draft.config);
 
   async function refresh(page = offset) { setRows(await api<Task[]>(`/admin/tasks?offset=${page}`)); }
-  useEffect(() => { void refresh().catch((error) => setMessage(error.message)); }, [offset]);
+  useEffect(() => { void refresh().catch((error) => showError(error.message)); }, [offset]);
 
   async function perform(action: () => Promise<void>) {
     setBusy(true); setMessage("");
-    try { await action(); } catch (error) { setMessage((error as Error).message); }
+    try { await action(); } catch (error) { showError((error as Error).message); }
     finally { setBusy(false); }
   }
   function accept(next: Detail) {
@@ -84,7 +87,7 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
   }
   async function upload(file?: File) {
     if (!file || !draft) return;
-    if (file.size > 17 * 1024 * 1024) { setMessage("ZIP exceeds 17 MiB."); return; }
+    if (file.size > 17 * 1024 * 1024) { showError("ZIP exceeds 17 MiB."); return; }
     if (draft.case_count && !confirm("Replace all draft cases with this ZIP? Published revisions stay unchanged.")) return;
     await perform(async () => {
       accept(await api<Detail>(`/admin/tasks/${draft.id}/cases?version=${draft.version}`, {
@@ -135,7 +138,7 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
         <button disabled={busy} onClick={() => { setPublished(null); setReview(false); setPreview(null); }}>Edit draft</button>
         <button disabled={busy || dirty} onClick={() => { setPublished(null); setReview(true); setPreview(null); }}>Review draft</button>
         <button disabled={busy} onClick={() => select(draft.id)}>Reload draft</button>
-        {dirty && <span role="status">Unsaved settings — save before changing cases or publishing.</span>}
+        {dirty && <span role="status" className="notice notice-warning">Unsaved settings — save before changing cases or publishing.</span>}
       </div>
       {published || review ? <section className="space-y-3 rounded border bg-white p-4">
         <Summary config={published?.config || draft.config} />
@@ -210,6 +213,6 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
         </li>)}</ul> : <p>No published revisions.</p>}
       </section>
     </>}
-    {message && <p role="status" className="rounded border bg-white p-3">{message}</p>}
+    {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
   </div>;
 }

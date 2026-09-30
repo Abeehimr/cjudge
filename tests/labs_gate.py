@@ -205,6 +205,8 @@ def api_checks(admin_id, student_id, revision_id):
             assert status == 201
             path = '/admin/labs/' + lab['id']
             student_path = '/labs/' + lab['id']
+            assert call(path + '/students/manual', 'POST', {'version': lab['version'], 'roll_number': 'ADMIN', 'name': 'Reserved'})[0] == 400
+            assert call(path + '/students/import?version=' + str(lab['version']), 'POST', b'roll_number,name\nADMIN,Reserved\n', content_type='text/csv')[0] == 400
             _, lab, _ = call(path + '/tasks', 'PUT', {'version': lab['version'], 'revision_ids': [str(revision_id)]})
             _, lab, _ = call(path + '/students', 'POST', {'version': lab['version'], 'ids': [str(student_id)]})
             data = b'%PDF-1.7\nlab\n%%EOF\n'

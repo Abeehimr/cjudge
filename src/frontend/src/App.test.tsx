@@ -65,6 +65,26 @@ test("admin reveals selected credentials only after an explicit action", async (
   expect((screen.getByRole("button", { name: "Signing in…" }) as HTMLButtonElement).disabled).toBe(true);
   expect(fetchMock).toHaveBeenCalledWith(`/api/auth/${role}/login`, expect.objectContaining({ body: JSON.stringify({ identifier, password: "wrong" }) }));
   complete({ ok: false, status: 401, json: async () => ({ detail: "Invalid credentials" }) });
-  expect(await screen.findByText("Invalid credentials")).toBeTruthy();
+  expect((await screen.findByRole("alert")).className).toContain("notice-danger");
+  expect(screen.getByText("Invalid credentials")).toBeTruthy();
   expect((screen.getByRole("button", { name: "Sign in" }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+test.each(["student", "admin"])("unified %s login opens the correct view and logs out", async (role) => {
+  const account = { id: "account", role, roll_number: role === "student" ? "001A" : null, name: "Ada", csrf_token: "csrf" };
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({
+    ok: !path.endsWith("/auth/session"), status: path.endsWith("/logout") ? 204 : 200,
+    json: async () => path.endsWith("/login") ? account : [],
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("Username or roll number"), { target: { value: role === "admin" ? "admin" : "001A" } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password" } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  const logout = await screen.findByRole("button", { name: "Log out" });
+  if (role === "admin") expect(screen.getByRole("navigation", { name: "Admin navigation" })).toBeTruthy();
+  else expect(screen.getByText("Roll number: 001A")).toBeTruthy();
+  fireEvent.click(logout);
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
+  expect(fetchMock).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST", headers: { "X-CSRF-Token": "csrf" } }));
 });

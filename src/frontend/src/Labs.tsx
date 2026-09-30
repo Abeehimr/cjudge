@@ -14,7 +14,7 @@ type PublicTask = { position: number; revision_id: string; title: string; statem
 type PublicLab = Summary & { frozen: boolean; tasks: PublicTask[]; pdfs: Pdf[]; announcements: Message[] };
 
 function Announcements({ messages }: { messages: Message[] }) {
-  return <section className="rounded border bg-white p-4"><h2 className="font-semibold">Announcements</h2>
+  return <section className="notice notice-warning"><h2 className="font-semibold">Announcements</h2>
     {messages.length ? <ul className="space-y-3">{[...messages].reverse().map((message) => <li className="border-t pt-2" key={message.id}>
       <time className="text-sm">{new Date(message.created_at).toLocaleString()}</time>
       <p className="whitespace-pre-wrap">{message.body}</p>
@@ -31,17 +31,20 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   const [taskIds, setTaskIds] = useState<string[]>([]), [taskId, setTaskId] = useState("");
   const [start, setStart] = useState(localDate(null, 5)), [end, setEnd] = useState(localDate(null, 125)), [reason, setReason] = useState("");
   const [roll, setRoll] = useState(""), [name, setName] = useState(""), [announcement, setAnnouncement] = useState("");
-  const [message, setMessage] = useState(""), [busy, setBusy] = useState(false);
+  const [message, setMessageText] = useState(""), [busy, setBusy] = useState(false);
+  const [messageError, setMessageError] = useState(false);
+  function setMessage(text: string) { setMessageError(false); setMessageText(text); }
+  function showError(text: string) { setMessageError(true); setMessageText(text); }
   const setupOpen = !!lab && (lab.phase === "Draft" || lab.phase === "Scheduled");
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   async function list(page = offset) { setRows(await api<Summary[]>(`/admin/labs?offset=${page}`)); }
-  useEffect(() => { void list().catch((e) => setMessage(e.message)); }, [offset]);
+  useEffect(() => { void list().catch((e) => showError(e.message)); }, [offset]);
   useEffect(() => {
     void api<Task[]>(`/admin/labs/task-options?offset=${optionOffset}`).then((next) => {
       setOptions((old) => optionOffset ? [...old, ...next] : next); setMoreOptions(next.length === 100);
-    }).catch((e) => setMessage(e.message));
+    }).catch((e) => showError(e.message));
   }, [optionOffset]);
-  useEffect(() => { void api<Student[]>("/admin/students").then(setStudents).catch((e) => setMessage(e.message)); }, []);
+  useEffect(() => { void api<Student[]>("/admin/students").then(setStudents).catch((e) => showError(e.message)); }, []);
   function accept(value: AdminLab) {
     setLab(value); setTitle(value.title); setStrict(value.strict_ip); setTaskIds(value.tasks.map((t) => t.revision_id));
     setStart(localDate(value.starts_at, 5)); setEnd(localDate(value.ends_at, 125));
@@ -49,7 +52,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   async function reload(id = lab?.id) { if (id) accept(await api<AdminLab>(`/admin/labs/${id}`)); await list(); }
   async function perform(action: () => Promise<void>) {
     setBusy(true); setMessage("");
-    try { await action(); } catch (e) { setMessage((e as Error).message); }
+    try { await action(); } catch (e) { showError((e as Error).message); }
     finally { setBusy(false); }
   }
   async function mutate(path: string, method: string, body?: object) {
@@ -102,7 +105,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     {lab && <>
       <section className="rounded border bg-white p-4"><div className="flex justify-between"><h2 className="font-semibold">{lab.title} · {lab.phase}</h2>
         <button disabled={busy} onClick={() => perform(() => reload())}>Refresh lab</button></div>
-        <LabClock serverTime={lab.server_time} start={lab.starts_at} end={lab.ends_at} refresh={() => { void reload().catch((e) => setMessage(e.message)); }} />
+        <LabClock serverTime={lab.server_time} start={lab.starts_at} end={lab.ends_at} refresh={() => { void reload().catch((e) => showError(e.message)); }} />
       </section>
       <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("", "PUT", { version: lab.version, title, strict_ip: strict })); }} className="rounded border bg-white p-4">
         <fieldset disabled={busy || !setupOpen} className="space-y-2"><legend className="font-semibold">Lab settings</legend>
@@ -177,7 +180,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
         <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Roll number</th><th>Name</th><th>Browser / IP</th><th>Submissions</th><th>Actions</th></tr></thead>
           <tbody>{lab.students.map((member) => <tr className="border-t" key={member.id}><td>{member.roll_number}</td><td>{member.name}</td>
             <td>{member.bound_at ? `Bound · ${member.last_ip}` : "Not bound"}{member.ip_changed && <span className="block">IP changed (original {member.bound_ip})</span>}</td>
-            <td>{member.frozen ? `Frozen · ${member.freeze_reason}` : "Enabled during lab"}</td><td><div className="flex flex-wrap gap-2">
+            <td><span className={member.frozen ? "notice-danger rounded px-2 py-1" : ""}>{member.frozen ? `Frozen · ${member.freeze_reason}` : "Enabled during lab"}</span></td><td><div className="flex flex-wrap gap-2">
               <button disabled={busy} onClick={() => rosterAction(member, "freeze")}>{member.frozen ? "Unfreeze" : "Freeze"} {member.roll_number}</button>
               <button disabled={busy || !member.bound_at} onClick={() => rosterAction(member, "release")}>Release browser {member.roll_number}</button>
               {setupOpen && <button disabled={busy} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?`)) void perform(() => mutate(`/students/${member.id}?version=${lab.version}`, "DELETE")); }}>Remove student</button>}
@@ -189,32 +192,35 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       </form>
       <Announcements messages={lab.announcements} />
     </>}
-    {message && <p role="status" className="rounded border bg-white p-3">{message}</p>}
+    {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
   </div>;
 }
 
 export function StudentLabs({ csrf }: { csrf: string }) {
   const [rows, setRows] = useState<Summary[]>([]), [selected, setSelected] = useState<Summary | null>(null);
-  const [detail, setDetail] = useState<PublicLab | null>(null), [message, setMessage] = useState(""), [busy, setBusy] = useState(false);
+  const [detail, setDetail] = useState<PublicLab | null>(null), [message, setMessageText] = useState(""), [busy, setBusy] = useState(false);
+  const [messageError, setMessageError] = useState(false);
+  function setMessage(text: string) { setMessageError(false); setMessageText(text); }
+  function showError(text: string) { setMessageError(true); setMessageText(text); }
   const [connection, setConnection] = useState("");
   async function list() {
     const next = await api<Summary[]>("/labs"); setRows(next);
     setSelected((old) => old ? next.find((row) => row.id === old.id) || null : null);
   }
-  useEffect(() => { void list().catch((e) => setMessage(e.message)); }, []);
+  useEffect(() => { void list().catch((e) => showError(e.message)); }, []);
   async function refresh() {
     if (detail) {
       try { setDetail(await api<PublicLab>(`/labs/${detail.id}`)); } catch (e) {
-        setMessage((e as Error).message);
+        showError((e as Error).message);
         if ([401, 403, 423].includes((e as Error & { status: number }).status)) setDetail(null);
       }
-    } else await list().catch((e) => setMessage(e.message));
+    } else await list().catch((e) => showError(e.message));
   }
   async function enter() {
     if (!selected) return;
     setBusy(true); setMessage("");
     try { setDetail(await api<PublicLab>(`/labs/${selected.id}/enter`, { method: "POST" }, csrf)); }
-    catch (e) { setMessage((e as Error).message); }
+    catch (e) { showError((e as Error).message); }
     finally { setBusy(false); }
   }
   useEffect(() => {
@@ -232,7 +238,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
         } while (again && !controller.signal.aborted);
       } catch (e) {
         if (controller.signal.aborted) return;
-        setMessage((e as Error).message);
+        showError((e as Error).message);
         if ([401, 403, 423].includes((e as Error & { status: number }).status)) { source.close(); setDetail(null); }
       } finally { fetching = false; }
     }
@@ -241,7 +247,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
       source.onopen = () => setConnection("Live updates connected");
       source.onerror = () => setConnection("Updates reconnecting…");
       source.addEventListener("refresh", () => { void load(); });
-      source.addEventListener("denied", () => { controller.abort(); source.close(); setDetail(null); setMessage("Lab access changed. Sign in or enter again."); });
+      source.addEventListener("denied", () => { controller.abort(); source.close(); setDetail(null); showError("Lab access changed. Sign in or enter again."); });
       source.addEventListener("reconnect", () => { source.close(); setConnection("Updates reconnecting…"); retry = setTimeout(connect, 3000); });
     }
     connect();
@@ -260,7 +266,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
       <button disabled={busy} onClick={() => { void refresh(); }}>Refresh</button>{connection && <p className="text-sm">{connection}</p>}
     </section>}
     {detail && <>
-      {detail.frozen && <p role="status" className="rounded border bg-white p-3">Submissions paused by administrator. You can still read lab materials.</p>}
+      {detail.frozen && <p role="status" className="notice notice-danger">Submissions paused by administrator. You can still read lab materials.</p>}
       <section id="lab-pdfs" className="rounded border bg-white p-4"><h2 className="font-semibold">Lab PDFs</h2>
         {detail.pdfs.length ? <ul className="space-y-2">{detail.pdfs.map((pdf) => <li key={pdf.id}><a download href={`/api/labs/${detail.id}/pdfs/${pdf.id}`}>{pdf.name}</a></li>)}</ul>
           : <p>Read the task statements below.</p>}
@@ -274,6 +280,6 @@ export function StudentLabs({ csrf }: { csrf: string }) {
         </article>)}
       </section>
     </>}
-    {message && <p role="status" className="rounded border bg-white p-3">{message}</p>}
+    {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
   </div>;
 }
