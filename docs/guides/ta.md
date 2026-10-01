@@ -58,4 +58,4 @@ Passed cases show their verdict/resources, but their test streams remain hidden.
 
 For discrepancies, give admin the roll number, lab/task, submission ID, acceptance time, selected run, and relevant case/verdict. This screen cannot change marks, delete attempts, or request rejudging.
 
-> **Screenshot T4 — Retained result:** Show the **Judge result** selector, an older run selected, the retained-run warning, and official versus run marks.
+<!--> **Screenshot T4 — Retained result:** Show the **Judge result** selector, an older run selected, the retained-run warning, and official versus run marks.-->

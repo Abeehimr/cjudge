@@ -85,7 +85,7 @@ Deleted submissions remain red with a reason and are excluded from marks. Source
 
 After a correction, read the updated statement. Keep unconfirmed uploads unchanged until resolved.
 
-> **Screenshot S6 — Recovery:** Show **Acceptance not confirmed** and **Retry upload**; add a cooldown or paused-submission capture.
+<!--> **Screenshot S6 — Recovery:** Show **Acceptance not confirmed** and **Retry upload**; add a cooldown or paused-submission capture.-->
 
 ## 7. Finish
 
