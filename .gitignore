@@ -13,3 +13,4 @@ certs/
 backups/
 src/frontend/node_modules/
 src/frontend/dist/
+docs/guides/pdf/
