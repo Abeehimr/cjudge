@@ -1,12 +1,12 @@
 # Product Requirements
 
-Source of truth for cJudge v1 product behavior. M0–M8 are implemented; deployment acceptance remains M9. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
+Source of truth for cJudge v1 product behavior. M0–M10 are implemented; the M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
 
 ## Scope
 
 An offline-operable LAN judge for C programming labs: one admin, one active lab, 150 students, five tasks, ten cases per task, and a two-hour lab. Installation and maintenance may use internet; running a lab must not.
 
-Deferred: other submission languages, TAs/multiple admins, concurrent labs, individual extensions, weighted cases, subtask groups, testlib, plagiarism detection, scoreboards, an in-browser editor, offline installation bundles, automated backups, server restoration, and archive import.
+Deferred: other submission languages, TAs/multiple admins, concurrent labs, individual extensions, weighted cases, subtask groups, testlib, plagiarism detection, an in-browser editor, offline installation bundles, automated backups, server restoration, and archive import.
 
 ## Accounts and Tasks
 
@@ -32,7 +32,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 - Enforce a 30-second cooldown across tasks and at most three pending submissions per student. Rejudge jobs do not consume upload slots.
 - Configure independent sandbox instances through the environment. Admin's Isolates panel shows configured, healthy, and working counts, current work, heartbeat freshness, and faults.
 - Show Queued, Judging, Passed/Failed, configured compile-error feedback, or Judging delayed. Compile-error feedback defaults to approximately 20 lines, with full/verdict-only options.
-- During labs, expose no partial marks or hidden-case details in existing student views. M10's optional scoreboard will allow live standings; it remains deferred.
+- During labs, expose no partial marks or hidden-case details in existing student views. M10's optional scoreboard exposes live standings only when admin enables it.
 
 ## Navigation
 
@@ -60,7 +60,7 @@ Deferred: other submission languages, TAs/multiple admins, concurrent labs, indi
 - Explicit Archive after release freezes lab and grading edits; reveal and exports remain available.
 - Lab ZIPs include lab PDFs, optional task Markdown statements, tests, configurations/revisions, all retained sources including deleted attempts, judge history, marks, and audit records. Export does not delete the lab; permanent deletion requires a current verified export, saved-copy acknowledgment, matching typed lab title, and audit reason. Global accounts and shared tasks remain. ZIPs are not full-server backups.
 
-## M10 Lab Scoreboard (Deferred)
+## M10 Lab Scoreboard
 
 - Add a dedicated lab Scoreboard page, always available to admin. A persisted **Visible to participants** toggle defaults off, including existing labs. When enabled, enrolled participants see live standings before release, subject to existing lab-entry/binding checks.
 - Include all enrolled students, including frozen students. Show rank, roll number/name, total marks, summed submission time, and one box per assigned task.

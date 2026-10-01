@@ -94,14 +94,18 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 Evidence: [acceptance-results.json](acceptance-results.json).
 
-## M10 — Lab Scoreboard · deferred · requires M6, M8
+## M10 — Lab Scoreboard · requires M6, M8
 
-- [ ] **Backend:** visibility migration (default off), shared official-score/time ranking, admin/participant reads, version-checked visibility update.
-- [ ] **Frontend:** dedicated lab scoreboard routes, shared table, participant visibility toggle, muted task boxes, legend, horizontal scrolling.
-- [ ] **Live updates:** reuse SSE and manual refresh; invalidate visible lab standings on judging/review changes; no polling.
-- [ ] **Documentation:** update architecture and admin-guide screenshot checklist.
-- [ ] **Test:** score/time ties, zero-score time exclusion, earliest counted attempts, frozen students, deletion/restoration, first-solve reassignment, pending/delayed work, atomic corrections.
-- [ ] **Test:** default-hidden access, enrollment/binding checks, toggle revocation, own-only links, pre-release detail protection, archived read-only state, deep links, refresh, live updates, empty roster and all colors.
-- [ ] **Gate:** backend/frontend checks and database gate; concise commits per unit; stop for review.
+- [x] **Backend:** visibility migration (default off), shared official-score/time ranking, admin/participant reads, version-checked visibility update.
+- [x] **Frontend:** dedicated lab scoreboard routes, shared table, participant visibility toggle, muted task boxes, legend, horizontal scrolling.
+- [x] **Live updates:** reuse SSE and manual refresh; invalidate visible lab standings on judging/review changes; no polling.
+- [x] **Documentation:** update architecture and admin-guide screenshot checklist.
+- [x] **Test:** score/time ties, zero-score time exclusion, earliest counted attempts, frozen students, deletion/restoration, first-solve reassignment, pending/delayed work, atomic corrections.
+- [x] **Test:** default-hidden access, enrollment/binding checks, toggle revocation, own-only links, pre-release detail protection, archived read-only state, deep links, refresh, live updates, empty roster and all colors.
+- [x] **Gate:** backend/frontend checks and database gate; concise commits per unit; stop for review.
 
-Rules: [product-requirements.md](product-requirements.md#m10-lab-scoreboard-deferred). Interfaces: [technical-requirements.md](technical-requirements.md#m10-lab-scoreboard-deferred).
+Rules: [product-requirements.md](product-requirements.md#m10-lab-scoreboard). Interfaces: [technical-requirements.md](technical-requirements.md#m10-lab-scoreboard).
+
+Evidence: 33 backend tests, 48 frontend tests, frontend build, and expanded `tests/marks_gate.py` including migration defaults, permission/binding/CSRF/version gates, real cross-participant SSE, frozen marks, and correction publication parity.
+
+Admin-guide capture: Scoreboard navigation, participant toggle off/on, sorted totals/times, shaded task boxes with legend, and a counted-submission link.

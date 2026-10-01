@@ -66,9 +66,11 @@ The task page shows its history. **Submissions** lists all tasks, newest first, 
 | Compile error — red | Compilation failed; read feedback if the instructor enabled it. |
 | Judging delayed — yellow | Grading needs attention; tell the instructor. This is not a failed program. |
 
-Deleted submissions remain red with a reason and are excluded from marks. Source, marks, and testcase details stay hidden during the lab.
+Deleted submissions remain red with a reason and are excluded from marks. Source, submission marks, and testcase details stay hidden during the lab.
 
 ![Task submission history with passed and failed statuses](<imgs/submission history.png>)
+
+If the instructor enables **Scoreboard**, open it from lab navigation. Standings rank total marks first, then the sum of submission times for positive-score tasks. Yellow means partial, blue judging, green solved, and darker green first to solve. **Provisional** means judging is unfinished. You can open only your own linked submissions; detailed evidence remains release-gated.
 
 ## 6. If uploading is blocked
 

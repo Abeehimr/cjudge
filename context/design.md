@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M8 are implemented; later modules remain planned. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M10 are implemented; physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -40,7 +40,7 @@ Keep the student path short: read, upload, check status. Explain disabled upload
 
 Store PDFs on the lab, not individual tasks. List all lab PDFs on the dashboard and link back to them from task pages. Omit empty task statements; render provided Markdown safely. Hide both document types until the lab starts.
 
-Use readable layouts, labeled controls, keyboard-accessible navigation, visible focus, and text alongside status colors. Keep tables usable on narrow screens. Render source and diagnostics as escaped monospace text. Bundle assets locally. Preserve cJudge's grading and visibility rules: student views expose no partial marks or hidden cases before release.
+Use readable layouts, labeled controls, keyboard-accessible navigation, visible focus, and text alongside status colors. Keep tables usable on narrow screens. Render source and diagnostics as escaped monospace text. Bundle assets locally. Preserve cJudge's grading and visibility rules: student submission views expose no partial marks or hidden cases before release; admin may separately enable live scoreboard standings.
 
 Confirm destructive or grading-changing admin actions and show their effects. Collect required audit reasons. Separate archive download from permanent deletion.
 
@@ -48,11 +48,17 @@ Confirm destructive or grading-changing admin actions and show their effects. Co
 
 Navigation uses browser URLs, breadcrumbs, and lab sections. Refresh and Back/Forward retain the selected page; pagination, filters, and published revision selections use query parameters.
 
-- Admin: global Labs, Students, Task Library, and Isolates. Each lab has Overview (settings, schedule, PDFs, announcements, compiler feedback), Students (enrollment), Tasks (assignments), and Submissions (newest first).
+- Admin: global Labs, Students, Task Library, and Isolates. Each lab has Overview (settings, schedule, PDFs, announcements, compiler feedback), Students (enrollment), Tasks (assignments), Submissions (newest first), and Scoreboard (ranked marks/times and participant visibility toggle).
 - Admin student detail: identity, binding/IP, freeze/release controls, and that student's lab submissions. Admin task detail: assigned revision statement/limits and task submissions; editing stays in the task library.
 - Admin submission detail: `/admin/labs/:labId/submissions/:submissionId`, inline escaped source, download, current status/score, compiler feedback, case verdicts/resources/input/output previews, and IP/MAC. Inputs come from the pinned immutable revision. Available before release. Student `/labs/:labId/submissions/:submissionId` shows own source and retained grading runs after release with reveal enabled; failed-case previews enforce server authorization and size limits.
-- Student: assigned labs, lab overview with PDFs/announcements/task links, task statement/limits/upload/task history together, and own lab submission history. Submissions stay per lab; no global submission page.
+- Student: assigned labs, lab overview with PDFs/announcements/task links, task statement/limits/upload/task history together, own lab submission history, and Scoreboard when enabled. Submissions stay per lab; no global submission page.
 - Existing browser bindings resume through authorized reads. Creating a binding still requires explicit entry. Dirty forms warn before navigation; unconfirmed upload files/keys survive within the lab session. Reload requires file reselection and warns before discarding it. Credentials and sources are never stored in browser storage.
+
+### Scoreboard
+
+`labs.scoreboard_visible` defaults off. Admin and participant scoreboard routes share official-result selection and a table component. GET endpoints use consistent database snapshots; participant authorization checks enrollment/binding and visibility, returning submission links only for the viewer's own work. Rank by displayed total descending, then exact summed elapsed time of positive-score counted tasks ascending. Pending work retains official marks and uses blue provisional boxes; first-to-solve derives from current non-deleted full-score attempts. Admin toggles are version-checked, audited and announced; archived visibility is read-only.
+
+Reuse the lab SSE connection for participants and admin SSE for admins. Acceptance, judging and review changes invalidate visible standings; SSE transmits no scores or private evidence. Manual refresh and reconnect fetch authoritative snapshots without periodic polling.
 
 ### UI Acceptance Checks
 

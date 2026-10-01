@@ -258,3 +258,22 @@ On storage failure, free space without deleting retained evidence, check volume 
 For a consistent manual server backup, stop API/worker writes, dump PostgreSQL, and preserve matching `credential_keys`, `task_files`, `lab_files`, `submission_files`, `authoring_files`, and `export_files` volumes with ownership/permissions intact. Store backups outside the repository and protect credentials/student evidence. Restore the dump and matching artifacts together into a disposable deployment and verify before using them. Automated backup/restore remains out of scope; a lab ZIP alone is insufficient.
 
 The lab admin preserves verified downloaded ZIPs before permanent deletion. Retain teacher authoring evidence and files referenced by database records. Do not blindly prune Docker volumes or protected files. After an interrupted export, unreferenced ZIPs may remain; identify them against export receipts while writes are stopped and preserve them until their status is reviewed. No scheduled retention policy or automatic orphan deletion is implemented.
+
+## M10 Lab Scoreboard
+
+Each admin lab has a **Scoreboard** page. **Visible to participants** defaults off; enabling it reveals live marks/times before release. Participants open only their own submission links; source and case details retain existing release gates. Frozen students still count. Ranking uses total marks descending, then the sum of elapsed acceptance times of positive-score counted tasks ascending, without failed-attempt penalties. Boxes use muted partial/judging/solved/first-solve shades; pending work is provisional.
+
+Update an existing installation:
+
+```sh
+docker compose --profile judging stop api worker
+docker compose build api web worker
+docker compose run --rm api alembic upgrade head
+docker compose --profile judging up -d web worker
+```
+
+Backend checks: `uv run pytest -q`. Frontend checks: `npm run test --prefix src/frontend` and `npm run build --prefix src/frontend`. The expanded database gate is `tests/marks_gate.py`; it creates/drops its own database and does not execute submitted code:
+
+```sh
+docker compose run --rm -e CJUDGE_PUBLIC_ORIGIN=https://localhost:8443 -e CJUDGE_ALLOWED_HOSTS=localhost,127.0.0.1 -v ./tests:/app/tests:ro api python tests/marks_gate.py
+```
