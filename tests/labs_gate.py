@@ -313,6 +313,10 @@ def main():
         binding_checks(*actors)
         pdf_checks(*actors)
         api_checks(*actors)
+        with identity.engine().connect() as conn:
+            actions = set(conn.execute(sa.select(identity.audit_events.c.action)).scalars())
+            assert {'lab_deadline_reason', 'lab_student_frozen', 'lab_student_unfrozen',
+                'lab_binding_released', 'lab_announcement_posted'} <= actions
     finally:
         identity.engine().dispose()
         identity.engine.cache_clear()

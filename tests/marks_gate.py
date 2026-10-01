@@ -279,6 +279,11 @@ def exercise(directory: str) -> None:
         version = call(base)[1]['version']
         assert call(correction, 'POST', {'version': version, 'revision_id': str(revisions[2]), 'reason': 'Post-release correction'})[0] == 201
         assert call(base)[1]['phase'] == 'Results released'
+        with identity.engine().connect() as conn:
+            actions = set(conn.execute(sa.select(identity.audit_events.c.action).where(
+                identity.audit_events.c.detail['lab_id'].as_string() == str(lab_id))).scalars())
+            assert {'submission_deleted', 'submission_restored', 'submission_rejudge', 'submission_retry',
+                'task_correction', 'task_correction_published', 'lab_announcement_posted'} <= actions
         print('PASS: correction races, concurrent arrivals, restoration membership, infrastructure blocking, atomic recovery, immutable source and post-release corrections')
     finally:
         server.terminate(); server.wait(timeout=10)

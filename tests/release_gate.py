@@ -245,6 +245,10 @@ def exercise(directory):
             assert conn.execute(sa.select(identity.accounts.c.id).where(identity.accounts.c.id == student)).scalar_one() == student
             assert conn.execute(sa.select(labs.labs.c.id).where(labs.labs.c.id == scheduled)).scalar_one() == scheduled
             assert conn.execute(sa.select(identity.audit_events.c.id).where(identity.audit_events.c.action == 'lab_permanently_deleted')).first()
+            actions = set(conn.execute(sa.select(identity.audit_events.c.action).where(
+                identity.audit_events.c.detail['lab_id'].as_string() == str(lab_id))).scalars())
+            assert {'lab_stop_reason', 'lab_reveal_reason', 'lab_archive_reason', 'lab_export_generated',
+                'lab_export_downloaded', 'lab_permanently_deleted'} <= actions
         # Cleanup failure leaves a durable retry record after the lab is gone.
         orphan = uuid4(); path = Path(directory) / f'{orphan}.c'; path.write_bytes(source)
         with identity.engine().begin() as conn:
