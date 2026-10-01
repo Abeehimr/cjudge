@@ -4,7 +4,7 @@ Offline C lab judge. M0–M4 provide HTTPS, isolation, accounts, tasks, and labs
 
 ## Repository layout
 
-User guide: [Student guide](docs/guides/student.md), including screenshot capture placeholders.
+User guides: [Student lab guide](docs/guides/student.md) and [TA released-results guide](docs/guides/ta.md). Both include screenshot capture placeholders. The admin guide is the next documentation module.
 
 - `src/cjudge/`: backend feature packages `identity/`, `tasks/`, `labs/`, `submissions/`, and `judging/`; `api.py` assembles routes and `runner.py` provides the sandbox runner.
 - `src/frontend/`: React app, package configuration, and component tests.
