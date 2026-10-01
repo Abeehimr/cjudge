@@ -51,8 +51,8 @@ services:
       context: .
       dockerfile: Dockerfile.web
     ports:
-      - "127.0.0.1:8080:8080"
-      - "127.0.0.1:8443:8443"
+      - "${CJUDGE_BIND_ADDRESS:-127.0.0.1}:8080:8080"
+      - "${CJUDGE_BIND_ADDRESS:-127.0.0.1}:8443:8443"
     user: "${CJUDGE_UID:-1000}:${CJUDGE_GID:-1000}"
     volumes:
       - ./certs:/etc/nginx/certs:ro
