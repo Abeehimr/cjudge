@@ -225,6 +225,8 @@ The disposable M8 gate checks fresh/existing migration paths, stop/version races
 
 ## M9 acceptance and operations
 
+Automated acceptance passed on October 1, 2026: API p95 33.594 ms overall, at most 36.682 ms per endpoint; 150 representative uploads finished in 63.620 seconds; five light tasks each finished below one second. All module gates passed. Configuration, fixture hashes, timeout measurements, and remaining manual checks are recorded in [context/acceptance-results.json](context/acceptance-results.json).
+
 The API image runs four Uvicorn processes to use multiple CPU cores. Each process keeps the existing 5+5 database connection pool: at most 40 pooled API connections plus four event listeners. PostgreSQL's 200-connection budget also covers the maximum 32 sandbox workers. Password hashing remains bounded to four concurrent operations per API process.
 
 Build current API/web/worker/key-init images before testing. Run backend/frontend checks first, then:

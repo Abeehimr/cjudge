@@ -1,0 +1,164 @@
+{
+  "timestamp": "2026-10-01T05:51:20.627863+00:00",
+  "platform": "Linux-7.2.5-3-omarchy-x86_64-with-glibc2.44",
+  "cpu_count": 12,
+  "load_average": [
+    1.01953125,
+    2.8349609375,
+    4.23828125
+  ],
+  "python_version": "3.14.7",
+  "docker_version": "29.7.2",
+  "workers": 3,
+  "worker_memory_bytes": "3221225472",
+  "fixtures": [
+    "Arithmetic",
+    "Arrays",
+    "Strings",
+    "Sorting",
+    "Matrices"
+  ],
+  "cases_per_task": 10,
+  "container_networks_internal": true,
+  "physical_lan_offline_check": "pending",
+  "passed": true,
+  "cpu_model": "AMD Ryzen 5 7430U with Radeon Graphics",
+  "memory": "MemTotal:       15750288 kB",
+  "commit": "cd26fdfc27dd491a5e2e5a11beb8d9f4c5dc6c80",
+  "tracked_changes": true,
+  "project": "cjudge-m9-b1fb61cecc",
+  "images": {
+    "api": "sha256:1b754dd837789ed17accc81c414681ad46e414beb0e55503969e24a457ff168d",
+    "web": "sha256:96cdb2e006afd36e69c9b29a96bd01473535ec00e8ddea2dde1aaaec0d6de2f0",
+    "worker": "sha256:fbfeebc02df13c9989c870318978acb2025d1cc42f7ff9cc1b4713068d6d2db0"
+  },
+  "api_command": [
+    "uvicorn",
+    "cjudge.api:app",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8000",
+    "--workers",
+    "4",
+    "--no-proxy-headers"
+  ],
+  "transport": "HTTPS to internal nginx bridge, verified localhost certificate/Host/Origin",
+  "module_gates_passed": true,
+  "fixture_hashes": [
+    {
+      "title": "Arithmetic",
+      "source_sha256": "8648fc412c68c567e25420fbb3ed18d01ab38369844042d1ef9a6fd81e8b846c",
+      "cases_sha256": "49d7a246507b9ec026aa922aea6ec47b904be1aa0ba51c2bde0877369fc916f3"
+    },
+    {
+      "title": "Arrays",
+      "source_sha256": "2d6a1d4f344b6909d588d2417aa50e2b5277b79a24d8f11bfe04640c2b847665",
+      "cases_sha256": "fb6872e60b7dcbec7a75b5864107247fca4b07e7e1f62ed646e7c30970aada63"
+    },
+    {
+      "title": "Strings",
+      "source_sha256": "4bd2a1ef402b9472bd98cee21f70e2c6cbf429b33a706ed031a5ac3de67c0a3e",
+      "cases_sha256": "91cd9ec374ea10042a8da63e2bdb7f666d6b483bedfe0aeff3d87fe2810990af"
+    },
+    {
+      "title": "Sorting",
+      "source_sha256": "901bf0137aa46e48c9f1867d61833a6f34bd21966ab2e729c910a45223f342ec",
+      "cases_sha256": "e9fa93a3233920bf5fe4adcd88aa61c959b518d38affe90ab35a8b8a95cc4d3b"
+    },
+    {
+      "title": "Matrices",
+      "source_sha256": "d9bed2370a7878818bb641662f87ee29225b5ea8f9970255540f9f106b22950b",
+      "cases_sha256": "e3e41b5fc8a4350076c4bbc47c0e058a393266f14a5fc3baefebc9cd2934b206"
+    }
+  ],
+  "grading_limits": {
+    "cpu_seconds": 0.2,
+    "wall_seconds": 1,
+    "memory_mib": 64,
+    "stack_mib": 8,
+    "stdout_mib": 1
+  },
+  "light_load": [
+    {
+      "task": "Arithmetic",
+      "seconds": 0.844
+    },
+    {
+      "task": "Arrays",
+      "seconds": 0.828
+    },
+    {
+      "task": "Strings",
+      "seconds": 0.854
+    },
+    {
+      "task": "Sorting",
+      "seconds": 0.659
+    },
+    {
+      "task": "Matrices",
+      "seconds": 0.654
+    }
+  ],
+  "api": {
+    "lab": {
+      "requests": 4500,
+      "p95_ms": 33.396
+    },
+    "task_history": {
+      "requests": 4500,
+      "p95_ms": 36.682
+    },
+    "history": {
+      "requests": 4500,
+      "p95_ms": 33.496
+    },
+    "status": {
+      "requests": 4500,
+      "p95_ms": 24.697
+    },
+    "overall": {
+      "requests": 18000,
+      "p95_ms": 33.594
+    }
+  },
+  "burst": {
+    "submissions": 150,
+    "arrival_seconds": 60.011,
+    "completion_seconds": 63.62,
+    "passed": 150
+  },
+  "timeouts": {
+    "submissions": 15,
+    "cases_per_submission": 10,
+    "expected_verdict": "TLE",
+    "completion_seconds": 17.111,
+    "api_p95_ms": 24.458,
+    "queue_delay_p95_seconds": 13.245
+  },
+  "restart_persistence": true,
+  "sse_reconnect": true,
+  "disposable_cleanup_complete": true,
+  "normal_services_restored": true,
+  "expected_restart_502_observed": true,
+  "validated_changes": {
+    "read_authorization": "55b3d15",
+    "api_processes": "e7cfe72",
+    "harness": "52c54a5"
+  },
+  "checks": {
+    "backend_tests": 28,
+    "frontend_tests": 44,
+    "frontend_build": "passed",
+    "lan_https_redirect_smoke": "passed",
+    "deployed_sandboxes_healthy_idle": 3,
+    "clock_synchronized": true
+  },
+  "storage": {
+    "used_percent": 90,
+    "available_gib_approx": 25,
+    "recommended_free_percent": 20
+  },
+  "manual_release_check": "Second-device browser with WAN disconnected: certificate trust, login/logout, lab entry, PDFs, submission, live announcements."
+}

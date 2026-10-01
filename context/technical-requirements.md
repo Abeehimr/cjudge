@@ -1,6 +1,6 @@
 # Technical Requirements
 
-Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M8 are implemented; deployment acceptance remains M9.
+Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M9 automated checks pass; physical LAN/offline browser acceptance remains. See [acceptance-results.json](acceptance-results.json).
 
 ## Stack and Storage
 

@@ -86,7 +86,10 @@ Each module includes its API, UI where applicable, migrations, and tests. Comple
 
 ## M9 — Deployment Acceptance · v1.0 · requires M7, M8
 
-- [ ] Document Compose installation, certificates, permissions, volumes, and operations.
-- [ ] Test offline operation, service restarts, disk failure, and audit coverage.
-- [ ] Verify 150-user API p95 <300 ms and light-load judging <30 s.
-- [ ] Verify representative 150-upload burst completes within 5 minutes of first acceptance; record timeout-heavy results separately.
+- [x] Document Compose installation, certificates, permissions, volumes, and operations.
+- [x] Test isolated offline services, restarts, disk failure, and audit coverage.
+- [x] Verify 150-user API p95 <300 ms and light-load judging <30 s.
+- [x] Verify representative 150-upload burst completes within 5 minutes of first acceptance; record timeout-heavy results separately.
+- [ ] **Manual release gate:** test another LAN device with WAN disconnected: certificate trust, login/entry, PDFs, upload, and live announcements.
+
+Evidence: [acceptance-results.json](acceptance-results.json).
