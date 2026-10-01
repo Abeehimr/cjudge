@@ -8,6 +8,7 @@ import { Announcements, type Summary, type AdminLab, type Enrollment, type Stude
 import { NotFound, useOffset, useUnsaved } from "./navigation";
 import Release from "./Release";
 import { Marks, Corrections } from "./Marks";
+import { AdminScoreboard } from "./Scoreboard";
 
 export function AdminLabs({ csrf }: { csrf: string }) {
   const [rows, setRows] = useState<Summary[]>([]);
@@ -120,8 +121,8 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     section === 'tasks' && !revisionId && JSON.stringify(taskIds) !== JSON.stringify(lab.tasks.map((t) => t.revision_id)) ||
     section === 'students' && (!!roll || !!name)));
   useUnsaved(dirty);
-  if ((!route && !listRoute) || parts.length > 2 || !['overview', 'students', 'tasks', 'submissions'].includes(section) ||
-      section === 'overview' && parts.length > 0 || [404, 422].includes(failure) || lab && (studentId && !member || revisionId && !task)) return <NotFound />;
+  if ((!route && !listRoute) || parts.length > 2 || !['overview', 'students', 'tasks', 'submissions', 'scoreboard'].includes(section) ||
+      section === 'overview' && parts.length > 0 || section === 'scoreboard' && parts.length !== 1 || [404, 422].includes(failure) || lab && (studentId && !member || revisionId && !task)) return <NotFound />;
   return <div className="space-y-4">
     <h1 className="text-xl font-semibold">{labId ? lab?.title || "Lab" : "Labs"}</h1>
     {!labId && <><form onSubmit={create} className="flex flex-wrap gap-2 rounded border bg-white p-4">
@@ -137,11 +138,21 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     {labId && !lab && !message && <p role="status">Loading lab…</p>}
     {lab && <>
       <nav aria-label="Lab breadcrumbs"><Link to="/admin/labs">Labs</Link> / <Link to={`/admin/labs/${lab.id}`}>{lab.title}</Link>{studentId && ` / ${member?.roll_number}`}{revisionId && ` / ${task?.config.title}`}</nav>
-      <nav aria-label="Lab navigation" className="flex flex-wrap gap-2">{[["", "Overview"], ["students", "Students"], ["tasks", "Tasks"], ["submissions", "Submissions"]].map(([path, title]) => <NavLink end={!path} className="nav-link" key={path} to={`/admin/labs/${lab.id}${path ? "/" + path : ""}`}>{title}</NavLink>)}</nav>
+      <nav aria-label="Lab navigation" className="flex flex-wrap gap-2">{[["", "Overview"], ["students", "Students"], ["tasks", "Tasks"], ["submissions", "Submissions"], ["scoreboard", "Scoreboard"]].map(([path, title]) => <NavLink end={!path} className="nav-link" key={path} to={`/admin/labs/${lab.id}${path ? "/" + path : ""}`}>{title}</NavLink>)}</nav>
       <section className="rounded border bg-white p-4"><div className="flex justify-between"><h2 className="font-semibold">{lab.title} · {lab.phase}</h2>
         <button disabled={busy} onClick={() => perform(() => reload())}>Refresh lab</button></div>
         <LabClock serverTime={lab.server_time} start={lab.starts_at} end={lab.ends_at} refresh={() => { void reload().catch((e) => showError(e.message)); }} />
       </section>
+      {section === 'scoreboard' && <>
+        <section className="rounded border bg-white p-4"><button aria-pressed={!!lab.scoreboard_visible} disabled={busy || !!lab.archived_at}
+          onClick={() => perform(async () => {
+            await api(`/admin/labs/${lab.id}/scoreboard/visibility`, { method: 'PUT', body: JSON.stringify({ version: lab.version, visible: !lab.scoreboard_visible }) }, csrf);
+            await reload();
+          })}>Visible to participants: {lab.scoreboard_visible ? 'On' : 'Off'}</button>
+          <p className="mt-2 text-sm">Enabling shows live marks and times before results release. Students can open only their own submissions.</p>
+        </section>
+        <AdminScoreboard lab={lab} refreshLab={() => reload()} />
+      </>}
       {section === "overview" && <>
       <Release lab={lab} csrf={csrf} accept={accept} deleted={() => setDestination("/admin/labs")} />
       <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("", "PUT", { version: lab.version, title, strict_ip: strict })); }} className="rounded border bg-white p-4">
@@ -167,6 +178,16 @@ export function AdminLabs({ csrf }: { csrf: string }) {
         </fieldset>
         {moreOptions && <button onClick={() => setOptionOffset(optionOffset + 100)}>Load more task revisions</button>}
       </section>
+      </>}
+      {section === 'scoreboard' && <>
+        <section className="rounded border bg-white p-4"><button aria-pressed={!!lab.scoreboard_visible} disabled={busy || !!lab.archived_at}
+          onClick={() => perform(async () => {
+            await api(`/admin/labs/${lab.id}/scoreboard/visibility`, { method: 'PUT', body: JSON.stringify({ version: lab.version, visible: !lab.scoreboard_visible }) }, csrf);
+            await reload();
+          })}>Visible to participants: {lab.scoreboard_visible ? 'On' : 'Off'}</button>
+          <p className="mt-2 text-sm">Enabling shows live marks and times before results release. Students can open only their own submissions.</p>
+        </section>
+        <AdminScoreboard lab={lab} refreshLab={() => reload()} />
       </>}
       {section === "overview" && <>
       <section className="rounded border bg-white p-4"><h2 className="font-semibold">Schedule ({zone})</h2>
@@ -238,6 +259,16 @@ export function AdminLabs({ csrf }: { csrf: string }) {
               {setupOpen && <button disabled={busy || !!lab?.archived_at} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?`)) void perform(async () => { await mutate(`/students/${member.id}?version=${lab.version}`, "DELETE"); if (studentId) setDestination(`/admin/labs/${lab.id}/students`); }); }}>Remove student</button>}
             </div></td></tr>)}</tbody></table></div>
       </section>
+      </>}
+      {section === 'scoreboard' && <>
+        <section className="rounded border bg-white p-4"><button aria-pressed={!!lab.scoreboard_visible} disabled={busy || !!lab.archived_at}
+          onClick={() => perform(async () => {
+            await api(`/admin/labs/${lab.id}/scoreboard/visibility`, { method: 'PUT', body: JSON.stringify({ version: lab.version, visible: !lab.scoreboard_visible }) }, csrf);
+            await reload();
+          })}>Visible to participants: {lab.scoreboard_visible ? 'On' : 'Off'}</button>
+          <p className="mt-2 text-sm">Enabling shows live marks and times before results release. Students can open only their own submissions.</p>
+        </section>
+        <AdminScoreboard lab={lab} refreshLab={() => reload()} />
       </>}
       {section === "overview" && <>
       <form onSubmit={(e) => { e.preventDefault(); void perform(async () => { await mutate("/announcements", "POST", { body: announcement }); setAnnouncement(""); }); }} className="rounded border bg-white p-4">

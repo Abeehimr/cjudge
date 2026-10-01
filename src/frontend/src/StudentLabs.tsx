@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useMatch } from "react-router";
 import { api } from "./api";
 import SubmissionDetail from "./SubmissionDetail";
+import { Scoreboard } from "./Scoreboard";
 import LabClock from "./LabClock";
 import Statement from "./Statement";
 import { StudentSubmissions, type UploadDraft } from "./Submissions";
@@ -84,8 +85,8 @@ export function StudentLabs({ csrf }: { csrf: string }) {
   }, [detail?.id]);
   useUnsaved(busy || Object.values(drafts).some((draft) => !!draft.file || !!draft.pending));
   const task = detail?.tasks.find((item) => item.revision_id === revisionId || item.previous_revision_ids?.includes(revisionId || ''));
-  if ((!route && !listRoute) || parts.length > 2 || !['overview', 'tasks', 'submissions'].includes(section) ||
-      section === 'overview' && parts.length > 0 || section === 'tasks' && !revisionId || section === 'submissions' && parts.length > 2 || [404, 422].includes(failure) || detail && revisionId && !task) return <NotFound />;
+  if ((!route && !listRoute) || parts.length > 2 || !['overview', 'tasks', 'submissions', 'scoreboard'].includes(section) ||
+      section === 'overview' && parts.length > 0 || section === 'scoreboard' && parts.length !== 1 || section === 'tasks' && !revisionId || section === 'submissions' && parts.length > 2 || [404, 422].includes(failure) || detail && revisionId && !task) return <NotFound />;
   return <div className="space-y-4">
     {!labId ? <><h1 className="text-xl font-semibold">Assigned labs</h1>
       {rows.length ? <div className="overflow-x-auto rounded border bg-white p-4"><table className="w-full text-left"><thead><tr><th>Lab</th><th>Status</th><th>Start</th><th>Deadline</th></tr></thead>
@@ -94,7 +95,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
         : <p>No labs assigned yet.</p>}</> : <>
       <nav aria-label="Lab breadcrumbs"><Link to="/labs">Labs</Link> / <Link to={`/labs/${labId}`}>{detail?.title || selected?.title || 'Lab'}</Link>{task && ` / ${task.title}`}</nav>
       {detail && <nav aria-label="Lab navigation" className="flex flex-wrap gap-2"><NavLink end className="nav-link" to={`/labs/${labId}`}>Overview</NavLink>
-        <NavLink className="nav-link" to={`/labs/${labId}/submissions`}>Submissions</NavLink></nav>}
+        <NavLink className="nav-link" to={`/labs/${labId}/submissions`}>Submissions</NavLink>{detail.scoreboard_visible && <NavLink className="nav-link" to={`/labs/${labId}/scoreboard`}>Scoreboard</NavLink>}</nav>}
       <section className="space-y-2 rounded border bg-white p-4"><h1 className="text-xl font-semibold">{detail?.title || selected?.title || 'Lab'}{detail && ` · ${detail.phase}`}</h1>
         {(detail || selected) && <LabClock serverTime={(detail || selected)!.server_time} start={(detail || selected)!.starts_at} end={(detail || selected)!.ends_at} refresh={() => { void refresh(); }} />}
         {!detail && failure > 0 && selected && <><p>Entering binds this browser to the lab. A lost binding requires admin release.</p>
@@ -118,6 +119,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
           <section className="rounded border bg-white p-4"><h2 className="font-semibold">Tasks</h2><ul>{detail.tasks.map((item) => <li className="border-t py-3" key={item.revision_id}>
             <Link to={`/labs/${detail.id}/tasks/${item.revision_id}`}>{item.position}. {item.title}</Link> · {item.maximum_marks} marks
           </li>)}</ul></section></>}
+        {section === 'scoreboard' && <Scoreboard lab={detail} />}
         {task && <section className="space-y-3 rounded border bg-white p-4"><h2 className="text-lg font-semibold">{task.position}. {task.title} · {task.maximum_marks} marks</h2>
           {task.revision_id !== revisionId && <p className="notice notice-warning">Task corrected. New uploads use the current revision; unconfirmed uploads retain their original retry key.</p>}
           <p>CPU {task.cpu_seconds}s · Wall {task.wall_seconds}s · Memory {task.memory_mib} MiB · Stack {task.stack_mib} MiB</p>

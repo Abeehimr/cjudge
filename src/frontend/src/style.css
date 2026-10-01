@@ -50,6 +50,11 @@ a[download] {
 
 .notice { @apply rounded border p-3; }
 .notice-warning { @apply border-amber-200 bg-amber-50 text-amber-800; }
+.scoreboard-cell { @apply block min-h-12 min-w-24 rounded border border-slate-200 p-2 text-slate-800; }
+.scoreboard-cell[data-state="partial"] { @apply border-amber-200 bg-amber-50; }
+.scoreboard-cell[data-state="judging"] { @apply border-blue-200 bg-blue-50; }
+.scoreboard-cell[data-state="solved"] { @apply border-green-200 bg-green-50; }
+.scoreboard-cell[data-state="first_solve"] { @apply border-green-300 bg-green-100; }
 .submission-status { @apply inline-block whitespace-nowrap rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700; }
 .submission-status[data-status="Passed"] { @apply border-green-200 bg-green-50 text-green-800; }
 .submission-status[data-status="Failed"],
