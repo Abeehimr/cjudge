@@ -4,7 +4,7 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 
 ## Stack and Storage
 
-- FastAPI, SQLAlchemy 2, Alembic, PostgreSQL; React/TypeScript/Vite, Tailwind, React Router; nginx with HTTPS and local assets.
+- FastAPI runs four Uvicorn processes; each SQLAlchemy pool allows five retained and five overflow connections. Alembic/PostgreSQL; React/TypeScript/Vite, Tailwind, React Router; nginx with HTTPS and local assets.
 - Docker Compose services: `web`, `api`, `db`, runtime `worker` (process pool + isolate/cgroup v2), and standalone `judge` gate. PostgreSQL queue with `FOR UPDATE SKIP LOCKED`; no Redis requirement.
 - Publish only web ports; keep API, database, and judge communication internal. Persist database/artifacts in volumes with service-specific access. Do not mount the Docker socket into application services.
 - Validate the judge container's cgroup delegation, capabilities, and mounts on target Linux before implementation depends on it. Keep required elevated permissions confined to `judge`; never silently enable privileged mode across services. Upstream cautions that containerized isolate may need privileged execution: [isolate installation notes](https://github.com/ioi/isolate/blob/master/isolate.1.txt). Docker service separation does not replace the inner execution sandbox.

@@ -225,6 +225,8 @@ The disposable M8 gate checks fresh/existing migration paths, stop/version races
 
 ## M9 acceptance and operations
 
+The API image runs four Uvicorn processes to use multiple CPU cores. Each process keeps the existing 5+5 database connection pool: at most 40 pooled API connections plus four event listeners. PostgreSQL's 200-connection budget also covers the maximum 32 sandbox workers. Password hashing remains bounded to four concurrent operations per API process.
+
 Build current API/web/worker/key-init images before testing. Run backend/frontend checks first, then:
 
 ```sh
