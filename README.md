@@ -4,6 +4,8 @@ Offline C lab judge. M0–M4 provide HTTPS, isolation, accounts, tasks, and labs
 
 ## Repository layout
 
+User guide: [Student guide](docs/guides/student.md), including screenshot capture placeholders.
+
 - `src/cjudge/`: backend feature packages `identity/`, `tasks/`, `labs/`, `submissions/`, and `judging/`; `api.py` assembles routes and `runner.py` provides the sandbox runner.
 - `src/frontend/`: React app, package configuration, and component tests.
 - `deploy/`: nginx configuration and judge entrypoint/isolate configuration.
