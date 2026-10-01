@@ -242,10 +242,11 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
 
 
 def student_access(conn: sa.Connection, lab_id: UUID, account: dict, request: Request,
-                   enter: bool = False) -> tuple[dict, dict, str | None]:
-    lab = labs.find(conn, lab_id, shared=True)
+                   enter: bool = False, readonly: bool = False) -> tuple[dict, dict, str | None]:
+    readonly = readonly and not enter
+    lab = labs.find(conn, lab_id, shared=True, lock=not readonly)
     row, token = lab_binding.access(conn, lab, account['id'], request.cookies.get(COOKIE),
-        request.cookies.get(lab_binding.cookie_name(lab_id)), lab_binding.client_ip(request), enter=enter)
+        request.cookies.get(lab_binding.cookie_name(lab_id)), lab_binding.client_ip(request), enter=enter, readonly=readonly)
     return lab, row, token
 
 
@@ -457,14 +458,14 @@ def enter_lab(lab_id: UUID, request: Request, response: Response, account: dict 
 @student_router.get('/{lab_id}', response_model=StudentLab)
 def student_lab(lab_id: UUID, request: Request, account: dict = Depends(student)):
     with transaction() as conn:
-        lab, row, _ = student_access(conn, lab_id, account, request)
+        lab, row, _ = student_access(conn, lab_id, account, request, readonly=True)
         return snapshot(conn, lab, row)
 
 
 @student_router.get('/{lab_id}/pdfs/{pdf_id}')
 def student_pdf(lab_id: UUID, pdf_id: UUID, request: Request, account: dict = Depends(student)):
     with transaction() as conn:
-        student_access(conn, lab_id, account, request)
+        student_access(conn, lab_id, account, request, readonly=True)
         return pdf_response(lab_files.read(conn, lab_id, pdf_id, active_only=True), pdf_id)
 
 
@@ -480,7 +481,7 @@ async def lab_events(lab_id: UUID, request: Request, account: dict = Depends(stu
         same_origin(request)
     def authorize():
         with transaction() as conn:
-            student_access(conn, lab_id, account, request)
+            student_access(conn, lab_id, account, request, readonly=True)
             return conn.execute(sa.select(identity.sessions.c.expires_at).where(
                 identity.sessions.c.token_hash == identity.token_digest(request.cookies[COOKIE]))).scalar_one()
     expires = await run_in_threadpool(authorize)

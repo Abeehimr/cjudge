@@ -103,6 +103,14 @@ def binding_checks(admin_id, student_id, revision_id):
         lab = labs.find(conn, lab['id'])
         _, token = lab_binding.access(conn, lab, student_id, session, None, '192.0.2.1', enter=True)
         assert token
+    with identity.engine().begin() as conn:
+        lab = labs.find(conn, lab['id'], lock=False)
+        row, _ = lab_binding.access(conn, lab, student_id, session, token, '192.0.2.1', readonly=True)
+        assert row['last_ip'] == '192.0.2.1'
+        assert conn.execute(sa.text('SELECT pg_current_xact_id_if_assigned()')).scalar_one() is None
+        row, _ = lab_binding.access(conn, lab, student_id, session, token, '192.0.2.2', readonly=True)
+        assert row['ip_changed'] and row['bound_ip'] == '192.0.2.1'
+        assert conn.execute(sa.text('SELECT pg_current_xact_id_if_assigned()')).scalar_one() is not None
         for missing in [None, 'wrong']:
             try:
                 lab_binding.access(conn, lab, student_id, session, missing, '192.0.2.1', enter=True)
@@ -110,11 +118,9 @@ def binding_checks(admin_id, student_id, revision_id):
                 assert exc.status == 423
             else:
                 raise AssertionError('Missing binding accepted')
-        row, _ = lab_binding.access(conn, lab, student_id, session, token, '192.0.2.2')
-        assert row['ip_changed'] and row['bound_ip'] == '192.0.2.1'
         strict = {**lab, 'strict_ip': True}
         try:
-            lab_binding.access(conn, strict, student_id, session, token, '192.0.2.2')
+            lab_binding.access(conn, strict, student_id, session, token, '192.0.2.2', readonly=True)
         except labs.LabError as exc:
             assert exc.status == 423
         else:
@@ -126,7 +132,10 @@ def binding_checks(admin_id, student_id, revision_id):
             assert exc.status == 401
         else:
             raise AssertionError('Revoked session rebound')
-    print('PASS: ended-lab binding, token loss, IP flags, strict IP, release and revoked-session fencing')
+    with identity.engine().connect() as conn:
+        assert conn.execute(sa.select(identity.audit_events.c.action).where(
+            identity.audit_events.c.action == 'lab_ip_changed', identity.audit_events.c.subject_id == student_id)).first()
+    print('PASS: WAL-free binding reads, persisted IP changes, token loss, strict IP, release and revoked-session fencing')
 
 
 def pdf_checks(admin_id, student_id, revision_id):

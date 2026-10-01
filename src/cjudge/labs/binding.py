@@ -36,8 +36,14 @@ def client_ip(request: Request) -> str:
 
 
 def access(conn: sa.Connection, lab: dict, account_id: UUID, session_token: str | None,
-           token: str | None, ip: str, *, enter: bool = False) -> tuple[dict, str | None]:
-    row = labs.enrollment(conn, lab['id'], account_id)
+           token: str | None, ip: str, *, enter: bool = False, readonly: bool = False) -> tuple[dict, str | None]:
+    readonly = readonly and not enter
+    row = labs.enrollment(conn, lab['id'], account_id, lock=not readonly)
+    if readonly and (row['binding_hash'] is None or row['last_ip'] != ip):
+        # IP changes still use the original lab-before-enrollment write locks.
+        lab.update(labs.find(conn, lab['id'], shared=True))
+        row = labs.enrollment(conn, lab['id'], account_id)
+        readonly = False
     timestamp = labs.now(conn)
     session = conn.execute(sa.select(identity.sessions.c.token_hash).where(
         identity.sessions.c.account_id == account_id,
@@ -64,7 +70,7 @@ def access(conn: sa.Connection, lab: dict, account_id: UUID, session_token: str 
         conn.execute(sa.update(labs.enrollments).where(labs.enrollments.c.lab_id == lab['id'],
             labs.enrollments.c.account_id == account_id).values(last_ip=ip, ip_changed=True))
         identity.audit(conn, 'lab_ip_changed', subject_id=account_id, detail={'lab_id': str(lab['id']), 'ip': ip})
-    return labs.enrollment(conn, lab['id'], account_id), new_token
+    return (row if readonly else labs.enrollment(conn, lab['id'], account_id)), new_token
 
 
 def release(conn: sa.Connection, lab: dict, account_id: UUID, reason: str, actor: UUID) -> None:

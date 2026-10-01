@@ -56,8 +56,11 @@ def phase(lab: dict, timestamp: datetime) -> str:
     return 'Running' if timestamp < lab['ends_at'] else 'Ended'
 
 
-def find(conn: sa.Connection, lab_id: UUID, version: int | None = None, *, shared: bool = False) -> dict:
-    query = sa.select(labs).where(labs.c.id == lab_id).with_for_update(read=shared)
+def find(conn: sa.Connection, lab_id: UUID, version: int | None = None, *, shared: bool = False,
+         lock: bool = True) -> dict:
+    query = sa.select(labs).where(labs.c.id == lab_id)
+    if lock:
+        query = query.with_for_update(read=shared)
     row = conn.execute(query).mappings().first()
     if not row:
         raise LabError(404, 'Lab not found')
@@ -230,9 +233,11 @@ def import_roster(conn: sa.Connection, lab: dict, rows: list[tuple[str, str]], a
     return result
 
 
-def enrollment(conn: sa.Connection, lab_id: UUID, account_id: UUID) -> dict:
-    row = conn.execute(sa.select(enrollments).where(enrollments.c.lab_id == lab_id,
-                      enrollments.c.account_id == account_id).with_for_update()).mappings().first()
+def enrollment(conn: sa.Connection, lab_id: UUID, account_id: UUID, *, lock: bool = True) -> dict:
+    query = sa.select(enrollments).where(enrollments.c.lab_id == lab_id, enrollments.c.account_id == account_id)
+    if lock:
+        query = query.with_for_update()
+    row = conn.execute(query).mappings().first()
     if not row:
         raise LabError(403, 'Not enrolled in this lab')
     return dict(row)

@@ -139,7 +139,7 @@ async def upload(lab_id: UUID, request: Request, response: Response,
 def history(lab_id: UUID, request: Request, offset: int = Query(default=0, ge=0),
             revision_id: UUID | None = None, account: dict = Depends(student)):
     with transaction() as conn:
-        lab, _, _ = student_access(conn, lab_id, account, request)
+        lab, _, _ = student_access(conn, lab_id, account, request, readonly=True)
         selection = query(lab_id).where(store.submissions.c.account_id == account['id'])
         if revision_id:
             selection = selection.where(tasks.revisions.c.task_id == sa.select(tasks.revisions.c.task_id)
@@ -152,7 +152,7 @@ def history(lab_id: UUID, request: Request, offset: int = Query(default=0, ge=0)
 @student_router.get('/{submission_id}', response_model=SubmissionOutput)
 def detail(lab_id: UUID, submission_id: UUID, request: Request, account: dict = Depends(student)):
     with transaction() as conn:
-        lab, _, _ = student_access(conn, lab_id, account, request)
+        lab, _, _ = student_access(conn, lab_id, account, request, readonly=True)
         row = conn.execute(query(lab_id).where(store.submissions.c.id == submission_id,
             store.submissions.c.account_id == account['id'])).mappings().first()
         if not row:
@@ -291,7 +291,7 @@ class ReleasedSubmission(SubmissionOutput):
 
 def released_row(conn: sa.Connection, lab_id: UUID, submission_id: UUID, request: Request, account: dict) -> tuple[dict, dict]:
     from cjudge.labs.release import visible
-    lab, _, _ = student_access(conn, lab_id, account, request)
+    lab, _, _ = student_access(conn, lab_id, account, request, readonly=True)
     row = conn.execute(query(lab_id).where(store.submissions.c.id == submission_id,
         store.submissions.c.account_id == account['id'])).mappings().first()
     if not row:
