@@ -14,6 +14,7 @@ from cjudge.labs.api import admin_router as labs_admin, student_router as labs_s
 from cjudge.submissions.api import admin_router as submissions_admin, student_router as submissions_student
 from cjudge.judging.api import router as judging_admin
 from cjudge.submissions.review_api import router as review_admin
+from cjudge.labs.scoreboard import router as scoreboard_router
 from cjudge.authoring.api import router as authoring_admin
 from cjudge.labs import exports, archive  # Register protected CSV routes before including the lab router.
 
@@ -30,6 +31,7 @@ app.include_router(submissions_admin)
 app.include_router(submissions_student)
 app.include_router(judging_admin)
 app.include_router(review_admin)
+app.include_router(scoreboard_router)
 app.include_router(authoring_admin)
 
 

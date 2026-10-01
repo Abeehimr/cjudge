@@ -20,6 +20,11 @@ def exact(row: dict) -> Fraction:
     return Fraction(int(row['score_numerator']), int(row['score_denominator']))
 
 
+def counted_submission(rows) -> dict | None:
+    scored = [row for row in rows if row['run_id'] is not None]
+    return min(scored, key=lambda row: (-exact(row), row['accepted_at'], str(row['id']))) if scored else None
+
+
 def official_query(lab_id: UUID):
     return sa.select(submissions, tasks.revisions.c.task_id, reviews.c.run_id, reviews.c.deleted_at,
         reviews.c.delete_reason, runs.c.score_numerator, runs.c.score_denominator, runs.c.passed, runs.c.total,
@@ -46,8 +51,7 @@ def marks(conn: sa.Connection, lab_id: UUID) -> list[dict]:
         cells, total_cents = [], 0
         for task in assigned:
             rows = grouped.get((student['id'], task['task_id']), [])
-            scored = [row for row in rows if row['run_id'] is not None]
-            best = min(scored, key=lambda row: (-exact(row), row['accepted_at'], str(row['id']))) if scored else None
+            best = counted_submission(rows)
             value = displayed(exact(best)) if best else '0.00'
             pending = bool(rows) and task['task_id'] in active_batches or any(row['state'] != 'complete' or row['run_id'] is None for row in rows)
             cells.append(dict(task_id=task['task_id'], revision_id=task['id'], title=task['config']['title'],

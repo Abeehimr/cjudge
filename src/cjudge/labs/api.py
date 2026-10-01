@@ -154,6 +154,7 @@ class RosterOutput(StrictModel):
 
 
 class AdminLab(LabSummary):
+    scoreboard_visible: bool
     version: int
     strict_ip: bool
     compiler_feedback: str
@@ -167,6 +168,7 @@ class AdminLab(LabSummary):
 
 
 class StudentLab(LabSummary):
+    scoreboard_visible: bool
     results_visible: bool
     frozen: bool
     tasks: list[PublicTask]
@@ -203,6 +205,7 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
     for item in conn.execute(sa.select(batches.c.task_id, batches.c.base_revision_id).where(batches.c.lab_id == lab['id'])).all():
         previous.setdefault(item.task_id, []).append(item.base_revision_id)
     admin_view = enrollment is None
+    scoreboard_visible = lab['scoreboard_visible']
     assigned = labs.task_rows(conn, lab['id'])
     pdf_query = sa.select(labs.pdfs).where(labs.pdfs.c.lab_id == lab['id'])
     if not admin_view:
@@ -238,6 +241,7 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
                 **{key: config[key] for key in PublicTask.model_fields if key not in ('position', 'revision_id', 'previous_revision_ids')}})
         from cjudge.submissions.service import allowance
         result.update(results_visible=bool(lab['first_released_at'] and lab['reveal_results']), frozen=enrollment['frozen'], tasks=public_tasks, admission=allowance(conn, lab, enrollment))
+    result['scoreboard_visible'] = scoreboard_visible
     return result
 
 

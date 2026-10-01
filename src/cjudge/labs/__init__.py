@@ -14,6 +14,7 @@ labs = sa.Table('labs', metadata,
     sa.Column('compiler_feedback', sa.String(8)),
     sa.Column('starts_at', sa.DateTime(timezone=True)), sa.Column('ends_at', sa.DateTime(timezone=True)),
     sa.Column('reveal_results', sa.Boolean(), nullable=False, server_default=sa.false()),
+    sa.Column('scoreboard_visible', sa.Boolean(), nullable=False, server_default=sa.false()),
     sa.Column('archived_at', sa.DateTime(timezone=True)),
     sa.Column('first_released_at', sa.DateTime(timezone=True)), sa.Column('created_at', sa.DateTime(timezone=True)))
 assignments = sa.Table('lab_tasks', metadata,
