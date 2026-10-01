@@ -10,5 +10,6 @@ wheels/
 .venv
 .env
 certs/
+backups/
 src/frontend/node_modules/
 src/frontend/dist/

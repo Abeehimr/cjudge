@@ -222,3 +222,27 @@ docker compose run --rm -v ./tests:/app/tests:ro api python tests/release_gate.p
 ```
 
 The disposable M8 gate checks fresh/existing migration paths, stop/version races, upload recovery, release/reuse rules, student binding/ownership/secrecy, retained runs, previews, CSV safety, ZIP hashes/completeness, deletion protections and cleanup recovery. It does not execute student programs.
+
+## M9 acceptance and operations
+
+Build current API/web/worker/key-init images before testing. Run backend/frontend checks first, then:
+
+```sh
+python scripts/acceptance.py /tmp/cjudge-m9-results.json
+```
+
+The command temporarily stops running services, uses a uniquely named Compose project with fresh volumes, and restores previously running services on exit. It uses the existing trusted localhost certificate and current sandbox count/memory limit. Database and artifact volumes from the normal project are never mounted. Acceptance containers use internal networks with no external routing; only nginx publishes localhost ports. Normal operation needs no internet, but installation/builds may.
+
+The gate runs identity/task/lab/submission/release checks and real isolate, judging, marks, and authoring gates before performance measurement. It uses 170 seeded test sessions/bindings, five deterministic tasks, and ten cases/task. Setup/login is excluded from latency measurement. After populating histories, 150 concurrent clients each issue one request/second for 120 measured requests following warm-up; the four endpoints are lab snapshot, filtered task history, lab history, and individual status. Overall and per-endpoint p95 must be below 300 ms. Five light-load programs must each finish within 30 seconds. A fresh 150-upload burst spans 60 seconds and must finish within five minutes of first acceptance. Fifteen infinite-loop programs measure timeout-heavy behavior separately. All C execution remains inside isolate. JSON results contain no credentials or source code.
+
+Restart checks retain accepted work and grading results; SSE is opened and reconnected through nginx. Module gates verify killed-worker recovery, stale-result fencing, disk-write rollback, missing artifacts, and audited admin actions. A real second-device browser check with WAN disconnected remains a manual release prerequisite: verify certificate trust, login/logout, entry, PDF download, upload, and live announcements while LAN stays connected. Container egress isolation does not establish Wi-Fi reachability or browser trust.
+
+Before each lab, check server time (`timedatectl status`), disk space (`df -h`), Docker volume usage (`docker system df -v`), and Isolates. Reserve the server's DHCP address. Inspect certificate expiry with `openssl x509 -in certs/server.crt -noout -enddate`; renew before expiry using the LAN SAN command, recreate web, and distribute updated public trust. Never share private keys.
+
+Keep at least 20% disk headroom. Estimate storage from attempts and retained rejudges, not student count alone: budget at least 2 MiB per ten-case run for source/diagnostics and database overhead, then add test revisions, PDFs, generation artifacts, ZIP copies, and PostgreSQL WAL. Large checker diagnostics and retained versions need extra allowance. Review capacity before another lab; no automatic cleanup runs.
+
+On storage failure, free space without deleting retained evidence, check volume permissions, restore missing files from a consistent backup if available, and retry delayed jobs from admin. Never convert infrastructure failures to zero marks. Restart worker to recover leases; inspect sanitized Isolates faults and container logs. Stop API/worker before migrations; run migrations before restarting them. Do not run sandbox gates beside runtime workers.
+
+For a consistent manual server backup, stop API/worker writes, dump PostgreSQL, and preserve matching `credential_keys`, `task_files`, `lab_files`, `submission_files`, `authoring_files`, and `export_files` volumes with ownership/permissions intact. Store backups outside the repository and protect credentials/student evidence. Restore the dump and matching artifacts together into a disposable deployment and verify before using them. Automated backup/restore remains out of scope; a lab ZIP alone is insufficient.
+
+The lab admin preserves verified downloaded ZIPs before permanent deletion. Retain teacher authoring evidence and files referenced by database records. Do not blindly prune Docker volumes or protected files. After an interrupted export, unreferenced ZIPs may remain; identify them against export receipts while writes are stopped and preserve them until their status is reviewed. No scheduled retention policy or automatic orphan deletion is implemented.
