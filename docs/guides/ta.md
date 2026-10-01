@@ -19,7 +19,7 @@ Red **Deleted** rows show a reason and are excluded from marks. A **Passed** sta
 
 The review highlight selects the newest tied attempt; counted task marks use the best score, with the earliest attempt breaking ties. The student screen shows only that student's records.
 
-> **Screenshot T1 — Released history:** Show **Filter by task**, clickable filenames, a green **Best for review** row, and a red deleted row with its reason. Use demonstration data.
+![Released task history with a green best-for-review row and red deleted submission](imgs/submission-history-after-release.png)
 
 ## 3. Inspect code and marks
 
@@ -28,7 +28,7 @@ The review highlight selects the newest tied attempt; counted task marks use the
 - **Cases passed** and **Run marks** describe the displayed judge result.
 - If grading is in progress, previous official marks may remain visible. Wait for completion before treating them as final; **Pending** does not mean zero.
 
-> **Screenshot T2 — Submission:** Show status, acceptance time, **Official marks**, **Cases passed**, **Run marks**, filename, inline source, and download link.
+![Submission details with official marks, source code, and case results](imgs/submission-details.png)
 
 ## 4. Inspect testcase results
 
@@ -48,7 +48,7 @@ For a failed case, compare **Standard input**, **Expected output**, **Standard o
 
 Passed cases show their verdict/resources, but their test streams remain hidden. A missing or delayed result requires admin attention, not an automatic zero.
 
-> **Screenshot T3 — Failed case:** Expand a failed row. Show its verdict/resources and all four stream headings. Use a demonstration task; include empty/truncated labels when available.
+![Expanded wrong-answer case showing input, expected output, actual output, and stderr](imgs/WA-case.png)
 
 ## 5. Compare retained results and finish
 

@@ -10,7 +10,7 @@
 
 For certificate warnings, ask the instructor to set up trust before entering credentials. Never share your password.
 
-> **Screenshot S1 — Sign in:** Show both fields and **Sign in**. Use a fictional roll number; leave the password empty.
+![Sign-in form with roll number and password fields](imgs/login.png)
 
 ## 2. Enter the assigned lab
 
@@ -20,7 +20,13 @@ For certificate warnings, ask the instructor to set up trust before entering cre
 
 **Sign in** identifies you; **Enter lab** binds your browser. Refresh preserves binding; losing it requires admin release.
 
-> **Screenshot S2 — Lab selection and entry:** Show the lab table, then status, deadline, and **Enter lab**. Use two images if needed.
+![Assigned labs with start times, deadlines, and statuses](imgs/lab-list.png)
+
+*These example labs have ended; choose the lab assigned by your instructor.*
+
+![Lab entry with a lost browser-binding notice](imgs/lab-selected-before-enter.png)
+
+*This example shows a lost browser binding: ask admin to release it before re-entry. An ended lab does not accept new uploads.*
 
 ## 3. Read the instructions
 
@@ -30,7 +36,9 @@ For certificate warnings, ask the instructor to set up trust before entering cre
 
 Watch for extensions/corrections. Use **Refresh lab** if information appears stale.
 
-> **Screenshot S3 — Overview:** Show timer, announcements, PDFs, tasks, navigation, and **Log out**, using fictional data.
+![Lab overview with PDFs, announcements, and task links](imgs/lab-overview.png)
+
+*This example is an ended lab. During a running lab, also check the remaining time.*
 
 ## 4. Submit your program
 
@@ -41,7 +49,9 @@ Watch for extensions/corrections. Use **Refresh lab** if information appears sta
 
 Uploads must finish before the server deadline. Selecting a file is insufficient; submit early.
 
-> **Screenshot S4 — Task/upload:** Show title, statement, file selector, selected filename, **Submit**, and upload availability.
+![Task statement, resource limits, and C source file selector](imgs/task.png)
+
+*Uploads are disabled here because the lab has ended. During a running lab, choose your file before clicking **Submit**.*
 
 ## 5. Check your submissions
 
@@ -58,7 +68,7 @@ The task page shows its history. **Submissions** lists all tasks, newest first, 
 
 Deleted submissions remain red with a reason and are excluded from marks. Source, marks, and testcase details stay hidden during the lab.
 
-> **Screenshot S5 — History:** Show acceptance, colored statuses, the task filter, and **Refresh submissions**.
+![Task submission history with passed and failed statuses](<imgs/submission history.png>)
 
 ## 6. If uploading is blocked
 
