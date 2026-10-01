@@ -92,11 +92,22 @@ Compare full permitted stdout before retaining previews. Bound stderr, temporary
 - Preserve first release permanently and store current reveal separately. Active unresolved jobs/corrections block release and final exports; audited soft-deleted attempts do not block.
 - Serialize scheduled test selection and disclosure checks. Require reuse acknowledgment before revealing or applying visible post-release corrections involving scheduled tests, including retained revisions.
 - Students read only their own active source/details after release with reveal enabled and valid binding. Retained grading runs are visible; infrastructure attempts/network metadata remain admin-only. Failed-case byte previews are capped at 64 KiB with truncation flags.
-- CSV uses official exact marks and counted-run percentages; neutralize untrusted formula-like text. XLSX and scoreboards are omitted.
+- CSV uses official exact marks and counted-run percentages; neutralize untrusted formula-like text. XLSX is omitted; scoreboards are deferred to M10.
 - Explicit archiving freezes lab/review/correction changes and fences unfinished excluded jobs. ZIP generation uses protected `export_files`, metadata snapshots and optimistic evidence revalidation; disk work runs outside DB transactions.
 - Manifest `cjudge-lab` version 1 lists paths, sizes and SHA-256 hashes; `snapshot.json` encodes binary judge streams as `{base64: ...}`. Verify every entry before recording an export receipt. Exclude credentials/session/binding secrets and unrelated labs.
 - Deletion requires an archived lab, current evidence/version receipt, valid ZIP hash, saved-copy acknowledgment, matching title and audit reason. A transaction-local lab identifier narrowly enables the immutable-submission trigger exception; ordinary updates/deletes remain forbidden.
 - Persist cleanup records before deleting lab rows; retry failed source/PDF/ZIP cleanup through the admin endpoint. Preserve shared tasks/accounts and deletion audits. Unreferenced ZIPs after uncertain commits remain protected; retention/orphan cleanup belongs to M9 operations.
+
+## M10 Lab Scoreboard (Deferred)
+
+- Add a non-null lab visibility flag with a false default/backfill. Reuse official-result selection and stable task-library IDs across corrections; scoreboard links use the earliest counted attempt, not the newest **Best for review** attempt.
+- Add admin and participant scoreboard GET endpoints scoped by lab; return ordered task metadata, ranked student rows, marks, elapsed times, cell states and provisional indicators. Reuse existing session, enrollment, binding and no-store policies; deny participant reads while visibility is off.
+- Keep participant responses limited to public standings. Return counted submission IDs only for the authenticated student's cells; omit other students' submission IDs, sources, case data, network metadata and private notices server-side.
+- Add an admin visibility mutation using CSRF, lab version checks and archive edit protection; persist the flag, audit, announce and invalidate snapshots in one transaction. Existing result-detail authorization remains unchanged.
+- Reuse exact score comparison and summed displayed marks. Sum elapsed times at database timestamp precision before formatting; no rounding before ranking. Use consistent official-result snapshots and preserve atomic correction publication.
+- Add refresh-safe `/admin/labs/:labId/scoreboard` and `/labs/:labId/scoreboard` pages with one shared table; expose student navigation only when permitted. Clear standings on denial or visibility revocation and ignore stale requests.
+- Reuse lab/admin SSE subscriptions and coalesced invalidations. Publish lab-wide scoreboard invalidations on relevant acceptance, judging-state, official-result and review changes when visibility is enabled; reconnect/manual refresh fetch authoritative standings. No periodic polling or extra SSE subscription per task.
+- Verify ranking, timestamps, rounded totals, first-solve colors, pending/delayed states, deletion/restoration, frozen students, corrections, visibility/authentication boundaries, own-only links, routes and live updates with backend/frontend checks and a database gate.
 
 ## Security and Operations
 
