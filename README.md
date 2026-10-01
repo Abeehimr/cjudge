@@ -22,9 +22,31 @@ Requires Docker Compose, OpenSSL, and Node.js for local frontend checks.
 5. On first setup, run `docker compose run --rm api python -m cjudge.identity create-admin` and enter an admin password twice. The admin username is `admin`.
 6. Run `docker compose up -d web` and `sh scripts/smoke.sh`. Open `https://localhost:8443`; trust `certs/server.crt` in lab browsers before real use. The default certificate is self-signed.
 
-Only localhost ports 8080 and 8443 are published. To serve a LAN, change web port bindings, add the LAN hostname to `CJUDGE_ALLOWED_HOSTS`, set `CJUDGE_PUBLIC_ORIGIN` to the exact browser origin (including port), and create a certificate with that hostname/IP in its SAN list. Keep `api` and `db` private.
+Only localhost ports 8080 and 8443 are published by default. See LAN setup below to expose nginx; keep `api` and `db` private.
 
 Stop services with `docker compose down`. The PostgreSQL volume survives container recreation; `docker compose down --volumes` deletes it.
+
+## LAN setup
+
+1. Reserve the server's IPv4 address in DHCP or use a static IP. Find the current address with `ip -4 route`; use the LAN address, not a Docker bridge address. The example below uses `192.168.0.106`; replace it with your server address.
+2. Set these entries in `.env`:
+   ```dotenv
+   CJUDGE_BIND_ADDRESS=192.168.0.106
+   CJUDGE_ALLOWED_HOSTS=localhost,127.0.0.1,192.168.0.106
+   CJUDGE_PUBLIC_ORIGIN=https://192.168.0.106:8443
+   ```
+   `CJUDGE_BIND_ADDRESS=0.0.0.0` optionally listens on all IPv4 interfaces; a specific LAN address limits exposure. Login accepts the configured public origin only: admins on the server must use the LAN URL too.
+3. Generate the certificate with an IP SAN:
+   ```sh
+   sh scripts/create-cert.sh 192.168.0.106 'DNS:localhost,IP:127.0.0.1,IP:192.168.0.106'
+   docker compose up -d --force-recreate api web
+   sh scripts/smoke.sh https://192.168.0.106:8443 http://192.168.0.106:8080
+   ```
+   Certificate generation replaces the existing certificate/key. Keep a protected copy before replacement if you need rollback. Install only `certs/server.crt` as trusted in lab browsers/devices; never distribute `server.key`. Changed certificates require updated trust. No database migration is needed; volumes and workers remain unchanged.
+4. If a host firewall is enabled, allow TCP 8080/8443 from the lab subnet. Check Docker's published-port firewall behavior; do not rely on UFW alone to restrict Docker ports. Disable Wi-Fi client isolation on the lab network if it prevents devices reaching the server. Do not add router port forwarding.
+5. From another device, open `https://192.168.0.106:8443`. Check student/admin login and logout, lab entry, PDFs, uploads, live announcements, and recorded student IPs. Confirm API/database ports are not published. Repeat with internet disconnected but LAN connected.
+
+To return to local-only access, restore `CJUDGE_BIND_ADDRESS=127.0.0.1`, localhost host/origin settings, and the prior certificate (or generate a new localhost certificate), then recreate API/web. If DHCP changes the server IP, update the configuration, certificate, and client trust before the next lab.
 
 ## Checks
 
