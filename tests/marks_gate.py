@@ -103,11 +103,11 @@ def exercise(directory: str) -> None:
         assert flags[other_id] == {'ip_changed': False, 'mac_changed': False}
     print('PASS: migration backfill, exact best/ties, later CE, half-up marks, deleted evidence and pending versus zero')
 
-    def call(path, method='GET', body=None, student=False, csrf_value=csrf, authenticated=True):
+    def call(path, method='GET', body=None, student=False, csrf_value=csrf, authenticated=True, bound=True):
         headers = {'Origin': 'https://localhost:8443', 'X-CSRF-Token': csrf_value}
         if authenticated:
             headers['Cookie'] = f'cjudge_session={student_token if student else admin_token}'
-            if student:
+            if student and bound:
                 headers['Cookie'] += f'; cjudge_lab_{lab_id.hex}={binding}'
         payload = None
         if body is not None:
@@ -129,6 +129,52 @@ def exercise(directory: str) -> None:
             except URLError:
                 time.sleep(.1)
         else: raise AssertionError('M6 gate API did not start')
+        board_path = base + '/scoreboard'
+        public_board = f'/labs/{lab_id}/scoreboard'
+        visibility = board_path + '/visibility'
+        board = call(board_path)[1]
+        assert [row['roll_number'] for row in board['students']] == ['Ada', 'Other']
+        assert board['students'][0]['total'] == '2.33'
+        assert board['students'][0]['elapsed_us'] == 1_000_000
+        assert board['students'][0]['tasks'][0]['submission_id'] == str(first)
+        assert board['students'][1]['tasks'][0]['state'] == 'judging'
+        assert not call(base)[1]['scoreboard_visible']
+        assert call(board_path, authenticated=False)[0] == 401
+        assert call(board_path, student=True)[0] == 403
+        assert call(public_board, student=True)[0] == 403
+        version = call(base)[1]['version']
+        setting = {'version': version, 'visible': True}
+        assert call(visibility, 'PUT', setting, csrf_value='bad')[0] == 403
+        assert call(visibility, 'PUT', setting, student=True)[0] == 403
+        stale_setting = call(visibility, 'PUT', {**setting, 'version': version + 1})
+        assert stale_setting[0] == 409, stale_setting
+        assert call(visibility, 'PUT', setting)[0] == 200
+        assert call(public_board, student=True, bound=False)[0] == 423
+        stream_request = Request(f'http://127.0.0.1:8017/api/labs/{lab_id}/events', headers={
+            'Cookie': f'cjudge_session={student_token}; cjudge_lab_{lab_id.hex}={binding}'})
+        with urlopen(stream_request, timeout=5) as stream:
+            assert stream.readline().strip() == b'event: refresh'
+            assert stream.readline().strip() == b'data: {}'
+            assert stream.readline().strip() == b''
+            with identity.engine().begin() as conn:
+                queue.notify(conn, other_id, lab_id=lab_id)
+            assert stream.readline().strip() == b'event: refresh'
+            assert stream.readline().strip() == b'data: {}'
+        student_board = call(public_board, student=True)[1]
+        assert student_board['students'][0]['tasks'][0]['submission_id'] == str(first)
+        assert student_board['students'][1]['tasks'][0]['submission_id'] is None
+        assert not {'source', 'compiler_feedback', 'client_ip', 'client_mac', 'cases', 'run_id'} & set(student_board['students'][0]['tasks'][0])
+        assert call(f'/labs/{lab_id}/submissions/{first}/details', student=True)[0] == 403
+        with identity.engine().begin() as conn:
+            labs.freeze(conn, labs.find(conn, lab_id), student_id, True, 'Freeze test', admin_id)
+        assert call(public_board, student=True)[1]['students'][0]['total'] == '2.33'
+        with identity.engine().begin() as conn:
+            labs.freeze(conn, labs.find(conn, lab_id), student_id, False, 'Resume test', admin_id)
+        version = call(base)[1]['version']
+        assert call(visibility, 'PUT', {'version': version, 'visible': False})[0] == 200
+        assert call(public_board, student=True)[0] == 403
+        assert any('Scoreboard hidden' in notice['body'] for notice in call(base)[1]['announcements'])
+        print('PASS: scoreboard migration default, ranking, elapsed time, frozen marks, visibility/CSRF/version/binding gates and pre-release secrecy')
         assert call(base + '/marks', student=True)[0] == 403
         assert call(base + '/marks', authenticated=False)[0] == 401
         assert call(detail + '/review', 'PUT', {'deleted': True, 'reason': 'x'}, csrf_value='bad')[0] == 403
@@ -204,6 +250,10 @@ def exercise(directory: str) -> None:
             assert queue.finish(conn, 0, generation, active, dict(verdict='AC', passed=3, total=3,
                 score_numerator='7', score_denominator='1', compiler_feedback='', compiler_truncated=False, cases=[]))
             assert conn.execute(sa.select(store.reviews.c.run_id).where(store.reviews.c.submission_id == new['id'])).scalar_one() is None
+        staged_board = call(board_path)[1]
+        staged_marks = call(base + '/marks')[1]
+        assert {row['roll_number']: row['total'] for row in staged_board['students']} == {row['roll_number']: row['total'] for row in staged_marks}
+        assert all(row['pending'] for row in staged_board['students'])
         with identity.engine().begin() as conn:
             lab = labs.find(conn, lab_id)
             review.set_deleted(conn, lab, deleted, False, admin_id, 'Restore during correction')
@@ -258,6 +308,9 @@ def exercise(directory: str) -> None:
             assert scored_revisions == {revisions[1]}
             assert all(row['total'] == '7.00' and not row['pending'] for row in review.marks(conn, lab_id))
             assert files.read(review.find_submission(conn, lab_id, first)) == GOOD
+        published_board = call(board_path)[1]
+        assert all(row['total'] == '7.00' and not row['pending'] for row in published_board['students'])
+        assert sum(cell['state'] == 'first_solve' for row in published_board['students'] for cell in row['tasks']) == 1
         selected = call(detail)[1]
         if selected['cases']: assert selected['cases'][0]['stdin'] == '2 0\n'
         assert all(row['revision_id'] == str(revisions[1]) for row in call(student_path, student=True)[1])
@@ -284,6 +337,11 @@ def exercise(directory: str) -> None:
                 identity.audit_events.c.detail['lab_id'].as_string() == str(lab_id))).scalars())
             assert {'submission_deleted', 'submission_restored', 'submission_rejudge', 'submission_retry',
                 'task_correction', 'task_correction_published', 'lab_announcement_posted'} <= actions
+        with identity.engine().begin() as conn:
+            conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab_id).values(archived_at=labs.now(conn)))
+        version = call(base)[1]['version']
+        assert call(visibility, 'PUT', {'version': version, 'visible': True})[0] == 409
+        assert call(board_path)[0] == 200
         print('PASS: correction races, concurrent arrivals, restoration membership, infrastructure blocking, atomic recovery, immutable source and post-release corrections')
     finally:
         server.terminate(); server.wait(timeout=10)

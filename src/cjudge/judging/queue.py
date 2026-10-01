@@ -18,10 +18,12 @@ def scheduler_lock(conn: sa.Connection) -> None:
     conn.execute(sa.select(sa.func.pg_advisory_xact_lock(SCHEDULER_LOCK)))
 
 
-def notify(conn: sa.Connection, account_id: UUID | None = None) -> None:
+def notify(conn: sa.Connection, account_id: UUID | None = None, *, lab_id: UUID | None = None) -> None:
     events.publish(conn, lab_id=ADMIN_CHANNEL)
     if account_id:
         events.publish(conn, account_id=account_id)
+    if lab_id:
+        labs.scoreboard_notify(conn, lab_id)
 
 
 def register(conn: sa.Connection, slot: int, generation: UUID) -> None:
@@ -42,7 +44,7 @@ def worker_status(conn: sa.Connection, slot: int, generation: UUID, state: str, 
 
 
 def fail(conn: sa.Connection, attempt_id: UUID, fault: str, *, expired: bool = False) -> bool:
-    row = conn.execute(sa.select(jobs, submissions.c.account_id).join(submissions,
+    row = conn.execute(sa.select(jobs, submissions.c.account_id, submissions.c.lab_id).join(submissions,
         jobs.c.submission_id == submissions.c.id).where(jobs.c.attempt_id == attempt_id,
         jobs.c.state == 'judging').with_for_update(of=jobs)).mappings().first()
     if not row:
@@ -57,7 +59,7 @@ def fail(conn: sa.Connection, attempt_id: UUID, fault: str, *, expired: bool = F
         finished_at=timestamp, outcome='expired' if expired else 'fault', fault=fault))
     conn.execute(sa.update(jobs).where(jobs.c.submission_id == row['submission_id']).values(
         state='delayed' if row['attempt_count'] >= row['retry_until'] else 'queued', ready_at=timestamp))
-    notify(conn, row['account_id'])
+    notify(conn, row['account_id'], lab_id=row['lab_id'])
     conn.execute(sa.select(sa.func.pg_notify('cjudge_jobs', '')))
     return True
 
@@ -104,7 +106,7 @@ def claim(conn: sa.Connection, slot: int, generation: UUID) -> dict | None:
     conn.execute(sa.update(turns).where(turns.c.account_id == row['account_id']).values(claimed_at=timestamp))
     conn.execute(sa.update(workers).where(workers.c.slot == slot, workers.c.generation == generation).values(
         state='Judging', attempt_id=attempt_id, heartbeat_at=timestamp, fault=None))
-    notify(conn, row['account_id'])
+    notify(conn, row['account_id'], lab_id=row['lab_id'])
     return dict(row) | {'attempt_id': attempt_id, 'revision_id': row['judge_revision_id'] or row['revision_id']}
 
 
@@ -156,7 +158,7 @@ def finish(conn: sa.Connection, slot: int, generation: UUID, submission: dict, r
             .on_conflict_do_update(index_elements=['submission_id'], set_={'run_id': attempt_id}))
     conn.execute(sa.update(workers).where(workers.c.slot == slot, workers.c.generation == generation).values(
         state='Idle', attempt_id=None, completed=workers.c.completed + 1, heartbeat_at=timestamp, fault=None))
-    notify(conn, submission['account_id'])
+    notify(conn, submission['account_id'], lab_id=submission['lab_id'])
     return True
 
 
@@ -174,4 +176,4 @@ def retry(conn: sa.Connection, lab_id: UUID, submission_id: UUID, actor: UUID, r
                    detail={'lab_id': str(lab_id), 'submission_id': str(submission_id), 'reason': reason})
     conn.execute(sa.select(sa.func.pg_notify('cjudge_jobs', '')))
     labs.announce(conn, lab_id, f'Submission {submission_id} judging retry queued. Reason: {reason}', actor, row['account_id'])
-    notify(conn, row['account_id'])
+    notify(conn, row['account_id'], lab_id=lab_id)

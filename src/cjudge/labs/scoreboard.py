@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, Request
 from starlette.concurrency import run_in_threadpool
 
 from cjudge import identity, labs
-from cjudge.identity.api import admin, admin_write, no_store, StrictModel
-from cjudge.labs.api import student, student_access, transaction
+from cjudge.identity.api import admin, admin_write, no_store
+from cjudge.labs.api import student, student_access, transaction, VersionInput
 from cjudge.submissions import batches, reviews
 from cjudge.submissions.review import counted_submission, displayed, exact, official_query
 from cjudge.tasks.api import json_input
@@ -98,8 +98,7 @@ def student_scoreboard(lab_id: UUID, request: Request, account: dict = Depends(s
         return snapshot(conn, lab, account['id'])
 
 
-class VisibilityInput(StrictModel):
-    version: int
+class VisibilityInput(VersionInput):
     visible: bool
 
 

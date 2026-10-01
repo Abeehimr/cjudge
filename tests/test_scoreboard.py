@@ -11,7 +11,7 @@ STUDENTS = [dict(id=UUID(int=i), name=f'Student {i}', roll_number=f'R{i}') for i
 
 
 def attempt(key, student, task, score, seconds, *, state='complete', deleted=False):
-    value = Fraction(score)
+    value = Fraction(score or 0)
     return dict(id=UUID(int=key), account_id=UUID(int=student), task_id=UUID(int=task),
         run_id=UUID(int=key) if score is not None else None, score_numerator=str(value.numerator),
         score_denominator=str(value.denominator), accepted_at=START + timedelta(seconds=seconds),
@@ -59,3 +59,29 @@ def test_exact_selection_rounded_totals_and_unrounded_time():
     assert [row['elapsed_us'] for row in board['students']] == [1, 3]
     assert board['students'][1]['tasks'][0]['submission_id'] == UUID(int=11)
     assert standings([], [], [], set(), None) == {'tasks': [], 'students': []}
+
+
+def test_pending_without_result_is_not_graded_zero():
+    board = standings(TASKS, STUDENTS[:1], [attempt(10, 3, 1, None, 1, state='queued')], set(), START)
+    cell = board['students'][0]['tasks'][0]
+    assert cell['state'] == 'judging' and cell['marks'] is None
+    assert cell['submission_id'] is None and cell['elapsed_us'] is None
+    assert board['students'][0]['elapsed_us'] == 0
+
+
+def test_live_notifications_broadcast_only_when_enabled():
+    from unittest.mock import Mock, patch
+    from cjudge.judging.queue import notify, ADMIN_CHANNEL
+    conn = Mock()
+    account, lab = UUID(int=3), UUID(int=10)
+    with patch('cjudge.events.publish') as publish:
+        conn.execute.return_value.scalar_one.return_value = False
+        notify(conn, account, lab_id=lab)
+        assert publish.call_count == 2
+        publish.assert_any_call(conn, lab_id=ADMIN_CHANNEL)
+        publish.assert_any_call(conn, account_id=account)
+        publish.reset_mock()
+        conn.execute.return_value.scalar_one.return_value = True
+        notify(conn, account, lab_id=lab)
+        assert publish.call_count == 3
+        publish.assert_any_call(conn, lab_id=lab, account_id=None)

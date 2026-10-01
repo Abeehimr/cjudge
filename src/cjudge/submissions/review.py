@@ -20,7 +20,7 @@ def exact(row: dict) -> Fraction:
     return Fraction(int(row['score_numerator']), int(row['score_denominator']))
 
 
-def counted_submission(rows) -> dict | None:
+def counted_submission(rows: list[dict]) -> dict | None:
     scored = [row for row in rows if row['run_id'] is not None]
     return min(scored, key=lambda row: (-exact(row), row['accepted_at'], str(row['id']))) if scored else None
 
@@ -165,7 +165,7 @@ def set_deleted(conn: sa.Connection, lab: dict, submission_id: UUID, deleted: bo
     identity.audit(conn, 'submission_deleted' if deleted else 'submission_restored', actor, row['account_id'],
         detail={'lab_id': str(lab['id']), 'submission_id': str(submission_id), 'reason': reason})
     labs.announce(conn, lab['id'], f'Submission {submission_id} {"deleted from marks" if deleted else "restored"}. Reason: {reason}', actor, row['account_id'])
-    queue.notify(conn, row['account_id'])
+    queue.notify(conn, row['account_id'], lab_id=lab['id'])
 
 
 def rejudge(conn: sa.Connection, lab: dict, submission_id: UUID, actor: UUID, reason: str) -> None:
@@ -185,7 +185,7 @@ def rejudge(conn: sa.Connection, lab: dict, submission_id: UUID, actor: UUID, re
     identity.audit(conn, 'submission_rejudge', actor, row['account_id'],
         detail={'lab_id': str(lab['id']), 'submission_id': str(submission_id), 'reason': reason})
     labs.announce(conn, lab['id'], f'Submission {submission_id} queued for rejudge. Reason: {reason}', actor, row['account_id'])
-    queue.notify(conn, row['account_id'])
+    queue.notify(conn, row['account_id'], lab_id=lab['id'])
 
 
 def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, actor: UUID, reason: str, acknowledge_reuse: bool = False) -> UUID:
