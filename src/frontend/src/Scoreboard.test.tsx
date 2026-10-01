@@ -2,6 +2,7 @@ import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { renderRoute } from './testRouter';
 import { Scoreboard } from './Scoreboard';
+import { AdminLabs } from './AdminLabs';
 import { StudentLabs } from './StudentLabs';
 import type { PublicLab } from './Lab';
 
@@ -57,4 +58,28 @@ test('student deep link survives refresh and existing lab SSE updates revoke vis
   stream!.dispatchEvent(new Event('refresh'));
   await waitFor(() => expect(screen.queryByText('R1 · Ada')).toBeNull());
   expect(screen.queryByRole('link', { name: 'Scoreboard' })).toBeNull();
+});
+
+
+test('admin visibility toggle sends CSRF and version, and archived labs disable changes', async () => {
+  vi.stubGlobal('EventSource', class extends EventTarget { close = vi.fn(); });
+  let visible = false;
+  const adminLab = { ...lab, version: 3, strict_ip: false, first_released_at: null, students: [] };
+  const fetchMock = vi.fn().mockImplementation((path: string, options: RequestInit) => {
+    if (path.endsWith('/visibility')) { visible = true; return Promise.resolve(response(null)); }
+    return Promise.resolve(response(path.endsWith('/scoreboard') ? { tasks: [], students: [] } : { ...adminLab, scoreboard_visible: visible }));
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  renderRoute(<AdminLabs csrf="secret-csrf" />, '/admin/labs/lab/scoreboard');
+  fireEvent.click(await screen.findByRole('button', { name: 'Visible to participants: Off' }));
+  await screen.findByRole('button', { name: 'Visible to participants: On' });
+  const request = fetchMock.mock.calls.find(([path]) => path.endsWith('/visibility'))!;
+  expect(request[0]).toBe('/api/admin/labs/lab/scoreboard/visibility');
+  expect(JSON.parse(request[1].body)).toEqual({ version: 3, visible: true });
+  expect(request[1].headers['X-CSRF-Token']).toBe('secret-csrf');
+  cleanup();
+  fetchMock.mockImplementation((path: string) => Promise.resolve(response(path.endsWith('/scoreboard') ? { tasks: [], students: [] }
+    : { ...adminLab, scoreboard_visible: true, archived_at: '2026-01-01T03:00:00Z', phase: 'Archived' })));
+  renderRoute(<AdminLabs csrf="secret-csrf" />, '/admin/labs/lab/scoreboard');
+  expect((await screen.findByRole('button', { name: 'Visible to participants: On' })).hasAttribute('disabled')).toBe(true);
 });

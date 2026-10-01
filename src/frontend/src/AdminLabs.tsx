@@ -179,16 +179,6 @@ export function AdminLabs({ csrf }: { csrf: string }) {
         {moreOptions && <button onClick={() => setOptionOffset(optionOffset + 100)}>Load more task revisions</button>}
       </section>
       </>}
-      {section === 'scoreboard' && <>
-        <section className="rounded border bg-white p-4"><button aria-pressed={!!lab.scoreboard_visible} disabled={busy || !!lab.archived_at}
-          onClick={() => perform(async () => {
-            await api(`/admin/labs/${lab.id}/scoreboard/visibility`, { method: 'PUT', body: JSON.stringify({ version: lab.version, visible: !lab.scoreboard_visible }) }, csrf);
-            await reload();
-          })}>Visible to participants: {lab.scoreboard_visible ? 'On' : 'Off'}</button>
-          <p className="mt-2 text-sm">Enabling shows live marks and times before results release. Students can open only their own submissions.</p>
-        </section>
-        <AdminScoreboard lab={lab} refreshLab={() => reload()} />
-      </>}
       {section === "overview" && <>
       <section className="rounded border bg-white p-4"><h2 className="font-semibold">Schedule ({zone})</h2>
         {setupOpen ? <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("/schedule", "POST", {
@@ -259,16 +249,6 @@ export function AdminLabs({ csrf }: { csrf: string }) {
               {setupOpen && <button disabled={busy || !!lab?.archived_at} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?`)) void perform(async () => { await mutate(`/students/${member.id}?version=${lab.version}`, "DELETE"); if (studentId) setDestination(`/admin/labs/${lab.id}/students`); }); }}>Remove student</button>}
             </div></td></tr>)}</tbody></table></div>
       </section>
-      </>}
-      {section === 'scoreboard' && <>
-        <section className="rounded border bg-white p-4"><button aria-pressed={!!lab.scoreboard_visible} disabled={busy || !!lab.archived_at}
-          onClick={() => perform(async () => {
-            await api(`/admin/labs/${lab.id}/scoreboard/visibility`, { method: 'PUT', body: JSON.stringify({ version: lab.version, visible: !lab.scoreboard_visible }) }, csrf);
-            await reload();
-          })}>Visible to participants: {lab.scoreboard_visible ? 'On' : 'Off'}</button>
-          <p className="mt-2 text-sm">Enabling shows live marks and times before results release. Students can open only their own submissions.</p>
-        </section>
-        <AdminScoreboard lab={lab} refreshLab={() => reload()} />
       </>}
       {section === "overview" && <>
       <form onSubmit={(e) => { e.preventDefault(); void perform(async () => { await mutate("/announcements", "POST", { body: announcement }); setAnnouncement(""); }); }} className="rounded border bg-white p-4">
