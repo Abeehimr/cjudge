@@ -1,0 +1,18 @@
+# Disposable project only; reuse built images and forbid external container routing.
+services:
+  api:
+    image: cjudge-api
+    environment:
+      CJUDGE_ACCEPTANCE: '1'
+    volumes:
+      - ./tests:/app/tests:ro
+  web:
+    image: cjudge-web
+    ports: !reset []
+  worker:
+    image: cjudge-worker
+  key-init:
+    image: cjudge-api
+networks:
+  default:
+    internal: true
