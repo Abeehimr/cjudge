@@ -164,7 +164,7 @@ def benchmark(state: dict, report: dict, restart: Callable[[], None]) -> None:
         report['api'] = {name: dict(requests=len(values), p95_ms=round(percentile(values), 3)) for name, values in merged.items()}
         all_values = [value for values in merged.values() for value in values]
         report['api']['overall'] = dict(requests=len(all_values), p95_ms=round(percentile(all_values), 3))
-        print('API measurements complete', file=sys.stderr)
+        print(f'API measurements complete: overall p95={report["api"]["overall"]["p95_ms"]} ms', file=sys.stderr)
 
         start = time.monotonic()
         wall_start = time.time()
@@ -209,6 +209,7 @@ def benchmark(state: dict, report: dict, restart: Callable[[], None]) -> None:
         restart()
         admin.close()
         wait(healthy)
+        report.pop('last_readiness_error', None)
         for client in clients:
             client.close()
             client.connection = Connection()
@@ -248,6 +249,8 @@ def main() -> None:
             report['cpu_model'] = line.split(':', 1)[1].strip()
             break
     report['memory'] = Path('/proc/meminfo').read_text().splitlines()[0]
+    report['commit'] = command(['git', 'rev-parse', 'HEAD'], capture=True).strip()
+    report['tracked_changes'] = subprocess.run(['git', 'diff', '--quiet']).returncode != 0
     destination = Path(options.result)
     report['project'] = project
     destination.write_text(json.dumps(report, indent=2) + '\n')
@@ -255,6 +258,10 @@ def main() -> None:
         return command(compose + list(args), capture=capture, env=env)
     try:
         isolated = json.loads(dc('--profile', 'judging', 'config', '--format', 'json', capture=True))
+        report['images'] = {name: command(['docker', 'image', 'inspect', isolated['services'][name]['image'],
+            '--format', '{{.Id}}'], capture=True).strip() for name in ('api', 'web', 'worker')}
+        report['api_command'] = json.loads(command(['docker', 'image', 'inspect', isolated['services']['api']['image'],
+            '--format', '{{json .Config.Cmd}}'], capture=True))
         assert all(network.get('internal') for network in isolated['networks'].values())
         assert all(not isolated['services'][name].get('ports') for name in ('api', 'db', 'worker'))
         if stopped:
@@ -286,7 +293,12 @@ def main() -> None:
         report['fixture_hashes'] = [{key: program[key] for key in ('title', 'source_sha256', 'cases_sha256')}
             for program in state['programs']]
         report['grading_limits'] = dict(cpu_seconds=.2, wall_seconds=1, memory_mib=64, stack_mib=8, stdout_mib=1)
-        benchmark(state, report, lambda: dc('restart', 'api', 'web', 'worker'))
+        def restart() -> None:
+            global WEB_ADDRESS
+            dc('restart', 'api', 'web', 'worker')
+            WEB_ADDRESS = str(ipaddress.ip_address(dc('exec', '-T', 'api', 'python', '-c',
+                'import socket; print(socket.gethostbyname("web"))', capture=True).strip()))
+        benchmark(state, report, restart)
     except Exception as error:
         report['error'] = str(error)
         logs = dc('logs', '--tail', '200', 'api', capture=True)
