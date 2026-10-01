@@ -1,5 +1,6 @@
 """Separate student/admin submission contracts; live student results stay opaque."""
 from contextlib import contextmanager
+import logging
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -71,6 +72,7 @@ def transaction():
     except ValueError as exc:
         raise HTTPException(400, {'code': 'invalid_source', 'message': str(exc)}) from exc
     except (OSError, SQLAlchemyError) as exc:
+        logging.getLogger(__name__).warning('Transaction unavailable (%s)', type(exc).__name__)
         raise HTTPException(503, {'code': 'storage_unavailable', 'message': 'Acceptance unavailable; retry with the same key'}) from exc
 
 

@@ -1,7 +1,9 @@
 import asyncio
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import httpx
+import pytest
+from fastapi import HTTPException
 
 from cjudge.api import app
 
@@ -24,3 +26,14 @@ def test_ready_without_database_configuration() -> None:
 
     with patch.dict("os.environ", {}, clear=True):
         asyncio.run(check())
+
+
+def test_transaction_diagnostics_omit_private_error_contents(caplog) -> None:
+    from cjudge.submissions.api import transaction
+    with patch('cjudge.identity.engine', return_value=MagicMock()):
+        with pytest.raises(HTTPException) as error:
+            with transaction():
+                raise OSError('private source and credentials')
+    assert error.value.status_code == 503
+    assert 'Transaction unavailable (OSError)' in caplog.text
+    assert 'private source and credentials' not in caplog.text
