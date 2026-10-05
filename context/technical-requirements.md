@@ -1,6 +1,6 @@
 # Technical Requirements
 
-Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M10 automated checks pass; physical LAN/offline browser acceptance remains. See [acceptance-results.json](acceptance-results.json).
+Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M11–M16 are planned, not implemented. M0–M10 automated checks pass; physical LAN/offline browser acceptance remains. See [acceptance-results.json](acceptance-results.json).
 
 ## Stack and Storage
 
@@ -23,7 +23,7 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 
 ## Transactions and Interfaces
 
-- Enforce active-lab exclusion, acceptance time, cooldown, pending limits, deletion/restoration, and release gates under concurrency.
+- Enforce schedule exclusion (per student in M16), acceptance time, cooldown, pending limits, deletion/restoration, and release gates under concurrency.
 - Use authenticated API contracts for accounts, tasks, labs, submissions, results, operations, and exports. Define schemas, stable error codes, and upload retry/idempotency before implementation.
 - Snapshot `client_ip` and nullable `client_mac` with MAC source/observation time on durable submission acceptance; preserve the original values on retries and rejudges. Reuse trusted-proxy IP handling. Browsers cannot expose client MAC addresses; use a trusted LAN lookup/integration, never student-supplied values. MAC lookup depends on network topology and may be unavailable across routers, NAT, or Docker networking. Do not block acceptance on lookup failure; select the trusted source before implementing MAC capture.
 - Keep submission network metadata admin-only and retain it in lab archives. Compare IPs and available MACs across each student's lab submissions; missing MACs are not changes. DHCP, multiple interfaces, and MAC randomization mean differences suggest a PC switch rather than establish one.
@@ -31,7 +31,7 @@ Implements [product-requirements.md](product-requirements.md); [design.md](desig
 - Admin submission detail reads are scoped by lab and submission UUID, with no-store responses and escaped source/diagnostics. M8 authorizes student detail/source reads by ownership, binding, release, and current reveal state; no source or case detail is sent to students before release. Failed-case input/expected output and retained runs are available under the same gates.
 - Lab SSE carries invalidations via one PostgreSQL LISTEN connection per API process. Reconnect with an authoritative snapshot; coalesce notifications, revalidate revoked sessions, and send keepalives without database polling.
 - Anchor countdowns to server time and monotonic elapsed client time. Refresh on phase boundaries and tab visibility; no recurring health probes.
-- Use PostgreSQL range exclusion for nonoverlapping schedules, lab row locks/version checks for setup, and enrollment locks for binding and freeze policy. Submission admission in M5 must reuse these locks and policy.
+- Until M16, use global PostgreSQL range exclusion for schedules. M16 replaces it with concurrency-safe per-student overlap enforcement. Retain lab row locks/version checks for setup and enrollment locks for binding and freeze policy. Submission admission in M5 must reuse these locks and policy.
 - Limit lab PDFs to 10 active files, 20 MiB each; announcements to 4,000 characters; assignments to 100 revisions. Bindings last one year; default strict-IP mode off. Retain PDF versions in `lab_files`, with attachment/no-store/nosniff delivery.
 - Preserve previous official results during rejudge; publish replacement results/marks atomically. Handle concurrent submissions, new corrections, and deletion/restoration in the batch protocol.
 
@@ -89,7 +89,7 @@ Compare full permitted stdout before retaining previews. Bound stderr, temporary
 ## M8 Release and Exports
 
 - Stop now changes the deadline under the lab lock/version check using server time; keep accepted uploads and retries intact.
-- Preserve first release permanently and store current reveal separately. Active unresolved jobs/corrections block release and final exports; audited soft-deleted attempts do not block.
+- Preserve first release permanently and store current reveal separately. Active unresolved jobs/corrections block release and final exports; audited soft-deleted attempts do not block. M15 also excludes cancelled participation from release/export and correction publication gates.
 - Serialize scheduled test selection and disclosure checks. Require reuse acknowledgment before revealing or applying visible post-release corrections involving scheduled tests, including retained revisions.
 - Students read only their own active source/details after release with reveal enabled and valid binding. Retained grading runs are visible; infrastructure attempts/network metadata remain admin-only. Failed-case byte previews are capped at 64 KiB with truncation flags.
 - CSV uses official exact marks and counted-run percentages; neutralize untrusted formula-like text. XLSX is omitted; optional live scoreboards are implemented in M10.
@@ -108,6 +108,16 @@ Compare full permitted stdout before retaining previews. Bound stderr, temporary
 - Add refresh-safe `/admin/labs/:labId/scoreboard` and `/labs/:labId/scoreboard` pages with one shared table; expose student navigation only when permitted. Clear standings on denial or visibility revocation and ignore stale requests.
 - Reuse lab/admin SSE subscriptions and coalesced invalidations. Publish lab-wide scoreboard invalidations on relevant acceptance, judging-state, official-result and review changes when visibility is enabled; reconnect/manual refresh fetch authoritative standings. No periodic polling or extra SSE subscription per task.
 - Verify ranking, timestamps, rounded totals, first-solve colors, pending/delayed states, deletion/restoration, frozen students, corrections, visibility/authentication boundaries, own-only links, routes and live updates with backend/frontend checks and a database gate.
+
+## Planned Interfaces and Constraints — M11–M16
+
+- **M11:** reuse roster search and credential helpers. Add bounded, selected-ID bulk reset and CSV export; reset atomically after confirmation. Generate six-character `[a-z0-9]` student credentials with `secrets`; retain hashing, encrypted credential storage, and login throttling. Browser release, password rotation, session revocation, audit, and private announcement share one transaction. Credential responses are admin-only/no-store; CSV is formula-safe, with no persistent plaintext export.
+- **M12:** add active-account state and admin delete/deactivate/reactivate actions. Enforce activity on login, authenticated reads, and SSE; revoke sessions on deactivation. Check deletion eligibility transactionally and preserve audit identity snapshots rather than erasing audit history. Backfill existing accounts active; retain uniqueness for inactive roll numbers.
+- **M13:** reuse native disclosure controls and shared verdict styles. Preserve escaped text, server-side recipient filtering, and existing SSE invalidations; no new UI dependency or polling.
+- **M14:** persist a default-false lab setting with version-checked admin mutation, audit, announcement, and archive guard. Filter counts in student response models using the official run’s scoring revision. Return no hidden case/source fields; pending work has no invented counts. Refresh through existing SSE.
+- **M15:** add independent cancellation metadata to enrollment and reason-required admin actions. Serialize cancellation, admission, reinstatement, and result publication with existing lab/enrollment locks. Do not mass-soft-delete submissions. Reuse one eligibility rule for marks, scoreboard/first-solve, final CSV, release, and correction gates; preserve excluded evidence in archives. Cancelled work may finish but cannot delay eligible batch publication. Reinstatement reconciles completed/in-flight work against the current correction target, queues missing work, and remains provisional until current results publish; stale runs cannot become counted results. Include cancellation in archive snapshots/evidence validation and fence excluded unfinished jobs at archive.
+- **M16:** migrate away from global `no_lab_overlap`. Reuse scheduling/disclosure serialization with a shared per-student `[start, end)` conflict check covering enrollment/import and all schedule mutations. Check and write in one transaction so competing requests cannot both pass. Fail conflicting imports atomically, identify the conflicting student/lab/time, and preserve binding/disclosure protections. Keep the shared worker pool and global per-student fair queue.
+- All new mutations require admin authorization, CSRF, audit, and existing concurrency/version protections. Extend existing APIs/types; do not add services. Each module migrates safely from the current schema without requiring other planned modules.
 
 ## Security and Operations
 
@@ -130,7 +140,7 @@ Use pytest, Vitest, and disposable-database module gates; no coverage threshold 
 - Per-lab binding, same-IP token loss, strict-mode rejection, and session revocation work.
 - Compiler subprocesses succeed while student fork/network/answer access fail. CPU, wall-time, memory, output, and storage exhaustion are bounded; cases cannot contaminate each other.
 - Incorrect stdout beyond the retained preview still fails checking. Malformed ZIPs and generator failures cannot publish incomplete tasks.
-- Worker crashes recover; stale workers cannot overwrite results. Rejudge publication never mixes revisions, including concurrent arrivals/deletions, and unresolved work blocks release.
+- Worker crashes recover; stale workers cannot overwrite results. Rejudge publication never mixes revisions, including concurrent arrivals/deletions, and unresolved counted work blocks release (M15 excludes cancelled participation).
 - UI and mark sheets agree; archives include deleted evidence and export never deletes a lab.
 - Multiple lab PDFs display/download correctly; missing task Markdown is valid. Test Markdown HTML/script-link rejection, pre-start access denial, and both statement formats in archives.
 - Core flows work offline, including SSE reconnection. Benchmark the product targets with documented hardware, worker count, endpoint mix, fixtures, and separate timeout-heavy results.

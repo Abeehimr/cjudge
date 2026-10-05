@@ -109,3 +109,62 @@ Rules: [product-requirements.md](product-requirements.md#m10-lab-scoreboard). In
 Evidence: 33 backend tests, 48 frontend tests, frontend build, and expanded `tests/marks_gate.py` including migration defaults, permission/binding/CSRF/version gates, real cross-participant SSE, frozen marks, and correction publication parity.
 
 Admin-guide capture: Scoreboard navigation, participant toggle off/on, sorted totals/times, shaded task boxes with legend, and a counted-submission link.
+
+## Planned Improvements
+
+M11–M16 are approved, unimplemented, and independent of one another. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
+
+## M11 — Roster and Credentials · requires M2, M4
+
+- [ ] Add roster search, accessible row selection, visible-row select-all, and explicit selected counts.
+- [ ] Add confirmed atomic bulk password reset and selected-student CSV credentials.
+- [ ] Generate new/reset student passwords using six random lowercase letters/digits; retain existing passwords.
+- [ ] Make browser release reset the global password, revoke sessions, and return the new credential.
+- [ ] **Test:** filtered selection, nested controls, keyboard access, atomic reset, admin-only/no-store exports, CSV safety, session revocation, and no credential logging.
+- [ ] **Gate:** identity/binding checks pass; stop for review.
+
+## M12 — Account Lifecycle · requires M2, M4, M8
+
+- [ ] Add active-account state, inactive filtering, and session/access enforcement.
+- [ ] Delete only accounts without enrollment/submission history; preserve audit identity snapshots.
+- [ ] Deactivate accounts with history; preserve marks/evidence and reserve roll numbers.
+- [ ] Reactivate with a new password; imports cannot silently reactivate accounts.
+- [ ] **Test:** eligibility races, audit retention, login/SSE revocation, reactivation, import conflicts, and unchanged marks/history.
+- [ ] **Gate:** account lifecycle and retained-history checks pass; stop for review.
+
+## M13 — Interface Readability · requires M4, M8
+
+- [ ] Show the latest announcement; collapse older messages with native controls.
+- [ ] Shade frozen roster rows muted yellow; preserve status text and task-box colors.
+- [ ] Shade admin/released-student testcase verdicts: AC green, WA/RE red, resource limits yellow.
+- [ ] **Test:** announcement order/privacy/live updates, keyboard use, verdict colors, and release-gated evidence.
+- [ ] **Gate:** frontend checks/build and disclosure checks pass; stop for review.
+
+## M14 — Optional Early Feedback · requires M4, M6, M8
+
+- [ ] Add a default-off per-lab passed/total toggle with version checks, audit, announcement, and archive protection.
+- [ ] Expose official counts server-side only for partial-scoring tasks when enabled.
+- [ ] Render pending/provisional states; keep source, cases, and streams release/reveal-gated.
+- [ ] **Test:** defaults, toggle authorization, scoring revisions, pending/rejudge states, SSE refresh, and hidden-data protection.
+- [ ] **Gate:** backend/frontend and database disclosure checks pass; stop for review.
+
+## M15 — Reversible Lab Cancellation · requires M4, M6, M8, M10
+
+- [ ] Add audited cancellation/reinstatement until archive, with private reasons/announcements and read-only student access.
+- [ ] Exclude cancellation from marks/ranks/first-solve; add muted red unranked scoreboard rows and status in CSV/archive evidence.
+- [ ] Preserve accepted judging but exclude cancelled-only unfinished work from release/correction gates.
+- [ ] Reconcile current-revision judging on reinstatement; retain provisional state until resolved.
+- [ ] Preserve enrollment reservation and independent account/freeze/deletion states; never grant time or reopen released labs.
+- [ ] **Test:** admission/publication races, delayed cancelled work, reinstatement after corrections/release, first-solve recalculation, private reasons, exports, and archive restrictions.
+- [ ] **Gate:** grading/release/scoreboard database checks pass; stop for review.
+
+## M16 — Concurrent Labs · requires M4, M5, M8
+
+- [ ] Replace global schedule exclusion with transaction-safe per-student conflicts.
+- [ ] Cover enrollment/import, scheduling, start-now, extensions, and reopening; identify conflicting student/lab/time.
+- [ ] Allow adjacent schedules and disjoint concurrent rosters; retain cancelled/deactivated enrollment reservations when those features exist.
+- [ ] Reuse the shared sandbox pool/fair queue; retain the 150-total-user benchmark baseline without a lab-count cap.
+- [ ] **Test:** competing enrollment/scheduling, atomic import rejection, adjacent/draft schedules, cross-lab access/disclosure, and worker fairness.
+- [ ] **Gate:** scheduling database checks and a concurrent-lab run at 150 total users pass; record measured performance and stop for review.
+
+Integration when applicable: verify deactivation plus cancellation, credential resets across concurrent labs, and early-feedback/release boundaries together. Preserve the outstanding M9 physical LAN/offline gate; higher capacity remains unverified.

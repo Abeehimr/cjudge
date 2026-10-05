@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M10 are implemented; physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M11–M16 are planned, not implemented. M0–M10 are implemented; physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -24,7 +24,7 @@ Suggested backend boundaries: identity, tasks, labs, submissions, judging, resul
 
 ## Screens
 
-Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use a light theme and native form controls: consistent blue buttons, yellow notices/announcements, and red frozen/blocked states or errors. Keep labels and visible focus; do not rely on color alone. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.
+Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use a light theme and native form controls: consistent blue buttons, yellow notices/announcements, and red blocked states or errors. M13 changes frozen roster rows to muted yellow; M15 uses muted red for cancelled rows. Keep labels and visible focus; do not rely on color alone. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.
 
 | Student | Admin |
 | --- | --- |
@@ -40,7 +40,7 @@ Keep the student path short: read, upload, check status. Explain disabled upload
 
 Store PDFs on the lab, not individual tasks. List all lab PDFs on the dashboard and link back to them from task pages. Omit empty task statements; render provided Markdown safely. Hide both document types until the lab starts.
 
-Use readable layouts, labeled controls, keyboard-accessible navigation, visible focus, and text alongside status colors. Keep tables usable on narrow screens. Render source and diagnostics as escaped monospace text. Bundle assets locally. Preserve cJudge's grading and visibility rules: student submission views expose no partial marks or hidden cases before release; admin may separately enable live scoreboard standings.
+Use readable layouts, labeled controls, keyboard-accessible navigation, visible focus, and text alongside status colors. Keep tables usable on narrow screens. Render source and diagnostics as escaped monospace text. Bundle assets locally. Preserve cJudge's grading and visibility rules: student submission views hide partial marks and cases before release by default; M14 optionally exposes partial-task passed/total counts; admin may separately enable live scoreboard standings.
 
 Confirm destructive or grading-changing admin actions and show their effects. Collect required audit reasons. Separate archive download from permanent deletion.
 
@@ -90,6 +90,14 @@ Submissions retain immutable evidence. `submission_reviews` holds deletion state
 Generation uses the existing worker pool after submission/rejudge work. Each seed checkpoints one case and yields. Admins preview staged results and explicitly append to cases in an unchanged draft; publication remains a separate immutable operation. Python checker helpers run in a separate checker sandbox with input, complete output, and answer bytes.
 
 SSE prompts state refresh. Reconnect by fetching authoritative state; a dropped connection does not change grades or deadlines. Never show upload success without a confirmed submission record.
+
+## Planned Improvements — M11–M16
+
+- **Accounts:** extend the existing roster with search, row selection, selected credential actions, and active/inactive filtering. Explain global session revocation before reset/browser release. Keep account lifecycle separate from per-lab penalties.
+- **Lab pages:** keep the newest announcement visible with older messages collapsed. Add early-feedback settings to overview and cancellation/reinstatement controls to student detail. Show status text with muted row/verdict colors; retain task-box grading colors.
+- **Data:** add account activity, enrollment cancellation metadata, and a default-off early-feedback setting. Preserve immutable submissions and independent freeze/deletion states. Cancelled scoreboard rows remain visible but unranked; reasons never enter public standings.
+- **Flows:** cancellation excludes participation from counting and publication gates without deleting evidence. Reinstatement reconciles current grading before final results. Account deactivation independently revokes access and preserves marks.
+- **Scheduling:** replace global overlap exclusion with per-student conflict checks across every enrollment/schedule mutation. Keep one shared sandbox pool and fair queue; no additional service or queue partition.
 
 ## Delivery Order
 
