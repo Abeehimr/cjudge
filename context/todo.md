@@ -112,7 +112,7 @@ Admin-guide capture: Scoreboard navigation, participant toggle off/on, sorted to
 
 ## Planned Improvements
 
-M11–M12 are implemented; M13–M16 remain planned and independent. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
+M11–M13 are implemented; M14–M16 remain planned and independent. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
 
 ## M11 — Roster and Credentials · requires M2, M4
 
@@ -138,11 +138,13 @@ Evidence: 33 backend tests, 53 frontend tests and build, disposable-database lab
 
 ## M13 — Interface Readability · requires M4, M8
 
-- [ ] Show the latest announcement; collapse older messages with native controls.
-- [ ] Shade frozen roster rows muted yellow; preserve status text and task-box colors.
-- [ ] Shade admin/released-student testcase verdicts: AC green, WA/RE red, resource limits yellow.
-- [ ] **Test:** announcement order/privacy/live updates, keyboard use, verdict colors, and release-gated evidence.
-- [ ] **Gate:** frontend checks/build and disclosure checks pass; stop for review.
+- [x] Show the latest announcement; collapse older messages with native controls.
+- [x] Shade frozen roster rows muted yellow; preserve status text and task-box colors.
+- [x] Shade admin/released-student testcase verdicts: AC green, WA/RE red, resource limits yellow.
+- [x] **Test:** announcement order/privacy/live updates, keyboard use, verdict colors, and release-gated evidence.
+- [x] **Gate:** frontend checks/build and disclosure checks pass; stop for review.
+
+Evidence: 55 frontend tests, frontend build, disposable-database release gate.
 
 ## M14 — Optional Early Feedback · requires M4, M6, M8
 
