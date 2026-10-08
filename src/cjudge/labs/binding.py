@@ -74,11 +74,13 @@ def access(conn: sa.Connection, lab: dict, account_id: UUID, session_token: str 
 
 
 def release(conn: sa.Connection, lab: dict, account_id: UUID, reason: str, actor: UUID) -> dict:
-    labs.enrollment(conn, lab['id'], account_id)
     active = identity.checked_cipher(conn)
     student = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number,
-        identity.accounts.c.name).where(identity.accounts.c.id == account_id,
+        identity.accounts.c.name, identity.accounts.c.active).where(identity.accounts.c.id == account_id,
         identity.accounts.c.role == 'student').with_for_update()).mappings().one()
+    if not student['active']:
+        raise labs.LabError(409, 'Inactive student account; reactivate it first')
+    labs.enrollment(conn, lab['id'], account_id)
     password = identity.rotate_student_password(conn, account_id, active)
     conn.execute(sa.update(labs.enrollments).where(labs.enrollments.c.lab_id == lab['id'],
         labs.enrollments.c.account_id == account_id).values(binding_hash=None, bound_ip=None, last_ip=None,

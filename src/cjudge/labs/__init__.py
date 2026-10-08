@@ -221,10 +221,13 @@ def enroll(conn: sa.Connection, lab: dict, ids: list[UUID], actor: UUID) -> dict
     from sqlalchemy.dialects.postgresql import insert
     if len(ids) != len(set(ids)):
         raise LabError(400, 'Duplicate student selection')
-    found = conn.execute(sa.select(identity.accounts.c.id).where(identity.accounts.c.id.in_(ids),
-                                                               identity.accounts.c.role == 'student')).all()
+    found = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.active).where(
+        identity.accounts.c.id.in_(ids), identity.accounts.c.role == 'student')
+        .order_by(identity.accounts.c.id).with_for_update(read=True)).all()
     if len(found) != len(ids):
         raise LabError(404, 'Student not found')
+    if any(not row.active for row in found):
+        raise LabError(409, 'Inactive student account; reactivate it before enrollment')
     if ids:
         for key in ids:
             conn.execute(insert(enrollments).values(lab_id=lab['id'], account_id=key).on_conflict_do_nothing())

@@ -318,6 +318,77 @@ def api_checks(admin_id, student_id, revision_id):
             else:
                 raise AssertionError('Revoked live connection stayed authorized')
             stream.close()
+            unused_status, unused, _ = call('/admin/students', 'POST', {'roll_number': 'UNUSED', 'name': 'Unused'})
+            assert unused_status == 201 and unused['active']
+            unused_path = '/admin/students/' + unused['id']
+            assert call(unused_path + '/remove', 'POST', {'reason': 'Mistake'}, role='outsider')[0] == 403
+            assert call(unused_path + '/remove', 'POST', {'reason': 'Mistake'}, token='wrong')[0] == 403
+            assert call(unused_path + '/remove', 'POST', {'reason': ' '})[0] == 400
+            status, removed, _ = call(unused_path + '/remove', 'POST', {'reason': 'Mistake'})
+            assert status == 200 and removed['outcome'] == 'deleted', (status, removed)
+            assert call(unused_path + '/reactivate', 'POST')[0] == 404
+            with identity.engine().connect() as conn:
+                assert conn.execute(sa.select(identity.accounts.c.id).where(identity.accounts.c.id == unused['id'])).first() is None
+                events = [event for event in conn.execute(sa.select(identity.audit_events)).mappings()
+                    if (event['detail'] or {}).get('deleted_account', {}).get('id') == unused['id']]
+                assert any(event['action'] == 'student_created' and event['subject_id'] is None for event in events)
+                assert any(event['action'] == 'student_deleted' and event['detail']['reason'] == 'Mistake' for event in events)
+            assert call('/admin/students', 'POST', {'roll_number': 'UNUSED', 'name': 'Reused'})[0] == 201
+            _, race_student, _ = call('/admin/students', 'POST', {'roll_number': 'RACE', 'name': 'Race'})
+            _, race_lab, _ = call('/admin/labs', 'POST', {'title': 'Race lab'})
+            with ThreadPoolExecutor(2) as pool:
+                removal = pool.submit(call, '/admin/students/' + race_student['id'] + '/remove', 'POST', {'reason': 'Race'})
+                admission = pool.submit(call, '/admin/labs/' + race_lab['id'] + '/students', 'POST',
+                    {'version': race_lab['version'], 'ids': [race_student['id']]})
+                removed_status, race_result, _ = removal.result()
+                admitted_status, _, _ = admission.result()
+            assert (removed_status, admitted_status) in ((200, 200), (200, 404))
+            assert race_result['outcome'] == ('deactivated' if admitted_status == 200 else 'deleted')
+            with identity.engine().begin() as conn:
+                conn.execute(sa.insert(identity.sessions).values(token_hash=identity.token_digest(cookies['student']),
+                    account_id=student_id, csrf_token=csrf, expires_at=labs.now(conn) + timedelta(hours=8)))
+            assert call('/auth/session', role='student')[0] == 200
+            status, _, headers = call(student_path + '/enter', 'POST', role='student')
+            assert status == 200
+            binding = headers['Set-Cookie'].split(';', 1)[0]
+            stream = open_events()
+            assert b'event: refresh' in read_event(stream)
+            student_account_path = '/admin/students/' + str(student_id)
+            status, removed, _ = call(student_account_path + '/remove', 'POST', {'reason': 'Left class'})
+            assert status == 200 and removed['outcome'] == 'deactivated'
+            assert call('/auth/session', role='student')[0] == 401
+            assert call('/auth/student/login', 'POST', {'identifier': 'GATE', 'password': credential['password']}, role=None)[0] == 401
+            for _ in range(20):
+                if b'event: denied' in read_event(stream):
+                    break
+            else:
+                raise AssertionError('Deactivated live connection stayed authorized')
+            stream.close()
+            assert all(row['id'] != str(student_id) for row in call('/admin/students')[1])
+            assert any(row['id'] == str(student_id) for row in call('/admin/students?state=inactive')[1])
+            assert call(student_account_path + '/reset', 'POST')[0] == 409
+            assert call('/admin/students/credentials', 'POST', {'ids': [str(student_id)]})[0] == 409
+            assert call('/admin/students/reset', 'POST', {'ids': [str(student_id)]})[0] == 409
+            assert call(path + '/students', 'POST', {'version': lab['version'], 'ids': [str(student_id)]})[0] == 409
+            assert call('/admin/students/import', 'POST', b'roll_number,name\nGATE,Student\n', content_type='text/csv')[0] == 400
+            with identity.engine().connect() as conn:
+                assert conn.execute(sa.select(labs.enrollments.c.account_id).where(
+                    labs.enrollments.c.account_id == student_id)).first()
+                bindings = conn.execute(sa.select(labs.enrollments.c.binding_hash).where(
+                    labs.enrollments.c.account_id == student_id)).fetchall()
+                assert len(bindings) >= 2 and all(value is None for (value,) in bindings)
+            status, renewed, headers = call(student_account_path + '/reactivate', 'POST')
+            assert status == 200 and renewed['active'] and len(renewed['password']) == 6
+            assert headers['Cache-Control'] == 'no-store' and renewed['password'] != credential['password']
+            assert call('/auth/student/login', 'POST', {'identifier': 'GATE', 'password': renewed['password']}, role=None)[0] == 200
+            assert call(student_account_path + '/reactivate', 'POST')[0] == 409
+            assert any(row['id'] == str(student_id) for row in call('/admin/students')[1])
+            with identity.engine().connect() as conn:
+                password_hash = conn.execute(sa.select(identity.accounts.c.password_hash).where(
+                    identity.accounts.c.id == student_id)).scalar_one()
+                assert identity.verify_password(password_hash, renewed['password'])
+                assert not identity.verify_password(password_hash, credential['password'])
+            print('PASS: account deletion/deactivation, audit retention, inactive access, and reactivation')
             print('PASS: live announcements, reconnect refresh, bounded invalidations, revoked SSE access')
             print('PASS: HTTP roles/CSRF, pre-start secrecy, PDF authorization, freeze, setup locks, extensions/reopen/release guards')
         finally:

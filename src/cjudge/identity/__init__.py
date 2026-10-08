@@ -219,9 +219,11 @@ def import_student_rows(conn: sa.Connection, rows: list[tuple[str, str]]) -> dic
     mismatched: list[str] = []
     active = checked_cipher(conn)
     for roll, name in rows:
-        present = conn.execute(sa.select(accounts.c.id, accounts.c.name)
-                               .where(accounts.c.roll_number == roll)).first()
+        present = conn.execute(sa.select(accounts.c.id, accounts.c.name, accounts.c.active)
+                               .where(accounts.c.roll_number == roll).with_for_update(read=True)).first()
         if present:
+            if not present.active:
+                raise ValueError(f'Student {roll} is inactive; reactivate the account first')
             existing.append(roll)
             if present.name != name:
                 mismatched.append(roll)
@@ -237,8 +239,11 @@ def import_student_rows(conn: sa.Connection, rows: list[tuple[str, str]]) -> dic
                 created.append(roll)
             else:
                 existing.append(roll)
-                present = conn.execute(sa.select(accounts.c.name).where(accounts.c.roll_number == roll)).scalar_one()
-                if present != name:
+                present = conn.execute(sa.select(accounts.c.name, accounts.c.active)
+                    .where(accounts.c.roll_number == roll).with_for_update(read=True)).one()
+                if not present.active:
+                    raise ValueError(f'Student {roll} is inactive; reactivate the account first')
+                if present.name != name:
                     mismatched.append(roll)
     return {"created": created, "existing": existing, "name_mismatches": mismatched}
 
@@ -277,7 +282,7 @@ def authenticate(role: str, identifier: str, password: str) -> tuple[dict, str] 
             query = query.where(accounts.c.roll_number == normalized)
         elif identifier.strip().lower() != "admin":
             query = query.where(accounts.c.name == "")
-        account = conn.execute(query).mappings().first()
+        account = conn.execute(query.with_for_update(read=True)).mappings().first()
         if not verify_password(account["password_hash"] if account else dummy_hash(), password):
             conn.execute(sa.update(login_attempts).where(login_attempts.c.identifier == throttle_key)
                          .values(failures=failures + 1))
