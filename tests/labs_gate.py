@@ -192,7 +192,7 @@ def api_checks(admin_id, student_id, revision_id):
             '--port', '8012', '--no-proxy-headers'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         def call(path, method='GET', body=None, role='admin', binding=None, content_type='application/json', token=csrf, ip='192.0.2.1'):
             data = json.dumps(body).encode() if body is not None and content_type == 'application/json' else body
-            headers = {'Origin': 'https://localhost:8443', 'X-CSRF-Token': token, 'Content-Type': content_type, 'X-Real-IP': ip}
+            headers = {'Origin': os.getenv('CJUDGE_PUBLIC_ORIGIN', 'https://localhost:8443'), 'X-CSRF-Token': token, 'Content-Type': content_type, 'X-Real-IP': ip}
             if role:
                 headers['Cookie'] = 'cjudge_session=' + cookies[role] + ('; ' + binding if binding else '')
             try:

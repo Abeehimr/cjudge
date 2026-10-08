@@ -1,6 +1,7 @@
 """Run with: docker compose run --rm -v ./tests:/app/tests:ro api python tests/identity_gate.py"""
 
 import json
+import os
 import secrets
 import threading
 import tempfile
@@ -15,7 +16,7 @@ from cjudge import identity as store
 
 
 BASE = "http://api:8000/api"
-ORIGIN = "https://localhost:8443"
+ORIGIN = os.getenv("CJUDGE_PUBLIC_ORIGIN", "https://localhost:8443")
 
 
 def call(path, method="GET", body=None, cookie=None, csrf=None, content_type="application/json", origin=ORIGIN):
