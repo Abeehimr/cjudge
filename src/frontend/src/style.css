@@ -75,3 +75,4 @@ a:not([download]):not(.nav-link) { @apply text-blue-800 underline underline-offs
 tr[data-best="true"] { @apply bg-green-50; }
 
 tr[data-deleted="true"] { @apply bg-red-50; }
+tr[data-frozen="true"] { @apply bg-amber-50; }

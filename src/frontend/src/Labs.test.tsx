@@ -87,6 +87,18 @@ test('admin student page isolates controls and filters history to the student', 
   expect(screen.queryByLabelText('Student roll number')).toBeNull();
 });
 
+test('frozen enrollment shades its row and keeps the reason visible', async () => {
+  live();
+  const member = { id: 'student', roll_number: '001A', name: 'Ada', frozen: true, freeze_reason: 'Review required',
+    bound_at: null, bound_ip: null, last_ip: null, ip_changed: false };
+  const lab = { ...summary, version: 1, strict_ip: false, first_released_at: null, tasks: [], pdfs: [], students: [member], announcements: [] };
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path === '/api/admin/labs/lab' ? lab : [] })));
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students');
+  expect((await screen.findByText('Frozen · Review required')).closest('tr')?.getAttribute('data-frozen')).toBe('true');
+  expect(screen.getByText('Frozen · Review required').className).toContain('notice-warning');
+});
+
 test('browser release shows replacement password to admin', async () => {
   live();
   const member = { id: 'student', roll_number: '001A', name: 'Ada', frozen: false, freeze_reason: null,
