@@ -3,7 +3,7 @@ import { api } from "./api";
 import { useUnsaved } from "./navigation";
 import { useSearchParams } from "react-router";
 
-type Student = { id: string; roll_number: string; name: string };
+type Student = { id: string; roll_number: string; name: string; active: boolean };
 type Credential = Student & { password: string };
 type ImportResult = { created: string[]; existing: string[]; name_mismatches: string[] };
 
@@ -22,6 +22,8 @@ export default function Accounts({ csrf }: { csrf: string }) {
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [params, setParams] = useSearchParams();
   const search = params.get("search") || "";
+  const state = params.get("state") || "active";
+  const rosterUrl = `/admin/students?search=${encodeURIComponent(search)}&state=${state}`;
   const [busy, setBusy] = useState(false);
   const [roll, setRoll] = useState("");
   const [name, setName] = useState("");
@@ -34,11 +36,11 @@ export default function Accounts({ csrf }: { csrf: string }) {
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      void api<Student[]>(`/admin/students?search=${encodeURIComponent(search)}`, { signal: controller.signal })
+      void api<Student[]>(rosterUrl, { signal: controller.signal })
         .then(setStudents).catch((e) => { if (!controller.signal.aborted) showError(e.message); });
     }, search ? 200 : 0);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [search]);
+  }, [rosterUrl]);
   function toggle(id: string) {
     setSelected((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]);
   }
@@ -50,7 +52,7 @@ export default function Accounts({ csrf }: { csrf: string }) {
       const student = await api<Student>("/admin/students", {
         method: "POST", body: JSON.stringify({ roll_number: roll, name }),
       }, csrf);
-      setStudents((rows) => search && !`${student.roll_number} ${student.name}`.toLowerCase().includes(search.toLowerCase())
+      setStudents((rows) => state === "inactive" || search && !`${student.roll_number} ${student.name}`.toLowerCase().includes(search.toLowerCase())
         ? rows : [...rows, student].sort((a, b) => a.roll_number.localeCompare(b.roll_number)).slice(0, 500));
       setRoll(""); setName(""); setMessage(`${student.roll_number} created. Select account to show credentials.`);
     } catch (error) { showError((error as Error).message); }
@@ -61,7 +63,7 @@ export default function Accounts({ csrf }: { csrf: string }) {
     setCredentials([]);
     try {
       const result = await api<ImportResult>("/admin/students/import", { method: "POST", body: file }, csrf);
-      setStudents(await api<Student[]>(`/admin/students?search=${encodeURIComponent(search)}`));
+      setStudents(await api<Student[]>(rosterUrl));
       setMessage(`${result.created.length} created; ${result.existing.length} existing. Name mismatches: ${result.name_mismatches.join(", ") || "none"}.`);
     } catch (error) { showError((error as Error).message); }
   }
@@ -124,6 +126,31 @@ export default function Accounts({ csrf }: { csrf: string }) {
     } catch (error) { showError((error as Error).message); }
   }
 
+  async function removeStudent(student: Student) {
+    const reason = prompt(`Remove ${student.roll_number}? Unused accounts are deleted; accounts with lab history become inactive. Enter a reason:`);
+    if (reason === null) return;
+    setCredentials([]);
+    try {
+      const result = await api<{ outcome: "deleted" | "deactivated" }>(`/admin/students/${student.id}/remove`, {
+        method: "POST", body: JSON.stringify({ reason }),
+      }, csrf);
+      setSelected((ids) => ids.filter((id) => id !== student.id));
+      setStudents(await api<Student[]>(rosterUrl));
+      setMessage(`${student.roll_number} ${result.outcome}.`);
+    } catch (error) { showError((error as Error).message); }
+  }
+
+  async function reactivateStudent(student: Student) {
+    if (!confirm(`Reactivate ${student.roll_number} with a new password?`)) return;
+    setCredentials([]);
+    try {
+      const credential = await api<Credential>(`/admin/students/${student.id}/reactivate`, { method: "POST" }, csrf);
+      setStudents(await api<Student[]>(rosterUrl));
+      setCredentials([credential]);
+      setMessage("Account reactivated. Print or save the new credential now.");
+    } catch (error) { showError((error as Error).message); }
+  }
+
   return <> <div className="space-y-6">
         <h1 className="text-xl font-semibold">Students</h1>
         <section className="no-print rounded border bg-white p-4">
@@ -142,19 +169,23 @@ export default function Accounts({ csrf }: { csrf: string }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-semibold">Global accounts (showing {students.length}, selected {selected.length})</h2>
             <div className="flex flex-wrap gap-2">
-              <button className="rounded border px-3 py-1 disabled:opacity-50" disabled={!selected.length || selected.length > 200 || busy} onClick={showCredentials}>Show selected credentials</button>
-              <button className="rounded border px-3 py-1 disabled:opacity-50" disabled={!selected.length || selected.length > 200 || busy} onClick={downloadCredentials}>Download selected CSV</button>
-              <button className="rounded border px-3 py-1 disabled:opacity-50" disabled={!selected.length || selected.length > 200 || busy} onClick={resetSelected}>Reset selected passwords</button>
+              <button className="rounded border px-3 py-1 disabled:opacity-50" disabled={!selected.length || selected.length > 200 || busy || state !== "active"} onClick={showCredentials}>Show selected credentials</button>
+              <button className="rounded border px-3 py-1 disabled:opacity-50" disabled={!selected.length || selected.length > 200 || busy || state !== "active"} onClick={downloadCredentials}>Download selected CSV</button>
+              <button className="rounded border px-3 py-1 disabled:opacity-50" disabled={!selected.length || selected.length > 200 || busy || state !== "active"} onClick={resetSelected}>Reset selected passwords</button>
             </div>
           </div>
           <label className="mt-3 block">Search students <input className="ml-1 rounded border p-2" maxLength={64} value={search}
-            onChange={(event) => setParams(event.target.value ? { search: event.target.value } : {}, { replace: true })} /></label>
+            onChange={(event) => setParams({ search: event.target.value, state }, { replace: true })} /></label>
+          <label className="ml-3">Account status <select className="rounded border p-2" value={state}
+            onChange={(event) => { setSelected([]); setCredentials([]); setParams({ search, state: event.target.value }); }}>
+            <option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All</option>
+          </select></label>
           {selected.length > 200 && <p role="status">Select at most 200 students for credential actions.</p>}
           <table className="mt-3 w-full text-left text-sm"><thead><tr className="border-b">
             <th><input type="checkbox" aria-label="Select all visible students" checked={allVisibleSelected}
               onChange={(event) => setSelected((ids) => event.target.checked
                 ? [...new Set([...ids, ...visibleIds])] : ids.filter((id) => !visibleIds.includes(id)))} /></th>
-            <th className="p-2">Roll number</th><th className="p-2">Name</th><th className="p-2">Actions</th>
+            <th className="p-2">Roll number</th><th className="p-2">Name</th><th className="p-2">Status</th><th className="p-2">Actions</th>
           </tr></thead><tbody>{students.map((student) => <tr className="border-b cursor-pointer focus-visible:outline" key={student.id}
             tabIndex={0} aria-label={`Toggle ${student.roll_number}`} aria-selected={selected.includes(student.id)}
             onClick={(event) => { if (!(event.target as HTMLElement).closest("button, input, a")) toggle(student.id); }}
@@ -162,8 +193,11 @@ export default function Accounts({ csrf }: { csrf: string }) {
             <td><input type="checkbox" aria-label={`Select ${student.roll_number}`} checked={selected.includes(student.id)}
               onChange={() => toggle(student.id)} /></td>
             <td className="p-2">{student.roll_number}</td><td className="p-2">{student.name}</td>
+            <td className="p-2">{student.active ? "Active" : "Inactive"}</td>
             <td className="p-2"><button className="mr-3 underline" onClick={() => renameStudent(student)}>Edit name</button>
-              <button className="underline" onClick={() => resetStudent(student)}>Reset password</button></td>
+              {student.active ? <><button className="mr-3 underline" onClick={() => resetStudent(student)}>Reset password</button>
+                <button className="underline" onClick={() => removeStudent(student)}>Remove account</button></>
+                : <button className="underline" onClick={() => reactivateStudent(student)}>Reactivate</button>}</td>
           </tr>)}</tbody></table>
         </section>
         {credentials.length > 0 && <section className="rounded border bg-white p-4">

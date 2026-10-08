@@ -5,8 +5,8 @@ import { renderRoute } from "./testRouter";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-const ada = { id: "a", roll_number: "A1", name: "Ada" };
-const bob = { id: "b", roll_number: "B2", name: "Bob" };
+const ada = { id: "a", roll_number: "A1", name: "Ada", active: true };
+const bob = { id: "b", roll_number: "B2", name: "Bob", active: true };
 
 test("roster search retains explicit selection and bulk reset uses selected IDs", async () => {
   const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
@@ -39,4 +39,36 @@ test("roster search retains explicit selection and bulk reset uses selected IDs"
 test("CSV quotes cells and neutralizes spreadsheet formulas", () => {
   expect(credentialCsv([{ ...ada, roll_number: "=bad", name: 'A,"B', password: "abc123" }]))
     .toBe('\ufeff"roll_number","name","password"\r\n"\'=bad","A,""B","abc123"\r\n');
+});
+
+test("inactive roster can reactivate and show the new password", async () => {
+  const inactive = { ...ada, active: false };
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path.endsWith("/reactivate") ? { ...ada, password: "new123" }
+      : path.includes("state=inactive") ? [inactive] : [] }));
+  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("confirm", vi.fn(() => true));
+  renderRoute(<Accounts csrf="csrf" />, "/admin/students");
+  fireEvent.change(screen.getByLabelText("Account status"), { target: { value: "inactive" } });
+  await screen.findByText("A1");
+  expect(screen.queryByRole("button", { name: "Reset password" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Reactivate" }));
+  await screen.findByText("new123");
+  expect(fetchMock).toHaveBeenCalledWith("/api/admin/students/a/reactivate", expect.objectContaining({ method: "POST" }));
+});
+
+test("remove account asks for a reason and shows the server outcome", async () => {
+  let removed = false;
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path.endsWith("/remove") ? (removed = true, { outcome: "deactivated" })
+      : removed ? [] : [ada] }));
+  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("prompt", vi.fn(() => "Left class"));
+  renderRoute(<Accounts csrf="csrf" />, "/admin/students");
+  await screen.findByText("A1");
+  fireEvent.click(screen.getByRole("button", { name: "Remove account" }));
+  await screen.findByText("A1 deactivated.");
+  expect(fetchMock).toHaveBeenCalledWith("/api/admin/students/a/remove", expect.objectContaining({
+    body: JSON.stringify({ reason: "Left class" }),
+  }));
 });
