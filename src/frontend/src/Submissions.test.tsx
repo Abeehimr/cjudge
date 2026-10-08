@@ -78,8 +78,10 @@ test("early feedback shows official counts, provisional runs, and pending work w
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => rows }));
   renderRoute(<Upload labId="lab" tasks={tasks} admission={admission} csrf="csrf" refresh={vi.fn()} earlyFeedback />, '/labs/lab/tasks/revision');
   await screen.findByText('one.c');
-  expect(screen.getByText('Passed tests: 1/2 · Marks: 5.00/10.00')).toBeTruthy();
-  expect(screen.getByText('Passed tests: 1/2 · Marks: 5.00/10.00 · Provisional during rejudge')).toBeTruthy();
+  const firstMarks = screen.getByText('one.c').closest('tr')?.querySelector('p');
+  expect(firstMarks?.textContent).toBe('Passed tests: 1/2 · Marks: 5.00 / 10.00');
+  expect(firstMarks?.querySelector('strong')?.textContent).toBe('/');
+  expect(screen.getByText('two.c').closest('tr')?.querySelector('p')?.textContent).toBe('Passed tests: 1/2 · Marks: 5.00 / 10.00 · Provisional during rejudge');
   expect(screen.getByText('Partial pass').getAttribute('data-status')).toBe('Partial pass');
   expect(screen.getByText('Passed tests: Pending')).toBeTruthy();
   expect(screen.queryByRole('link', { name: 'one.c' })).toBeNull();
@@ -91,7 +93,7 @@ test("released history shows partial marks even when early feedback is off", asy
     status: 'Partial pass', early_feedback: { passed: 1, total: 2, marks: '5.00', maximum_marks: '10.00', provisional: false } }];
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => rows }));
   renderRoute(<Upload labId="lab" tasks={tasks} admission={admission} csrf="csrf" refresh={vi.fn()} visible />, '/labs/lab/tasks/revision');
-  expect(await screen.findByText('Passed tests: 1/2 · Marks: 5.00/10.00')).toBeTruthy();
+  expect((await screen.findByRole('link', { name: 'one.c' })).closest('tr')?.querySelector('p')?.textContent).toBe('Passed tests: 1/2 · Marks: 5.00 / 10.00');
   expect(screen.getByRole('link', { name: 'one.c' })).toBeTruthy();
 });
 

@@ -74,7 +74,7 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
         <td><Link to={`/admin/labs/${labId}/tasks/${row.revision_id}`}>{tasks.find((task) => task.revision_id === row.revision_id)?.title || row.revision_id}</Link></td>
         <td><Link to={`/admin/labs/${labId}/submissions/${row.id}`}>{row.filename}</Link>{row.best_for_review && <span className="block text-green-800">Best for review</span>}</td><td><span className="submission-status" data-status={row.status}>{row.status}</span>
           {row.deleted_at && <p className="text-red-800">Deleted · {row.delete_reason}</p>}
-          {row.marks != null && <p>Passed tests: {row.passed}/{row.total} · Marks: {row.marks}/{row.maximum_marks}</p>}
+          {row.marks != null && <p>Passed tests: {row.passed}/{row.total} · Marks: {row.marks}{' '}<strong>/</strong>{' '}{row.maximum_marks}</p>}
           {row.rejudge_status && <p className="text-amber-800">Rejudge: {row.rejudge_status}</p>}
           {row.compiler_feedback && <details><summary>Compiler feedback</summary><pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></details>}
           {row.compiler_truncated && <p>Compiler feedback truncated.</p>}</td>
@@ -128,7 +128,7 @@ export function AdminSubmissionDetail({ labId, submissionId, csrf, released, arc
         <Link to={`/admin/labs/${labId}/tasks/${row.revision_id}`}>Task</Link></p>
       <p><span className="submission-status" data-status={row.status}>{row.status}</span> · Accepted {new Date(row.accepted_at).toLocaleString()} · {row.attempt_count} judging attempts</p>
       <p>IP: {row.client_ip} · MAC: {row.client_mac || "Unavailable"}</p>
-      {row.passed !== null && <p>Cases passed: {row.passed}/{row.total} · Marks: {row.marks}/{row.maximum_marks}</p>}
+      {row.passed !== null && <p>Cases passed: {row.passed}/{row.total} · Marks: {row.marks}{' '}<strong>/</strong>{' '}{row.maximum_marks}</p>}
       <label>Judge result <select value={run} disabled={busy} onChange={(e) => setParams(e.target.value ? { run: e.target.value } : {})}>
         <option value="">Official result</option>{(row.history || []).map((item) => <option key={item.id} value={item.id}>{item.verdict} · {new Date(item.finished_at).toLocaleString()} · {item.id === row.official_run_id ? 'Official' : 'Retained run'}</option>)}</select></label>
       {run && <p className="notice notice-warning">Viewing retained run; marks use the official result.</p>}

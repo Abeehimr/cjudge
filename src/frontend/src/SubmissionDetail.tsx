@@ -37,7 +37,7 @@ export default function SubmissionDetail({ labId, submissionId, visible, refresh
       <label>Judge result <select value={run} onChange={(e) => setParams(e.target.value ? { run: e.target.value } : {})}>
         <option value="">Official result</option>{row.history.map((item) => <option key={item.id} value={item.id}>{item.verdict} · {new Date(item.finished_at).toLocaleString()} · {item.id === row.official_run_id ? "Official" : "Retained run"}</option>)}</select></label>
       {run && <p className="notice notice-warning">Viewing retained run; marks use the official result.</p>}
-      {row.passed !== null && <p>Cases passed: {row.passed}/{row.total} · Run marks: {row.marks}/{row.maximum_marks}</p>}
+      {row.passed !== null && <p>Cases passed: {row.passed}/{row.total} · Run marks: {row.marks}{' '}<strong>/</strong>{' '}{row.maximum_marks}</p>}
       <h3 className="font-semibold">Source: {row.filename}</h3>
       <a download href={`/api/labs/${labId}/submissions/${row.id}/source`}>Download original source</a>
       <pre className="overflow-x-auto rounded border bg-slate-50 p-3"><code>{row.source}</code></pre>
