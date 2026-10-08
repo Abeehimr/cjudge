@@ -109,6 +109,17 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       await reload();
     });
   }
+  async function cancellation(member: Enrollment) {
+    const verb = member.cancelled ? 'Reinstate' : 'Cancel';
+    if (!confirm(`${verb} ${member.roll_number}'s lab participation? Existing submissions remain as evidence.`)) return;
+    const reason = prompt(`Reason to ${verb.toLowerCase()} participation`);
+    if (!reason?.trim()) return;
+    await perform(async () => {
+      await api(`/admin/labs/${lab!.id}/students/${member.id}/cancellation`, { method: 'PUT',
+        body: JSON.stringify({ version: lab!.version, cancelled: !member.cancelled, reason: reason.trim() }) }, csrf);
+      await reload();
+    });
+  }
   function move(index: number, delta: number) {
     const next = [...taskIds]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; setTaskIds(next);
   }
@@ -257,10 +268,11 @@ export function AdminLabs({ csrf }: { csrf: string }) {
         <label className="block">Filter roster <input value={rosterSearch} onChange={(e) => setParams(e.target.value ? { search: e.target.value } : {}, { replace: true })} /></label>
         </>}
         <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Roll number</th><th>Name</th><th>Browser / IP</th><th>Submissions</th><th>Actions</th></tr></thead>
-          <tbody>{(studentId ? [member!] : lab.students.filter((item) => `${item.roll_number} ${item.name}`.toLowerCase().includes(rosterSearch.toLowerCase()))).map((member) => <tr className="border-t" data-frozen={member.frozen || undefined} key={member.id}><td><Link to={`/admin/labs/${lab.id}/students/${member.id}`}>{member.roll_number}</Link></td><td>{member.name}</td>
+          <tbody>{(studentId ? [member!] : lab.students.filter((item) => `${item.roll_number} ${item.name}`.toLowerCase().includes(rosterSearch.toLowerCase()))).map((member) => <tr className="border-t" data-frozen={member.frozen || undefined} data-cancelled={member.cancelled || undefined} key={member.id}><td><Link to={`/admin/labs/${lab.id}/students/${member.id}`}>{member.roll_number}</Link></td><td>{member.name}</td>
             <td>{member.bound_at ? `Bound · ${member.last_ip}` : "Not bound"}{member.ip_changed && <span className="block">IP changed (original {member.bound_ip})</span>}</td>
-            <td><span className={member.frozen ? "notice-warning rounded px-2 py-1" : ""}>{member.frozen ? `Frozen · ${member.freeze_reason}` : "Enabled during lab"}</span></td><td><div className="flex flex-wrap gap-2">
+            <td><span className={member.cancelled ? 'notice-danger rounded px-2 py-1' : member.frozen ? "notice-warning rounded px-2 py-1" : ""}>{member.cancelled ? `Cancelled · ${member.cancel_reason}` : member.frozen ? `Frozen · ${member.freeze_reason}` : "Enabled during lab"}</span></td><td><div className="flex flex-wrap gap-2">
               <button disabled={busy || !!lab?.archived_at} onClick={() => rosterAction(member, "freeze")}>{member.frozen ? "Unfreeze" : "Freeze"} {member.roll_number}</button>
+              <button disabled={busy || !!lab?.archived_at} onClick={() => { void cancellation(member); }}>{member.cancelled ? 'Reinstate' : 'Cancel'} {member.roll_number}</button>
               <button disabled={busy || !member.bound_at} onClick={() => rosterAction(member, "release")}>Release browser {member.roll_number}</button>
               {setupOpen && <button disabled={busy || !!lab?.archived_at} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?`)) void perform(async () => { await mutate(`/students/${member.id}?version=${lab.version}`, "DELETE"); if (studentId) setDestination(`/admin/labs/${lab.id}/students`); }); }}>Remove student</button>}
             </div></td></tr>)}</tbody></table></div>

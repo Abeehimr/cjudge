@@ -31,6 +31,18 @@ test('shows ranked shaded cells, elapsed time, delayed work and only supplied ow
   expect(screen.getByText('Judging delayed').parentElement?.getAttribute('data-state')).toBe('judging');
 });
 
+test('cancelled students appear last without marks, rank, time, or links', async () => {
+  const cancelled = { rank: null, roll_number: 'R0', name: 'Cal', cancelled: true, total: null, elapsed_us: null,
+    pending: false, tasks: [{ ...cell, marks: null, elapsed_us: null, submission_id: null, state: 'empty', first_solve: false }] };
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ ...board, students: [board.students[0], cancelled] })));
+  renderRoute(<Scoreboard lab={lab} />, '/labs/lab/scoreboard');
+  const row = (await screen.findByText('R0 · Cal · Cancelled')).closest('tr');
+  expect(row?.getAttribute('data-cancelled')).toBe('true');
+  expect(row?.textContent).toContain('—');
+  expect(row?.textContent).not.toContain('10.00');
+  expect(row?.querySelector('a')).toBeNull();
+});
+
 test('hidden scoreboard makes no request; denied refresh clears prior standings', async () => {
   const fetchMock = vi.fn().mockResolvedValueOnce(response(board)).mockResolvedValue({ ok: false, status: 403,
     json: async () => ({ detail: 'Scoreboard is visible only to admin' }) });

@@ -7,7 +7,7 @@ import type { AdminLab, PublicLab } from "./Lab";
 type Cell = { task_id: string; marks: string | null; elapsed_us: number | null; submission_id: string | null;
   state: "empty" | "zero" | "partial" | "judging" | "solved" | "first_solve"; pending: boolean; delayed: boolean; first_solve: boolean };
 type Board = { tasks: { task_id: string; title: string; maximum_marks: string }[];
-  students: { rank: number; roll_number: string; name: string; total: string; elapsed_us: number; pending: boolean; tasks: Cell[] }[] };
+  students: { rank: number | null; roll_number: string; name: string; cancelled: boolean; total: string | null; elapsed_us: number | null; pending: boolean; tasks: Cell[] }[] };
 const labels = { empty: "No submission", zero: "Zero", partial: "Partial", judging: "Judging pending", solved: "Solved", first_solve: "First to solve" };
 
 function elapsed(microseconds: number) {
@@ -46,9 +46,9 @@ export function Scoreboard({ lab, admin = false }: { lab: PublicLab | AdminLab; 
     {board && <><div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="sr-only">Lab standings by marks and submission time</caption>
       <thead><tr><th scope="col">Rank</th><th scope="col">Student</th><th scope="col">Total / time</th>
         {board.tasks.map((task) => <th scope="col" key={task.task_id}>{task.title}<span className="block font-normal">{task.maximum_marks} marks</span></th>)}</tr></thead>
-      <tbody>{board.students.map((row) => <tr className="border-t" key={row.roll_number}>
-        <td>{row.rank}</td><th scope="row" className="font-normal">{row.roll_number} · {row.name}</th>
-        <td><strong className="block text-lg">{row.total}</strong><span className="block text-xs">{elapsed(row.elapsed_us)}</span>{row.pending && <span className="block text-xs">Provisional</span>}</td>
+      <tbody>{board.students.map((row) => <tr className="border-t" data-cancelled={row.cancelled || undefined} key={row.roll_number}>
+        <td>{row.rank ?? '—'}</td><th scope="row" className="font-normal">{row.roll_number} · {row.name}{row.cancelled && ' · Cancelled'}</th>
+        <td>{row.cancelled ? '—' : <><strong className="block text-lg">{row.total}</strong><span className="block text-xs">{elapsed(row.elapsed_us!)}</span>{row.pending && <span className="block text-xs">Provisional</span>}</>}</td>
         {row.tasks.map((cell) => {
           const content = <>{cell.marks !== null && <strong className="block">{cell.marks}</strong>}
             {cell.elapsed_us !== null && <span className="block text-xs">{elapsed(cell.elapsed_us)}</span>}

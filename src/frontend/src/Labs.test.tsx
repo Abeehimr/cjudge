@@ -30,7 +30,7 @@ class Live extends EventTarget {
 function live() { Live.instances = []; vi.stubGlobal("EventSource", Live); }
 
 test("student enters explicitly; task navigation keeps one live stream; revocation hides materials", async () => {
-  live(); let current = materials, bound = false;
+  live(); let current: typeof materials & { cancelled?: boolean; cancel_reason?: string | null } = materials, bound = false;
   const fetchMock = vi.fn().mockImplementation((path: string) => {
     if (path.endsWith('/enter')) bound = true;
     const denied = path === '/api/labs/lab' && !bound;
@@ -50,6 +50,9 @@ test("student enters explicitly; task navigation keeps one live stream; revocati
   current = { ...materials, frozen: true };
   act(() => Live.instances[0].dispatchEvent(new Event('refresh')));
   expect((await screen.findByText(/Submissions paused/)).className).toContain('notice-danger');
+  current = { ...materials, cancelled: true, cancel_reason: 'Attendance violation' };
+  act(() => Live.instances[0].dispatchEvent(new Event('refresh')));
+  expect((await screen.findByText(/Lab participation cancelled/)).textContent).toContain('Attendance violation');
   act(() => Live.instances[0].dispatchEvent(new Event('denied')));
   expect(screen.queryByText('Add two numbers.')).toBeNull();
   expect(Live.instances[0].close).toHaveBeenCalled();
@@ -97,6 +100,27 @@ test('frozen enrollment shades its row and keeps the reason visible', async () =
   renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students');
   expect((await screen.findByText('Frozen · Review required')).closest('tr')?.getAttribute('data-frozen')).toBe('true');
   expect(screen.getByText('Frozen · Review required').className).toContain('notice-warning');
+});
+
+test('admin cancellation sends a reason and lab version, then shows the cancelled row', async () => {
+  live();
+  const member = { id: 'student', roll_number: '001A', name: 'Ada', frozen: false, freeze_reason: null,
+    cancelled: false, cancel_reason: '', bound_at: null, bound_ip: null, last_ip: null, ip_changed: false };
+  let lab = { ...summary, version: 3, strict_ip: false, first_released_at: null, tasks: [], pdfs: [], students: [member], announcements: [] };
+  const fetchMock = vi.fn().mockImplementation((path: string, options: RequestInit) => {
+    if (path.endsWith('/cancellation') && options.method === 'PUT') lab = { ...lab, version: 4,
+      students: [{ ...member, cancelled: true, cancel_reason: 'Review' }] };
+    return Promise.resolve({ ok: true, status: options.method === 'PUT' ? 204 : 200,
+      json: async () => path === '/api/admin/labs/lab' ? lab : [] });
+  });
+  vi.stubGlobal('fetch', fetchMock); vi.stubGlobal('confirm', vi.fn(() => true)); vi.stubGlobal('prompt', vi.fn(() => 'Review'));
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students/student');
+  fireEvent.click(await screen.findByRole('button', { name: 'Cancel 001A' }));
+  expect((await screen.findByText('Cancelled · Review')).closest('tr')?.getAttribute('data-cancelled')).toBe('true');
+  expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/students/student/cancellation', expect.objectContaining({
+    method: 'PUT', body: JSON.stringify({ version: 3, cancelled: true, reason: 'Review' }),
+    headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }),
+  }));
 });
 
 test('admin confirms early feedback disclosure and sees the updated setting', async () => {

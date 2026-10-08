@@ -112,7 +112,7 @@ Admin-guide capture: Scoreboard navigation, participant toggle off/on, sorted to
 
 ## Planned Improvements
 
-M11–M14 are implemented; M15–M16 remain planned and independent. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
+M11–M15 are implemented; M16 remains planned and independent. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
 
 ## M11 — Roster and Credentials · requires M2, M4
 
@@ -158,13 +158,15 @@ Evidence: 33 backend tests, 57 frontend tests and build, disposable-database rel
 
 ## M15 — Reversible Lab Cancellation · requires M4, M6, M8, M10
 
-- [ ] Add audited cancellation/reinstatement until archive, with private reasons/announcements and read-only student access.
-- [ ] Exclude cancellation from marks/ranks/first-solve; add muted red unranked scoreboard rows and status in CSV/archive evidence.
-- [ ] Preserve accepted judging but exclude cancelled-only unfinished work from release/correction gates.
-- [ ] Reconcile current-revision judging on reinstatement; retain provisional state until resolved.
-- [ ] Preserve enrollment reservation and independent account/freeze/deletion states; never grant time or reopen released labs.
-- [ ] **Test:** admission/publication races, delayed cancelled work, reinstatement after corrections/release, first-solve recalculation, private reasons, exports, and archive restrictions.
-- [ ] **Gate:** grading/release/scoreboard database checks pass; stop for review.
+- [x] Add audited cancellation/reinstatement until archive, with private reasons/announcements and read-only student access.
+- [x] Exclude cancellation from marks/ranks/first-solve; add muted red unranked scoreboard rows and status in CSV/archive evidence.
+- [x] Preserve accepted judging but exclude cancelled-only unfinished work from release/correction gates.
+- [x] Reconcile current-revision judging on reinstatement; retain provisional state until resolved.
+- [x] Preserve enrollment reservation and independent account/freeze/deletion states; never grant time or reopen released labs.
+- [x] **Test:** admission/publication races, delayed cancelled work, reinstatement after corrections/release, first-solve recalculation, private reasons, exports, and archive restrictions.
+- [x] **Gate:** grading/release/scoreboard database checks pass; stop for review.
+
+Evidence: 34 backend tests, 60 frontend tests and build, disposable-database marks and release gates.
 
 ## M16 — Concurrent Labs · requires M4, M5, M8
 
