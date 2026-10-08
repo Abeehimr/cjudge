@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 import logging
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -25,6 +26,8 @@ admin_router = APIRouter(prefix='/api/admin/labs/{lab_id}/submissions', dependen
 class EarlyFeedback(StrictModel):
     passed: int
     total: int
+    marks: str
+    maximum_marks: str
     provisional: bool
 
 
@@ -62,6 +65,7 @@ class AdminSubmission(SubmissionOutput):
     run_id: UUID | None
     rejudge_status: str | None
     marks: str | None
+    maximum_marks: str | None
     ip_changed: bool = False
     mac_changed: bool = False
 
@@ -106,13 +110,19 @@ def query(lab_id: UUID):
         store.attempts.c.id == store.jobs.c.attempt_id)).where(store.submissions.c.lab_id == lab_id)
 
 
-def output(row: dict, feedback: str, *, admin_view: bool = False, early_feedback_enabled: bool = False) -> dict:
+def output(row: dict, feedback: str, *, admin_view: bool = False, early_feedback_enabled: bool = False,
+           results_visible: bool = False) -> dict:
     status = ('Passed' if row['verdict'] == 'AC' else 'Compile error' if row['verdict'] == 'CE' else 'Failed') if row['run_id'] else {
         'queued': 'Queued', 'judging': 'Judging', 'delayed': 'Judging delayed', 'complete': 'Judging'}[row['state']]
+    if (row['run_id'] and row['verdict'] == 'Failed' and row['result_config'].get('scoring', 'partial') == 'partial'
+            and 0 < row['passed'] < row['total'] and (admin_view or early_feedback_enabled or results_visible)):
+        status = 'Partial pass'
     result = {key: row[key] for key in SubmissionOutput.model_fields if key not in ('status', 'compiler_feedback', 'compiler_truncated', 'best_for_review', 'early_feedback')}
     result.update(status=status, compiler_feedback=None, compiler_truncated=False, best_for_review=False)
-    if early_feedback_enabled and row['run_id'] and row['result_config'].get('scoring', 'partial') == 'partial':
+    if (early_feedback_enabled or results_visible) and row['run_id'] and row['result_config'].get('scoring', 'partial') == 'partial':
         result['early_feedback'] = {'passed': row['passed'], 'total': row['total'],
+                                    'marks': review.displayed(review.exact(row)),
+                                    'maximum_marks': f"{Decimal(row['result_config']['maximum_marks']):.2f}",
                                     'provisional': row['state'] != 'complete' or bool(row['batch_id'])}
     result['revision_id'] = row['current_revision_id'] or row['revision_id']
     if row['verdict'] == 'CE' and (admin_view or feedback != 'none'):
@@ -121,12 +131,13 @@ def output(row: dict, feedback: str, *, admin_view: bool = False, early_feedback
         result.update(compiler_feedback='\n'.join(diagnostic.splitlines()[:20]) if short else diagnostic,
                       compiler_truncated=bool(row['compiler_truncated'] or short and len(diagnostic.splitlines()) > 20))
     if admin_view:
-        computed = {'accepted_revision_id', 'rejudge_status', 'ip_changed', 'mac_changed', 'marks'}
+        computed = {'accepted_revision_id', 'rejudge_status', 'ip_changed', 'mac_changed', 'marks', 'maximum_marks'}
         result.update({key: row[key] for key in AdminSubmission.model_fields if key not in SubmissionOutput.model_fields and key not in computed})
         result.update(accepted_revision_id=row['revision_id'], rejudge_status=(
             'Staged' if row['batch_id'] and row['state'] == 'complete' else row['state'])
             if row['kind'] != 'initial' and (row['state'] != 'complete' or row['batch_id']) else None)
         result['marks'] = review.displayed(review.exact(row)) if row['run_id'] else None
+        result['maximum_marks'] = f"{Decimal(row['result_config']['maximum_marks']):.2f}" if row['run_id'] else None
     return result
 
 
@@ -142,8 +153,9 @@ async def upload(lab_id: UUID, request: Request, response: Response,
             lab, enrollment, _ = student_access(conn, lab_id, account, request)
             row, created = service.accept(conn, lab, enrollment, revision_id, idempotency_key, filename, source, client_ip(request))
             result = conn.execute(query(lab_id).where(store.submissions.c.id == row['id'])).mappings().one()
+            released = bool(lab['first_released_at'] and lab['reveal_results'])
             return output(result, lab['compiler_feedback'], early_feedback_enabled=lab['early_feedback_visible']
-                and not (lab['first_released_at'] and lab['reveal_results'])), created
+                and not released, results_visible=released), created
     value, created = await run_in_threadpool(create)
     response.status_code = 201 if created else 200
     return value
@@ -160,8 +172,9 @@ def history(lab_id: UUID, request: Request, offset: int = Query(default=0, ge=0)
                 .where(tasks.revisions.c.id == revision_id).scalar_subquery())
         rows = conn.execute(selection.order_by(store.submissions.c.accepted_at.desc(), store.submissions.c.id).offset(offset).limit(100)).mappings()
         best = review.best_for_review(conn, lab_id, account['id']) if lab['first_released_at'] and lab['reveal_results'] else set()
+        released = bool(lab['first_released_at'] and lab['reveal_results'])
         return [dict(output(row, lab['compiler_feedback'], early_feedback_enabled=lab['early_feedback_visible']
-            and not (lab['first_released_at'] and lab['reveal_results'])), best_for_review=row['id'] in best) for row in rows]
+            and not released, results_visible=released), best_for_review=row['id'] in best) for row in rows]
 
 
 @student_router.get('/{submission_id}', response_model=SubmissionOutput)
@@ -172,8 +185,9 @@ def detail(lab_id: UUID, submission_id: UUID, request: Request, account: dict = 
             store.submissions.c.account_id == account['id'])).mappings().first()
         if not row:
             raise HTTPException(404, 'Submission not found')
+        released = bool(lab['first_released_at'] and lab['reveal_results'])
         return output(row, lab['compiler_feedback'], early_feedback_enabled=lab['early_feedback_visible']
-            and not (lab['first_released_at'] and lab['reveal_results']))
+            and not released, results_visible=released)
 
 
 @admin_router.get('', response_model=list[AdminSubmission])
@@ -230,6 +244,8 @@ def admin_detail(lab_id: UUID, submission_id: UUID, run_id: UUID | None = None):
             row = dict(row) | {key: selected[key] for key in ('verdict', 'compiler_feedback', 'compiler_truncated',
                 'passed', 'total', 'score_numerator', 'score_denominator')}
             row.update(run_id=run_id, result_revision_id=selected['revision_id'])
+            row['result_config'] = conn.execute(sa.select(tasks.revisions.c.config)
+                .where(tasks.revisions.c.id == selected['revision_id'])).scalar_one()
         result = output(row, 'full', admin_view=True)
         result['official_run_id'] = official_run_id
         result['history'] = [dict(item) for item in conn.execute(sa.select(store.runs.c.id, store.runs.c.revision_id,
@@ -297,6 +313,7 @@ class ReleasedSubmission(SubmissionOutput):
     run_id: UUID | None
     result_revision_id: UUID | None
     marks: str | None
+    maximum_marks: str | None
     official_marks: str | None
     passed: int | None
     total: int | None
@@ -331,9 +348,12 @@ def released_detail(lab_id: UUID, submission_id: UUID, request: Request, run_id:
             row.update({key: selected[key] for key in ('verdict', 'compiler_feedback', 'compiler_truncated',
                 'passed', 'total', 'score_numerator', 'score_denominator')})
             row.update(run_id=run_id, result_revision_id=selected['revision_id'])
-        return output(row, 'full') | dict(source=files.read(row).decode('utf-8', errors='replace'),
+            row['result_config'] = conn.execute(sa.select(tasks.revisions.c.config)
+                .where(tasks.revisions.c.id == selected['revision_id'])).scalar_one()
+        return output(row, 'full', results_visible=True) | dict(source=files.read(row).decode('utf-8', errors='replace'),
             official_run_id=official_run_id, official_marks=official_marks, run_id=row['run_id'],
             result_revision_id=row['result_revision_id'], marks=review.displayed(review.exact(row)) if row['run_id'] else None,
+            maximum_marks=f"{Decimal(row['result_config']['maximum_marks']):.2f}" if row['run_id'] else None,
             passed=row['passed'], total=row['total'], grading_pending=row['state'] != 'complete' or bool(row['batch_id']),
             history=[dict(item) for item in conn.execute(sa.select(store.runs.c.id, store.runs.c.revision_id,
                 store.runs.c.verdict, store.runs.c.finished_at).where(store.runs.c.submission_id == submission_id)

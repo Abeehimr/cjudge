@@ -302,7 +302,7 @@ async def early_feedback_visibility(lab_id: UUID, request: Request, actor: dict 
         with transaction() as conn:
             lab = labs.find(conn, lab_id, body.version)
             return snapshot(conn, labs.changed(conn, lab, actor['id'], 'lab_early_feedback_visibility',
-                message=f'Early passed/total feedback {"enabled" if body.visible else "disabled"}.',
+                message=f'Early passed/total and marks feedback {"enabled" if body.visible else "disabled"}.',
                 early_feedback_visible=body.visible))
     return await run_in_threadpool(change)
 

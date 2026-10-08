@@ -108,6 +108,8 @@ def exercise(directory):
         assert call(private + '/source', student_view=True)[0] == 403
         assert 'marks' not in call(private, student_view=True)[1]
         assert call(private, student_view=True)[1]['early_feedback'] is None
+        assert call(private, student_view=True)[1]['status'] == 'Failed'
+        assert call(base + f'/submissions/{submission}')[1]['status'] == 'Partial pass'
         assert not any(row['best_for_review'] for row in call(f'/labs/{lab_id}/submissions', student_view=True)[1])
         assert call(base)[1]['early_feedback_visible'] is False
         assert call(f'/labs/{lab_id}', student_view=True)[1]['early_feedback_visible'] is False
@@ -130,9 +132,10 @@ def exercise(directory):
         assert stream.readline().strip() == b'event: refresh'
         stream.close()
         assert call(f'/labs/{lab_id}', student_view=True)[1]['early_feedback_visible'] is True
-        assert 'Early passed/total feedback enabled.' in [row['body'] for row in call(f'/labs/{lab_id}', student_view=True)[1]['announcements']]
+        assert 'Early passed/total and marks feedback enabled.' in [row['body'] for row in call(f'/labs/{lab_id}', student_view=True)[1]['announcements']]
         own = call(private, student_view=True)[1]
-        assert own['early_feedback'] == {'passed': 1, 'total': 2, 'provisional': False}
+        assert own['status'] == 'Partial pass'
+        assert own['early_feedback'] == {'passed': 1, 'total': 2, 'marks': '5.00', 'maximum_marks': '10.00', 'provisional': False}
         assert not {'marks', 'source', 'cases', 'stdout', 'client_ip'} & own.keys()
         assert call(private, other_view=True)[0] == 404
         other_rows = call(f'/labs/{lab_id}/submissions', other_view=True)[1]
@@ -156,12 +159,24 @@ def exercise(directory):
                 draft_version=99, config={**config, 'scoring': 'all_or_nothing'}, cases_key=case_key, case_count=2))
             conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(revision_id=all_or_nothing))
         assert call(private, student_view=True)[1]['early_feedback'] is None
+        assert call(private, student_view=True)[1]['status'] == 'Failed'
+        assert call(base + f'/submissions/{submission}')[1]['status'] == 'Failed'
         with identity.engine().begin() as conn:
             conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(revision_id=revision))
         assert call(feedback, 'PUT', {'version': call(base)[1]['version'], 'visible': False})[0] == 200
         assert call(private, student_view=True)[1]['early_feedback'] is None
+        assert call(private, student_view=True)[1]['status'] == 'Failed'
         assert call(feedback, 'PUT', {'version': call(base)[1]['version'], 'visible': True})[0] == 200
         assert call(private, student_view=True)[1]['early_feedback']['passed'] == 1
+        with identity.engine().begin() as conn:
+            conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(passed=0, score_numerator='0'))
+        assert call(private, student_view=True)[1]['status'] == 'Failed'
+        assert call(private, student_view=True)[1]['early_feedback']['marks'] == '0.00'
+        with identity.engine().begin() as conn:
+            conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(verdict='AC', passed=2, score_numerator='10'))
+        assert call(private, student_view=True)[1]['status'] == 'Passed'
+        with identity.engine().begin() as conn:
+            conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(verdict='Failed', passed=1, score_numerator='5'))
         with identity.engine().begin() as conn:
             lab = labs.find(conn, lab_id)
             with conn.begin_nested() as savepoint:
@@ -181,6 +196,8 @@ def exercise(directory):
         assert results(ack=False)[0] == 409
         assert call(base + '/release-warnings')[1][0]['title'] == 'Reused tests'
         assert results()[0] == 200
+        assert call(private, student_view=True)[1]['status'] == 'Partial pass'
+        assert call(private, student_view=True)[1]['early_feedback']['marks'] == '5.00'
         released = call(base)[1]
         assert released['phase'] == 'Results released' and released['first_released_at']
         # Corrections cannot silently reveal scheduled tests after first release.
@@ -196,10 +213,23 @@ def exercise(directory):
         status, detail = call(private + '/details', student_view=True)
         assert status == 200, detail
         assert detail['source'] == source.decode() and detail['marks'] == '5.00'
+        assert detail['status'] == 'Partial pass' and detail['maximum_marks'] == '10.00'
         assert not {'client_ip', 'attempts', 'fault', 'account_id'} & detail.keys()
         assert len(detail['cases'][0]['stdin']) == 65536 and detail['cases'][0]['stdin_truncated']
         assert detail['cases'][0]['expected_truncated'] and detail['cases'][1]['stdin'] is None
         assert call(private + f'/details?run_id={run}', student_view=True)[0] == 200
+        with identity.engine().begin() as conn:
+            retained_revision = uuid4()
+            conn.execute(sa.insert(tasks.revisions).values(id=retained_revision, task_id=task_id, number=100,
+                draft_version=100, config={**config, 'scoring': 'all_or_nothing', 'maximum_marks': '20'},
+                cases_key=case_key, case_count=2))
+            conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(
+                revision_id=retained_revision, score_numerator='0'))
+        retained = call(private + f'/details?run_id={run}', student_view=True)[1]
+        assert retained['status'] == 'Failed' and retained['maximum_marks'] == '20.00'
+        with identity.engine().begin() as conn:
+            conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(
+                revision_id=revision, score_numerator='5'))
         assert call(private + f'/details?run_id={uuid4()}', student_view=True)[0] == 404
         assert call(f'/labs/{lab_id}/submissions/{alien}/details', student_view=True)[0] == 404
         assert call(private + '/details', student_view=True, bound=False)[0] == 423
