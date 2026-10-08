@@ -142,7 +142,7 @@ export function AdminSubmissionDetail({ labId, submissionId, csrf, released, arc
       {row.compiler_truncated && <p>Compiler feedback truncated.</p>}
       <h3 className="font-semibold">Case results</h3>
       {!row.cases.length && <p>No case results available.</p>}
-      {row.cases.map((item) => <details className="rounded border p-3" key={item.number}>
+      {row.cases.map((item) => <details className="case-result rounded border p-3" data-verdict={item.verdict} key={item.number}>
         <summary>Case {item.number}: {item.verdict} · CPU {item.cpu_seconds}s · Wall {item.wall_seconds}s · Memory {item.memory_kib} KiB</summary>
         <h4>Standard input{item.stdin_truncated ? " (truncated)" : ""}</h4><pre className="overflow-x-auto whitespace-pre-wrap">{item.stdin || "(empty)"}</pre>
         <h4>Expected output{item.expected_truncated ? " (truncated)" : ""}</h4><pre className="overflow-x-auto whitespace-pre-wrap">{item.expected || "(empty)"}</pre>

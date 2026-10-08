@@ -29,7 +29,9 @@ test("expanded case survives a live refresh and passing cases explain hidden str
   let resolveRefresh: (value: unknown) => void;
   const payload = { id: "submission", filename: "main.c", source: "code", status: "Passed", accepted_at: "2026-09-30",
     official_marks: "10.00", marks: "10.00", passed: 1, total: 1, history: [],
-    cases: [{ number: 1, verdict: "AC", stdin: null, expected: null, stdout: null, stderr: null, cpu_seconds: 0, wall_seconds: 0, memory_kib: 1 }] };
+    cases: ["AC", "TLE", "MLE", "OLE", "RE"].map((verdict, index) => ({ number: index + 1, verdict,
+      stdin: verdict === "AC" ? null : "input", expected: null, stdout: null, stderr: null,
+      cpu_seconds: 0, wall_seconds: 0, memory_kib: 1 })) };
   const fetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => payload })
     .mockImplementationOnce(() => new Promise((resolve) => { resolveRefresh = resolve; }));
   vi.stubGlobal("fetch", fetch);
@@ -40,6 +42,9 @@ test("expanded case survives a live refresh and passing cases explain hidden str
   }
   const view = renderRoute(<LiveDetail />, "/labs/lab/submissions/submission");
   const summary = await screen.findByText(/Case 1: AC/);
+  for (const verdict of ["AC", "TLE", "MLE", "OLE", "RE"]) {
+    expect(screen.getByText(new RegExp(`Case \\d+: ${verdict}`)).closest("details")?.getAttribute("data-verdict")).toBe(verdict);
+  }
   fireEvent.click(summary);
   expect(summary.closest("details")!.open).toBe(true);
   expect(screen.getByText(/Passed case. Test streams/)).toBeTruthy();

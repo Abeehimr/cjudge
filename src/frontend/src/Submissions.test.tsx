@@ -30,6 +30,7 @@ test('admin submission detail renders untrusted source and outputs as text', asy
   expect(screen.getByText('<svg onload=alert(1)>')).toBeTruthy();
   expect(container.querySelector('script, img, svg')).toBeNull();
   expect(screen.getByText('Standard output (truncated)')).toBeTruthy();
+  expect(screen.getByText(/Case 1: WA/).closest('details')?.getAttribute('data-verdict')).toBe('WA');
   expect(screen.getByRole('link', { name: 'Download original source' }).getAttribute('href')).toBe('/api/admin/labs/lab/submissions/submission/source');
 });
 

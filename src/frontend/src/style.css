@@ -11,7 +11,7 @@
   button[aria-pressed="true"] { @apply border-blue-300 bg-blue-100 underline underline-offset-4; }
   button:disabled { @apply cursor-not-allowed opacity-50; }
   input:not([type=checkbox]):not([type=file]), textarea, select { @apply rounded border border-slate-300 p-1; }
-  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { @apply outline-2 outline-offset-2 outline-blue-600; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible { @apply outline-2 outline-offset-2 outline-blue-600; }
   td, th { @apply py-2 pr-3; }
 }
 .statement h1, .statement h2, .statement h3 { @apply my-3 text-lg font-semibold; }
@@ -62,6 +62,9 @@ a[download] {
 .submission-status[data-status="Queued"],
 .submission-status[data-status="Judging delayed"] { @apply border-amber-200 bg-amber-50 text-amber-800; }
 .submission-status[data-status="Judging"] { @apply border-blue-200 bg-blue-50 text-blue-800; }
+.case-result[data-verdict="AC"] { @apply border-green-200 bg-green-50 text-green-900; }
+.case-result[data-verdict="WA"], .case-result[data-verdict="RE"] { @apply border-red-200 bg-red-50 text-red-900; }
+.case-result[data-verdict="TLE"], .case-result[data-verdict="MLE"], .case-result[data-verdict="OLE"] { @apply border-amber-200 bg-amber-50 text-amber-900; }
 .notice-danger { @apply border-red-200 bg-red-50 text-red-800; }
 @media print {
   .notice, .notice-danger, .notice-warning { background: white; color: black; border-color: #64748b; }
