@@ -270,11 +270,30 @@ def exercise(directory):
         status, sheet = call(base + '/marks.csv'); assert status == 200
         csv_rows = list(csv.reader(io.StringIO(sheet.decode('utf-8-sig'))))
         ada = next(row for row in csv_rows if row[0] == "'=Ada")
-        assert ada[1:6] == ["'=Ada", '5.00', '50.00', '5.00', '1'], ada
-        assert csv_rows[0][2].startswith("'")
+        assert ada[1:7] == ["'=Ada", 'Active', '5.00', '50.00', '5.00', '1'], ada
+        assert csv_rows[0][3].startswith("'")
         assert call(base + '/marks.csv', student_view=True)[0] == 403
+        with identity.engine().begin() as conn:
+            pending_cancel, _ = seed(conn, student, True)
+        cancellation = base + f'/students/{student}/cancellation'
+        assert call(cancellation, 'PUT', {'version': call(base)[1]['version'], 'cancelled': True,
+            'reason': 'Final review'})[0] == 204
+        assert call(private + '/details', student_view=True)[0] == 200
+        assert call(f'/labs/{lab_id}', student_view=True)[1]['admission']['code'] == 'lab_closed'
+        status, cancelled_sheet = call(base + '/marks.csv'); assert status == 200
+        cancelled_ada = next(row for row in csv.reader(io.StringIO(cancelled_sheet.decode('utf-8-sig'))) if row[0] == "'=Ada")
+        assert cancelled_ada[2:6] == ['Cancelled', '', '', '']
+        assert call(cancellation, 'PUT', {'version': call(base)[1]['version'], 'cancelled': False,
+            'reason': 'Appeal accepted'})[0] == 204
+        assert call(base)[1]['phase'] == 'Results released'
+        assert call(base + '/marks.csv')[0] == 409
+        assert call(cancellation, 'PUT', {'version': call(base)[1]['version'], 'cancelled': True,
+            'reason': 'Final review'})[0] == 204
         assert call(base + '/archive', 'POST', {'version': call(base)[1]['version'], 'reason': 'Retain final lab'})[0] == 200
         archived = call(base)[1]; assert archived['phase'] == 'Archived'
+        assert call(cancellation, 'PUT', {'version': archived['version'], 'cancelled': False, 'reason': 'No'})[0] == 409
+        with identity.engine().connect() as conn:
+            assert conn.execute(sa.select(store.jobs.c.state).where(store.jobs.c.submission_id == pending_cancel)).scalar_one() == 'complete'
         assert call(feedback, 'PUT', {'version': archived['version'], 'visible': False})[0] == 409
         assert call(base + f'/submissions/{submission}/rejudge', 'POST', {'expected_run_id': str(run), 'reason': 'No'})[0] == 409
         assert call(base + '/announcements', 'POST', {'body': 'No'})[0] == 409
@@ -299,6 +318,8 @@ def exercise(directory):
             assert f'pdfs/{pdf}.pdf' in zipped_file.namelist()
             evidence = json.loads(zipped_file.read('snapshot.json'))
             assert len(evidence['runs']) == 3 and evidence['reviews'] and evidence['marks']
+            assert next(row for row in evidence['roster'] if row['id'] == str(student))['cancel_reason'] == 'Final review'
+            assert next(row for row in evidence['marks'] if row['id'] == str(student))['total'] is None
             assert b'password_hash' not in zipped_file.read('snapshot.json') and b'binding_hash' not in zipped_file.read('snapshot.json')
             for entry in manifest['entries']:
                 content = zipped_file.read(entry['path'])

@@ -67,7 +67,8 @@ def snapshot(conn: sa.Connection, lab: dict) -> dict:
     runs = rows(conn, store.runs, store.runs.c.submission_id.in_(ids))
     batches = rows(conn, store.batches, store.batches.c.lab_id == lab_id)
     roster = [dict(row) for row in conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number,
-        identity.accounts.c.name, labs.enrollments.c.frozen, labs.enrollments.c.freeze_reason)
+        identity.accounts.c.name, labs.enrollments.c.frozen, labs.enrollments.c.freeze_reason,
+        labs.enrollments.c.cancelled, labs.enrollments.c.cancel_reason)
         .join(labs.enrollments, labs.enrollments.c.account_id == identity.accounts.c.id)
         .where(labs.enrollments.c.lab_id == lab_id).order_by(identity.accounts.c.id)).mappings()]
     # Export audit entries do not change grading evidence or invalidate their own receipts.

@@ -91,6 +91,10 @@ class FreezeInput(ReasonInput):
     frozen: bool
 
 
+class CancellationInput(ReasonInput, VersionInput):
+    cancelled: bool
+
+
 class AnnouncementInput(StrictModel):
     body: str = Field(min_length=1, max_length=4000)
 
@@ -151,6 +155,8 @@ class RosterOutput(StrictModel):
     name: str
     frozen: bool
     freeze_reason: str | None
+    cancelled: bool
+    cancel_reason: str | None
     bound_ip: str | None
     last_ip: str | None
     ip_changed: bool
@@ -177,6 +183,8 @@ class StudentLab(LabSummary):
     early_feedback_visible: bool
     results_visible: bool
     frozen: bool
+    cancelled: bool
+    cancel_reason: str | None
     tasks: list[PublicTask]
     pdfs: list[PdfOutput]
     announcements: list[AnnouncementOutput]
@@ -246,7 +254,9 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
                 'previous_revision_ids': previous.get(row['task_id'], []),
                 **{key: config[key] for key in PublicTask.model_fields if key not in ('position', 'revision_id', 'previous_revision_ids')}})
         from cjudge.submissions.service import allowance
-        result.update(results_visible=bool(lab['first_released_at'] and lab['reveal_results']), frozen=enrollment['frozen'], tasks=public_tasks, admission=allowance(conn, lab, enrollment))
+        result.update(results_visible=bool(lab['first_released_at'] and lab['reveal_results']), frozen=enrollment['frozen'],
+            cancelled=enrollment['cancelled'], cancel_reason=enrollment['cancel_reason'], tasks=public_tasks,
+            admission=allowance(conn, lab, enrollment))
     result['scoreboard_visible'] = scoreboard_visible
     result['early_feedback_visible'] = lab['early_feedback_visible']
     return result
@@ -379,6 +389,18 @@ async def freeze_student(lab_id: UUID, account_id: UUID, request: Request, actor
         with transaction() as conn:
             labs.freeze(conn, labs.find(conn, lab_id, shared=True), account_id, body.frozen, body.reason.strip(), actor['id'])
     await run_in_threadpool(freeze)
+
+
+@admin_router.put('/{lab_id}/students/{account_id}/cancellation', status_code=204)
+async def cancel_student(lab_id: UUID, account_id: UUID, request: Request, actor: dict = Depends(admin_write)):
+    body = await json_input(request, CancellationInput)
+    if not body.reason.strip():
+        raise HTTPException(400, 'Reason required')
+    def change():
+        with transaction() as conn:
+            labs.set_cancelled(conn, labs.find(conn, lab_id, body.version), account_id,
+                               body.cancelled, body.reason.strip(), actor['id'])
+    await run_in_threadpool(change)
 
 
 @admin_router.post('/{lab_id}/students/{account_id}/release', response_model=CredentialOutput)

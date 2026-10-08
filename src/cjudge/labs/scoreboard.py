@@ -27,6 +27,12 @@ def standings(assigned: list[dict], students: list[dict], rows: list[dict], acti
             grouped[row['account_id'], row['task_id']].append(row)
     result, first = [], {}
     for student in students:
+        if student['cancelled']:
+            result.append(dict(roll_number=student['roll_number'], name=student['name'], cancelled=True,
+                rank=None, total=None, elapsed_us=None, pending=False,
+                tasks=[dict(task_id=task['task_id'], marks=None, elapsed_us=None, submission_id=None,
+                    state='empty', pending=False, delayed=False, first_solve=False) for task in assigned]))
+            continue
         cells, total_cents, elapsed = [], 0, 0
         for task in assigned:
             attempts = grouped[student['id'], task['task_id']]
@@ -51,16 +57,18 @@ def standings(assigned: list[dict], students: list[dict], rows: list[dict], acti
                 previous = first.get(task['task_id'])
                 if previous is None or priority < previous[0]:
                     first[task['task_id']] = (priority, cell)
-        result.append(dict(roll_number=student['roll_number'], name=student['name'], tasks=cells,
+        result.append(dict(roll_number=student['roll_number'], name=student['name'], cancelled=False, tasks=cells,
             total=f'{total_cents // 100}.{total_cents % 100:02d}', elapsed_us=elapsed,
             pending=any(cell['pending'] for cell in cells)))
     for _, cell in first.values():
         cell['first_solve'] = True
         if not cell['pending']:
             cell['state'] = 'first_solve'
-    result.sort(key=lambda row: (-Decimal(row['total']), row['elapsed_us'], row['roll_number']))
+    result.sort(key=lambda row: (row['cancelled'], -Decimal(row['total'] or '0'), row['elapsed_us'] or 0, row['roll_number']))
     previous, rank = None, 0
     for index, row in enumerate(result, 1):
+        if row['cancelled']:
+            continue
         priority = (row['total'], row['elapsed_us'])
         if priority != previous:
             rank = index
@@ -72,7 +80,7 @@ def standings(assigned: list[dict], students: list[dict], rows: list[dict], acti
 def snapshot(conn: sa.Connection, lab: dict, account_id: UUID | None = None) -> dict:
     assigned = labs.task_rows(conn, lab['id'])
     students = list(conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number,
-        identity.accounts.c.name).join(labs.enrollments, labs.enrollments.c.account_id == identity.accounts.c.id)
+        identity.accounts.c.name, labs.enrollments.c.cancelled).join(labs.enrollments, labs.enrollments.c.account_id == identity.accounts.c.id)
         .where(labs.enrollments.c.lab_id == lab['id'])).mappings())
     rows = list(conn.execute(official_query(lab['id']).where(reviews.c.deleted_at.is_(None))).mappings())
     active = set(conn.execute(sa.select(batches.c.task_id).where(

@@ -14,12 +14,14 @@ def test_time_boundaries_and_freeze():
     assert phase(lab, lab['ends_at']) == 'Ended'
     with pytest.raises(LabError):
         setup_open(lab, start)
-    submission_allowed(lab, {'frozen': False}, start)
+    submission_allowed(lab, {'frozen': False, 'cancelled': False}, start)
     with pytest.raises(LabError) as exc:
-        submission_allowed(lab, {'frozen': True}, start)
+        submission_allowed(lab, {'frozen': True, 'cancelled': False}, start)
     assert exc.value.status == 423
+    with pytest.raises(LabError, match='cancelled'):
+        submission_allowed(lab, {'frozen': False, 'cancelled': True}, start)
     with pytest.raises(LabError):
-        submission_allowed(lab, {'frozen': False}, lab['ends_at'])
+        submission_allowed(lab, {'frozen': False, 'cancelled': False}, lab['ends_at'])
 
 
 def test_forwarded_ip_is_trusted_only_from_proxy(monkeypatch):

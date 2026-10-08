@@ -9,10 +9,13 @@ from cjudge.submissions import submissions, jobs, reviews, batches, runs, attemp
 
 
 def resolved(conn: sa.Connection, lab_id: UUID) -> None:
-    unresolved = conn.execute(sa.select(submissions.c.id).join(jobs,
+    unresolved = conn.execute(sa.select(submissions.c.id).join(labs.enrollments,
+        sa.and_(labs.enrollments.c.lab_id == submissions.c.lab_id,
+            labs.enrollments.c.account_id == submissions.c.account_id)).join(jobs,
         jobs.c.submission_id == submissions.c.id).outerjoin(reviews,
         reviews.c.submission_id == submissions.c.id).where(submissions.c.lab_id == lab_id,
-        reviews.c.deleted_at.is_(None), sa.or_(jobs.c.state != 'complete', reviews.c.run_id.is_(None))).limit(1)).first()
+        labs.enrollments.c.cancelled.is_(False), reviews.c.deleted_at.is_(None),
+        sa.or_(jobs.c.state != 'complete', reviews.c.run_id.is_(None))).limit(1)).first()
     batch = conn.execute(sa.select(batches.c.id).where(batches.c.lab_id == lab_id,
         batches.c.state == 'judging').limit(1)).first()
     if unresolved or batch:
@@ -87,9 +90,12 @@ def archive(conn: sa.Connection, lab: dict, actor: UUID, reason: str) -> dict:
     resolved(conn, lab['id'])
     queue.scheduler_lock(conn)
     # Excluded unfinished jobs cannot add evidence after the archive snapshot.
-    ids = list(conn.execute(sa.select(submissions.c.id).join(reviews,
+    ids = list(conn.execute(sa.select(submissions.c.id).join(labs.enrollments,
+        sa.and_(labs.enrollments.c.lab_id == submissions.c.lab_id,
+            labs.enrollments.c.account_id == submissions.c.account_id)).join(reviews,
         reviews.c.submission_id == submissions.c.id).join(jobs, jobs.c.submission_id == submissions.c.id)
-        .where(submissions.c.lab_id == lab['id'], reviews.c.deleted_at.is_not(None), jobs.c.state != 'complete')).scalars())
+        .where(submissions.c.lab_id == lab['id'], sa.or_(reviews.c.deleted_at.is_not(None),
+            labs.enrollments.c.cancelled.is_(True)), jobs.c.state != 'complete')).scalars())
     if ids:
         conn.execute(sa.update(attempts).where(attempts.c.submission_id.in_(ids), attempts.c.finished_at.is_(None))
             .values(outcome='superseded', finished_at=labs.now(conn), lease_until=labs.now(conn)))

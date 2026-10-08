@@ -7,7 +7,7 @@ from cjudge.labs.scoreboard import standings
 
 START = datetime(2026, 1, 1, tzinfo=timezone.utc)
 TASKS = [dict(task_id=UUID(int=i), config=dict(title=f'Task {i}', maximum_marks='10')) for i in (1, 2)]
-STUDENTS = [dict(id=UUID(int=i), name=f'Student {i}', roll_number=f'R{i}') for i in (3, 4, 5)]
+STUDENTS = [dict(id=UUID(int=i), name=f'Student {i}', roll_number=f'R{i}', cancelled=False) for i in (3, 4, 5)]
 
 
 def attempt(key, student, task, score, seconds, *, state='complete', deleted=False):
@@ -67,6 +67,16 @@ def test_pending_without_result_is_not_graded_zero():
     assert cell['state'] == 'judging' and cell['marks'] is None
     assert cell['submission_id'] is None and cell['elapsed_us'] is None
     assert board['students'][0]['elapsed_us'] == 0
+
+
+def test_cancelled_student_is_unranked_and_cannot_win_first_solve():
+    students = [{**STUDENTS[0], 'cancelled': True}, STUDENTS[1]]
+    board = standings(TASKS, students, [attempt(10, 3, 1, 10, 1), attempt(11, 4, 1, 10, 2)], set(), START)
+    active, cancelled = board['students']
+    assert active['roll_number'] == 'R4' and active['rank'] == 1
+    assert active['tasks'][0]['state'] == 'first_solve'
+    assert cancelled['roll_number'] == 'R3' and cancelled['rank'] is None
+    assert cancelled['total'] is None and cancelled['tasks'][0]['submission_id'] is None
 
 
 def test_live_notifications_broadcast_only_when_enabled():

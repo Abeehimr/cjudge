@@ -2,6 +2,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from fractions import Fraction
+import csv
+import io
 import json
 import os
 from pathlib import Path
@@ -21,6 +23,7 @@ import sqlalchemy as sa
 
 from cjudge import identity, labs, tasks, submissions as store
 from cjudge.judging import queue
+from cjudge.labs import exports, release
 from cjudge.submissions import files, review, service
 
 GOOD = b'#include <stdio.h>\nint main(void){int a,b;scanf("%d%d",&a,&b);printf("%d\\n",a+b);}'
@@ -311,6 +314,65 @@ def exercise(directory: str) -> None:
         published_board = call(board_path)[1]
         assert all(row['total'] == '7.00' and not row['pending'] for row in published_board['students'])
         assert sum(cell['state'] == 'first_solve' for row in published_board['students'] for cell in row['tasks']) == 1
+        cancellation = f'{base}/students/{student_id}/cancellation'
+        version = call(base)[1]['version']
+        cancel = {'version': version, 'cancelled': True, 'reason': 'Attendance violation'}
+        assert call(cancellation, 'PUT', cancel, csrf_value='bad')[0] == 403
+        assert call(cancellation, 'PUT', cancel, student=True)[0] == 403
+        assert call(cancellation, 'PUT', {**cancel, 'version': version + 1})[0] == 409
+        assert call(cancellation, 'PUT', {**cancel, 'reason': ' '})[0] == 400
+        with ThreadPoolExecutor(2) as pool:
+            attempts = list(pool.map(lambda _: call(cancellation, 'PUT', cancel)[0], range(2)))
+        assert sorted(attempts) == [204, 409]
+        assert call(cancellation, 'PUT', {**cancel, 'version': version + 1})[0] == 409
+        own = call(f'/labs/{lab_id}', student=True)[1]
+        assert own['cancelled'] and own['cancel_reason'] == 'Attendance violation'
+        assert own['admission']['code'] == 'cancelled'
+        assert any('Attendance violation' in row['body'] and row['audience'] == 'Only you' for row in own['announcements'])
+        assert next(row for row in call(base)[1]['students'] if row['id'] == str(student_id))['cancelled']
+        board = call(board_path)[1]
+        assert board['students'][-1]['roll_number'] == 'Ada' and board['students'][-1]['rank'] is None
+        assert board['students'][-1]['total'] is None and board['students'][-1]['tasks'][0]['submission_id'] is None
+        assert board['students'][0]['tasks'][0]['state'] == 'first_solve'
+        with identity.engine().begin() as conn:
+            current = labs.find(conn, lab_id, shared=True)
+            assert next(row for row in review.marks(conn, lab_id) if row['id'] == student_id)['total'] is None
+            sheet = list(csv.reader(io.StringIO(exports.sheet(conn, current).decode('utf-8-sig'))))
+            ada = next(row for row in sheet if row[0] == 'Ada')
+            assert ada[2:6] == ['Cancelled', '', '', '']
+            release.resolved(conn, lab_id)
+            existing = conn.execute(sa.select(store.submissions).where(store.submissions.c.id == first)).mappings().one()
+            recovered, created = service.accept(conn, current, labs.enrollment(conn, lab_id, student_id),
+                existing['revision_id'], existing['idempotency_key'], 'main.c', GOOD, '192.0.2.1')
+            assert recovered['id'] == first and not created
+            try:
+                service.accept(conn, current, labs.enrollment(conn, lab_id, student_id),
+                    revisions[1], uuid4(), 'new.c', GOOD, '192.0.2.1')
+            except service.SubmissionError as exc: assert exc.code == 'cancelled'
+            else: raise AssertionError('Cancelled student uploaded')
+        restore = {'version': call(base)[1]['version'], 'cancelled': False, 'reason': 'Appeal accepted'}
+        assert call(cancellation, 'PUT', restore)[0] == 204
+        assert call(f'/labs/{lab_id}', student=True)[1]['cancelled'] is False
+        assert call(board_path)[1]['students'] == published_board['students']
+        with identity.engine().begin() as conn:
+            savepoint = conn.begin_nested()
+            labs.set_cancelled(conn, labs.find(conn, lab_id), student_id, True, 'Temporary test', admin_id)
+            extra = seed(conn, owner=student_id, pending=True)
+            release.resolved(conn, lab_id)
+            next_batch = review.correct(conn, labs.find(conn, lab_id), task_id, revisions[2], admin_id,
+                'Correction while student is cancelled')
+            assert conn.execute(sa.select(store.batches.c.state).where(store.batches.c.id == next_batch)).scalar_one() == 'judging'
+            labs.set_cancelled(conn, labs.find(conn, lab_id), other_id, True, 'Cancel remaining participant', admin_id)
+            assert conn.execute(sa.select(store.batches.c.state).where(store.batches.c.id == next_batch)).scalar_one() == 'published'
+            release.resolved(conn, lab_id)
+            labs.set_cancelled(conn, labs.find(conn, lab_id), student_id, False, 'Reconcile test', admin_id)
+            job = conn.execute(sa.select(store.jobs).where(store.jobs.c.submission_id == extra)).mappings().one()
+            assert job['revision_id'] == revisions[2] and job['state'] == 'queued'
+            assert conn.execute(sa.select(store.reviews.c.run_id).where(store.reviews.c.submission_id == first)).scalar_one() is None
+            try: release.resolved(conn, lab_id)
+            except labs.LabError: pass
+            else: raise AssertionError('Reinstated pending work was released')
+            savepoint.rollback()
         selected = call(detail)[1]
         if selected['cases']: assert selected['cases'][0]['stdin'] == '2 0\n'
         assert all(row['revision_id'] == str(revisions[1]) for row in call(student_path, student=True)[1])

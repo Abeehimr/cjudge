@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
 from cjudge import events, labs, tasks
-from cjudge.submissions import submissions, jobs, turns, reviews, batches
+from cjudge.submissions import submissions, jobs, turns, reviews, batches, members
 from cjudge.submissions import files
 
 
@@ -26,6 +26,8 @@ def allowance(conn: sa.Connection, lab: dict, enrollment: dict) -> dict:
     reason, code = '', ''
     if labs.phase(lab, timestamp) != 'Running':
         reason, code = 'Lab is not running', 'lab_closed'
+    elif enrollment['cancelled']:
+        reason, code = 'Lab participation cancelled', 'cancelled'
     elif enrollment['frozen']:
         reason, code = 'Submissions paused by administrator', 'frozen'
     elif pending >= 3:
@@ -51,7 +53,7 @@ def accept(conn: sa.Connection, lab: dict, enrollment: dict, revision_id: UUID, 
         raise SubmissionError(409, 'invalid_task', 'Task revision changed or is not assigned; refresh the task page')
     policy = allowance(conn, lab, enrollment)
     if not policy['allowed']:
-        raise SubmissionError(429 if policy['code'] in ('cooldown', 'pending_limit') else 423 if policy['code'] == 'frozen' else 403,
+        raise SubmissionError(429 if policy['code'] in ('cooldown', 'pending_limit') else 423 if policy['code'] in ('frozen', 'cancelled') else 403,
                               policy['code'], policy['reason'], policy['retry_at'])
     submission_id = uuid4()
     files.lock(conn)
@@ -69,6 +71,8 @@ def accept(conn: sa.Connection, lab: dict, enrollment: dict, revision_id: UUID, 
         batches.c.task_id == task_id, batches.c.state == 'judging')).scalar_one_or_none()
     conn.execute(sa.insert(jobs).values(submission_id=submission_id, revision_id=revision_id, batch_id=batch_id))
     conn.execute(sa.insert(reviews).values(submission_id=submission_id))
+    if batch_id:
+        conn.execute(sa.insert(members).values(batch_id=batch_id, submission_id=submission_id))
     conn.execute(insert(turns).values(account_id=enrollment['account_id']).on_conflict_do_nothing())
     conn.execute(sa.select(sa.func.pg_notify('cjudge_jobs', '')))
     events.publish(conn, account_id=enrollment['account_id'])

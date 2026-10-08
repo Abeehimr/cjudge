@@ -43,11 +43,18 @@ def marks(conn: sa.Connection, lab_id: UUID) -> list[dict]:
         grouped.setdefault((row['account_id'], row['task_id']), []).append(row)
     active_batches = set(conn.execute(sa.select(batches.c.task_id).where(
         batches.c.lab_id == lab_id, batches.c.state == 'judging')).scalars())
-    students = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number, identity.accounts.c.name)
+    students = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number, identity.accounts.c.name,
+        labs.enrollments.c.cancelled)
         .join(labs.enrollments, labs.enrollments.c.account_id == identity.accounts.c.id)
         .where(labs.enrollments.c.lab_id == lab_id).order_by(identity.accounts.c.roll_number)).mappings()
     result = []
     for student in students:
+        if student['cancelled']:
+            result.append(dict(**student, tasks=[dict(task_id=task['task_id'], revision_id=task['id'],
+                title=task['config']['title'], marks=None, pending=False, best_submission_id=None,
+                passed=None, total=None) for task in assigned], total=None, pending=False,
+                submission_count=sum(len(grouped.get((student['id'], key), [])) for key in task_ids)))
+            continue
         cells, total_cents = [], 0
         for task in assigned:
             rows = grouped.get((student['id'], task['task_id']), [])
@@ -65,7 +72,10 @@ def marks(conn: sa.Connection, lab_id: UUID) -> list[dict]:
 
 
 def best_for_review(conn: sa.Connection, lab_id: UUID, account_id: UUID | None = None) -> set[UUID]:
-    selection = official_query(lab_id).where(reviews.c.deleted_at.is_(None), reviews.c.run_id.is_not(None))
+    selection = official_query(lab_id).join(labs.enrollments,
+        sa.and_(labs.enrollments.c.lab_id == submissions.c.lab_id,
+            labs.enrollments.c.account_id == submissions.c.account_id)).where(
+        reviews.c.deleted_at.is_(None), reviews.c.run_id.is_not(None), labs.enrollments.c.cancelled.is_(False))
     if account_id:
         selection = selection.where(submissions.c.account_id == account_id)
     best = {}
@@ -204,8 +214,11 @@ def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, ac
             raise labs.LabError(409, 'Correction reveals reused tests; acknowledge the warning or hide results first')
     if base == revision_id or active_batch(conn, lab['id'], task_id):
         raise labs.LabError(409, 'Select a different revision and wait for the current correction')
-    selection = sa.select(submissions.c.id).join(tasks.revisions, tasks.revisions.c.id == submissions.c.revision_id)
-    ids = conn.execute(selection.where(submissions.c.lab_id == lab['id'], tasks.revisions.c.task_id == task_id)).scalars().all()
+    selection = (sa.select(submissions.c.id).join(tasks.revisions, tasks.revisions.c.id == submissions.c.revision_id)
+        .join(labs.enrollments, sa.and_(labs.enrollments.c.lab_id == submissions.c.lab_id,
+            labs.enrollments.c.account_id == submissions.c.account_id)))
+    ids = conn.execute(selection.where(submissions.c.lab_id == lab['id'], tasks.revisions.c.task_id == task_id,
+        labs.enrollments.c.cancelled.is_(False))).scalars().all()
     if ids and conn.execute(sa.select(jobs.c.submission_id).outerjoin(reviews,
             reviews.c.submission_id == jobs.c.submission_id).where(jobs.c.submission_id.in_(ids),
             reviews.c.deleted_at.is_(None), jobs.c.kind != 'initial', jobs.c.state != 'complete')).first():
@@ -233,13 +246,18 @@ def publish_ready(conn: sa.Connection, lab_id: UUID) -> None:
     from cjudge.judging import queue
     lab = labs.find(conn, lab_id)
     for batch in conn.execute(sa.select(batches).where(batches.c.lab_id == lab_id, batches.c.state == 'judging')).mappings().all():
-        unresolved = conn.execute(sa.select(members.c.submission_id).join(reviews,
-            reviews.c.submission_id == members.c.submission_id).where(members.c.batch_id == batch['id'],
-            reviews.c.deleted_at.is_(None), members.c.run_id.is_(None)).limit(1)).first()
+        eligible = members.join(reviews, reviews.c.submission_id == members.c.submission_id).join(
+            submissions, submissions.c.id == members.c.submission_id).join(labs.enrollments,
+            sa.and_(labs.enrollments.c.lab_id == submissions.c.lab_id,
+                labs.enrollments.c.account_id == submissions.c.account_id))
+        active = (members.c.batch_id == batch['id'], reviews.c.deleted_at.is_(None),
+            labs.enrollments.c.cancelled.is_(False))
+        unresolved = conn.execute(sa.select(members.c.submission_id).select_from(eligible)
+            .where(*active, members.c.run_id.is_(None)).limit(1)).first()
         if unresolved:
             continue
-        staged = conn.execute(sa.select(jobs.c.submission_id, jobs.c.attempt_id).join(runs, runs.c.id == jobs.c.attempt_id)
-            .where(jobs.c.batch_id == batch['id'], jobs.c.state == 'complete')).all()
+        staged = conn.execute(sa.select(members.c.submission_id, members.c.run_id).select_from(eligible)
+            .where(*active, members.c.run_id.is_not(None))).all()
         for key, run_id in staged:
             conn.execute(sa.update(reviews).where(reviews.c.submission_id == key).values(run_id=run_id))
         conn.execute(sa.update(batches).where(batches.c.id == batch['id']).values(state='published', published_at=labs.now(conn)))
@@ -251,3 +269,39 @@ def publish_ready(conn: sa.Connection, lab_id: UUID) -> None:
         for account in accounts:
             queue.notify(conn, account)
         queue.notify(conn)
+
+
+def reconcile_participant(conn: sa.Connection, lab_id: UUID, account_id: UUID) -> None:
+    """Bring reinstated active submissions onto the currently assigned revision."""
+    selection = sa.select(submissions.c.id, tasks.revisions.c.task_id).join(tasks.revisions,
+        tasks.revisions.c.id == submissions.c.revision_id).join(reviews,
+        reviews.c.submission_id == submissions.c.id).where(submissions.c.lab_id == lab_id,
+        submissions.c.account_id == account_id, reviews.c.deleted_at.is_(None))
+    for submission_id, task_id in conn.execute(selection).all():
+        target = current_revision(conn, lab_id, task_id)
+        batch = active_batch(conn, lab_id, task_id)
+        job = conn.execute(sa.select(jobs).where(jobs.c.submission_id == submission_id).with_for_update()).mappings().one()
+        official = conn.execute(sa.select(reviews.c.run_id, runs.c.revision_id).outerjoin(runs,
+            runs.c.id == reviews.c.run_id).where(reviews.c.submission_id == submission_id)).one()
+        if official.revision_id != target and official.run_id:
+            conn.execute(sa.update(reviews).where(reviews.c.submission_id == submission_id).values(run_id=None))
+        if job['state'] == 'delayed' or job['state'] != 'complete' and job['revision_id'] != target:
+            enqueue(conn, submission_id, target, 'correction' if batch else 'rejudge', batch['id'] if batch else None)
+            job = conn.execute(sa.select(jobs).where(jobs.c.submission_id == submission_id)).mappings().one()
+        latest = conn.execute(sa.select(runs.c.revision_id).where(runs.c.id == job['attempt_id'])).scalar_one_or_none()
+        current_run = job['attempt_id'] if job['state'] == 'complete' and latest == target else (
+            official.run_id if official.revision_id == target else None)
+        if batch:
+            conn.execute(insert(members).values(batch_id=batch['id'], submission_id=submission_id)
+                .on_conflict_do_nothing())
+            if current_run:
+                conn.execute(sa.update(members).where(members.c.batch_id == batch['id'],
+                    members.c.submission_id == submission_id).values(run_id=current_run))
+            elif job['revision_id'] == target and job['state'] in ('queued', 'judging'):
+                conn.execute(sa.update(jobs).where(jobs.c.submission_id == submission_id).values(batch_id=batch['id']))
+            else:
+                enqueue(conn, submission_id, target, 'correction', batch['id'])
+        elif current_run:
+            conn.execute(sa.update(reviews).where(reviews.c.submission_id == submission_id).values(run_id=current_run))
+        elif job['revision_id'] != target or job['state'] not in ('queued', 'judging'):
+            enqueue(conn, submission_id, target, 'rejudge')

@@ -32,17 +32,18 @@ def sheet(conn: sa.Connection, lab: dict) -> bytes:
         .outerjoin(reviews, reviews.c.submission_id == submissions.c.id).where(submissions.c.lab_id == lab['id'],
         reviews.c.deleted_at.is_(None)).group_by(submissions.c.account_id)).all())
     buffer = io.StringIO(newline=''); writer = csv.writer(buffer)
-    writer.writerow(['Roll number', 'Name', *[heading for task in assigned for heading in
+    writer.writerow(['Roll number', 'Name', 'Status', *[heading for task in assigned for heading in
         (safe_cell(task['config']['title'] + ' marks'), safe_cell(task['config']['title'] + ' pass %'))],
         'Total marks', 'Active submissions', 'Last active submission (UTC)'])
     for student in marks:
         cells = []
         for cell in student['tasks']:
             percentage = review.displayed(Fraction(100 * cell['passed'], cell['total'])) if cell['total'] else '0.00'
-            cells.extend([cell['marks'], percentage])
+            cells.extend(['', ''] if student['cancelled'] else [cell['marks'], percentage])
         timestamp = latest.get(student['id'])
-        writer.writerow([safe_cell(student['roll_number']), safe_cell(student['name']), *cells,
-            student['total'], student['submission_count'], timestamp.isoformat() if timestamp else ''])
+        writer.writerow([safe_cell(student['roll_number']), safe_cell(student['name']),
+            'Cancelled' if student['cancelled'] else 'Active', *cells,
+            student['total'] or '', student['submission_count'], timestamp.isoformat() if timestamp else ''])
     return buffer.getvalue().encode('utf-8-sig')
 
 
