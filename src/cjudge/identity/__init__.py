@@ -37,6 +37,7 @@ accounts = sa.Table(
     sa.Column("role", sa.String(7)),
     sa.Column("roll_number", sa.String(64)),
     sa.Column("name", sa.String(120)),
+    sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.true()),
     sa.Column("password_hash", sa.Text()),
     sa.Column("encrypted_password", sa.LargeBinary()),
     sa.Column("created_at", sa.DateTime(timezone=True)),
@@ -271,7 +272,7 @@ def authenticate(role: str, identifier: str, password: str) -> tuple[dict, str] 
         if failures >= 5:
             audit(conn, "login_throttled", detail={"identifier": throttle_key})
             return None
-        query = sa.select(accounts).where(accounts.c.role == role)
+        query = sa.select(accounts).where(accounts.c.role == role, accounts.c.active)
         if role == "student":
             query = query.where(accounts.c.roll_number == normalized)
         elif identifier.strip().lower() != "admin":
@@ -299,7 +300,8 @@ def current_session(token: str | None) -> dict | None:
     with engine().connect() as conn:
         row = conn.execute(sa.select(accounts.c.id, accounts.c.role, accounts.c.roll_number, accounts.c.name,
                                      sessions.c.csrf_token).join(sessions, accounts.c.id == sessions.c.account_id)
-                           .where(sessions.c.token_hash == token_digest(token), sessions.c.expires_at > now()))
+                           .where(sessions.c.token_hash == token_digest(token), sessions.c.expires_at > now(),
+                                  accounts.c.active))
         match = row.mappings().first()
         return dict(match) if match else None
 

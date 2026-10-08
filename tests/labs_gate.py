@@ -138,6 +138,15 @@ def binding_checks(admin_id, student_id, revision_id):
     with identity.engine().connect() as conn:
         assert conn.execute(sa.select(identity.audit_events.c.action).where(
             identity.audit_events.c.action == 'lab_ip_changed', identity.audit_events.c.subject_id == student_id)).first()
+    with identity.engine().begin() as conn:
+        conn.execute(sa.insert(identity.sessions).values(token_hash=identity.token_digest(session), account_id=student_id,
+            csrf_token='csrf', expires_at=labs.now(conn) + timedelta(hours=8)))
+        conn.execute(sa.update(identity.accounts).where(identity.accounts.c.id == student_id).values(active=False))
+    assert identity.current_session(session) is None
+    assert identity.authenticate('student', 'GATE', credential['password']) is None
+    with identity.engine().begin() as conn:
+        conn.execute(sa.delete(identity.sessions).where(identity.sessions.c.account_id == student_id))
+        conn.execute(sa.update(identity.accounts).where(identity.accounts.c.id == student_id).values(active=True))
     print('PASS: WAL-free binding reads, persisted IP changes, token loss, strict IP, release and revoked-session fencing')
 
 
