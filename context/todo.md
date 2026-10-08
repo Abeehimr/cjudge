@@ -112,7 +112,7 @@ Admin-guide capture: Scoreboard navigation, participant toggle off/on, sorted to
 
 ## Planned Improvements
 
-M11–M13 are implemented; M14–M16 remain planned and independent. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
+M11–M14 are implemented; M15–M16 remain planned and independent. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
 
 ## M11 — Roster and Credentials · requires M2, M4
 
@@ -148,11 +148,13 @@ Evidence: 55 frontend tests, frontend build, disposable-database release gate.
 
 ## M14 — Optional Early Feedback · requires M4, M6, M8
 
-- [ ] Add a default-off per-lab passed/total toggle with version checks, audit, announcement, and archive protection.
-- [ ] Expose official counts server-side only for partial-scoring tasks when enabled.
-- [ ] Render pending/provisional states; keep source, cases, and streams release/reveal-gated.
-- [ ] **Test:** defaults, toggle authorization, scoring revisions, pending/rejudge states, SSE refresh, and hidden-data protection.
-- [ ] **Gate:** backend/frontend and database disclosure checks pass; stop for review.
+- [x] Add a default-off per-lab passed/total toggle with version checks, audit, announcement, and archive protection.
+- [x] Expose official counts server-side only for partial-scoring tasks when enabled.
+- [x] Render pending/provisional states; keep source, cases, and streams release/reveal-gated.
+- [x] **Test:** defaults, toggle authorization, scoring revisions, pending/rejudge states, SSE refresh, and hidden-data protection.
+- [x] **Gate:** backend/frontend and database disclosure checks pass; stop for review.
+
+Evidence: 33 backend tests, 57 frontend tests and build, disposable-database release gate.
 
 ## M15 — Reversible Lab Cancellation · requires M4, M6, M8, M10
 

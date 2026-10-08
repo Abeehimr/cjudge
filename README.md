@@ -109,6 +109,8 @@ Test announcements and PDF replacement with a student tab open: SSE refreshes ma
 
 Lab overviews show the latest announcement and collapse older messages. Frozen enrollment rows use muted yellow. Admin and released-student submission details shade testcase verdicts: AC green, WA/RE red, and TLE/MLE/OLE yellow.
 
+**Early passed/total feedback** on the admin lab overview is off by default. When enabled, students see counts for their own official partial-scoring submissions before results release; pending work has no counts, and counts under rejudge are provisional. All-or-nothing tasks remain opaque. This setting does not change scoreboard visibility or reveal source/testcases. Apply migration `20261009_early_feedback` before starting updated API/worker images.
+
 Lab time, PDF, problem/correction, and result changes automatically post announcements, including supplied reasons. Individual deletion/restoration, rejudge/retry, freeze, and binding-release notices reach only the affected student; admins see their audience. Deleted student submissions remain listed with their reason and exclusion from marks; source and judging details remain release-gated. This update adds migration `20261006_notices`: rebuild API/web/worker, stop API/worker, migrate, then restart.
 
 Back up `lab_files` with PostgreSQL. PDFs have immutable UUID paths, up to 10 active files of 20 MiB each. Interrupted transactions may leave unreferenced files; retain the volume until cleanup support arrives. API owns this volume as UID/GID 10001; if an older image initialized it as root, run `docker compose run --rm --user root api chown 10001:10001 /var/lib/cjudge-labs` before use.
