@@ -60,6 +60,7 @@ a[download] {
 .submission-status[data-status="Failed"],
 .submission-status[data-status="Compile error"] { @apply border-red-200 bg-red-50 text-red-800; }
 .submission-status[data-status="Queued"],
+.submission-status[data-status="Partial pass"],
 .submission-status[data-status="Judging delayed"] { @apply border-amber-200 bg-amber-50 text-amber-800; }
 .submission-status[data-status="Judging"] { @apply border-blue-200 bg-blue-50 text-blue-800; }
 .case-result[data-verdict="AC"] { @apply border-green-200 bg-green-50 text-green-900; }

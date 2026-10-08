@@ -40,7 +40,7 @@ Keep the student path short: read, upload, check status. Explain disabled upload
 
 Store PDFs on the lab, not individual tasks. List all lab PDFs on the dashboard and link back to them from task pages. Omit empty task statements; render provided Markdown safely. Hide both document types until the lab starts.
 
-Use readable layouts, labeled controls, keyboard-accessible navigation, visible focus, and text alongside status colors. Keep tables usable on narrow screens. Render source and diagnostics as escaped monospace text. Bundle assets locally. Preserve cJudge's grading and visibility rules: student submission views hide partial marks and cases before release by default; M14 optionally exposes partial-task passed/total counts; admin may separately enable live scoreboard standings.
+Use readable layouts, labeled controls, keyboard-accessible navigation, visible focus, and text alongside status colors. Keep tables usable on narrow screens. Render source and diagnostics as escaped monospace text. Bundle assets locally. Preserve cJudge's grading and visibility rules: student submission views hide partial marks and cases before release by default; optional early feedback exposes partial-task passed/total and marks; admin may separately enable live scoreboard standings.
 
 Confirm destructive or grading-changing admin actions and show their effects. Collect required audit reasons. Separate archive download from permanent deletion.
 

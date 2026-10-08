@@ -6,7 +6,7 @@ type Case = { number: number; verdict: string; cpu_seconds: number; wall_seconds
   stdin: string | null; expected: string | null; stdout: string | null; stderr: string | null;
   stdin_truncated: boolean; expected_truncated: boolean; stdout_truncated: boolean; stderr_truncated: boolean };
 type Detail = { id: string; filename: string; source: string; status: string; accepted_at: string;
-  marks: string | null; official_marks: string | null; passed: number | null; total: number | null; grading_pending: boolean;
+  marks: string | null; maximum_marks: string | null; official_marks: string | null; passed: number | null; total: number | null; grading_pending: boolean;
   deleted_at: string | null; delete_reason: string | null; official_run_id: string | null; compiler_feedback: string | null; compiler_truncated: boolean;
   history: { id: string; verdict: string; finished_at: string }[]; cases: Case[] };
 
@@ -37,7 +37,7 @@ export default function SubmissionDetail({ labId, submissionId, visible, refresh
       <label>Judge result <select value={run} onChange={(e) => setParams(e.target.value ? { run: e.target.value } : {})}>
         <option value="">Official result</option>{row.history.map((item) => <option key={item.id} value={item.id}>{item.verdict} · {new Date(item.finished_at).toLocaleString()} · {item.id === row.official_run_id ? "Official" : "Retained run"}</option>)}</select></label>
       {run && <p className="notice notice-warning">Viewing retained run; marks use the official result.</p>}
-      {row.passed !== null && <p>Cases passed: {row.passed}/{row.total} · Run marks: {row.marks}</p>}
+      {row.passed !== null && <p>Cases passed: {row.passed}/{row.total} · Run marks: {row.marks}/{row.maximum_marks}</p>}
       <h3 className="font-semibold">Source: {row.filename}</h3>
       <a download href={`/api/labs/${labId}/submissions/${row.id}/source`}>Download original source</a>
       <pre className="overflow-x-auto rounded border bg-slate-50 p-3"><code>{row.source}</code></pre>

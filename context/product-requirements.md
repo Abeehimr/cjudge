@@ -32,7 +32,7 @@ Deferred: other submission languages, TAs/multiple admins, individual extensions
 - Enforce a 30-second cooldown across tasks and at most three pending submissions per student. Rejudge jobs do not consume upload slots.
 - Configure independent sandbox instances through the environment. Admin's Isolates panel shows configured, healthy, and working counts, current work, heartbeat freshness, and faults.
 - Show Queued, Judging, Passed/Failed, configured compile-error feedback, or Judging delayed. Compile-error feedback defaults to approximately 20 lines, with full/verdict-only options.
-- During labs, expose no partial marks or hidden-case details by default; M14 adds optional partial-task passed/total counts. M10's optional scoreboard exposes live standings only when admin enables it.
+- During labs, expose no partial marks or hidden-case details by default; optional early feedback reveals partial-task passed/total and submission marks. M10's optional scoreboard exposes live standings only when admin enables it.
 
 ## Navigation
 
@@ -53,7 +53,7 @@ Deferred: other submission languages, TAs/multiple admins, individual extensions
 
 - Release manually after the lab ends; block release and final mark sheets while counted judging/rejudging remains unresolved. M15 excludes cancelled participation from this gate. Admins may retry or exclude affected attempts through audited soft deletion.
 - After release with reveal enabled, show each active submission's source, marks, all retained grading runs, per-case verdicts, and failed-case inputs, expected outputs, and student stdout/stderr. Retain the first 64 KiB per stream/case and label truncation.
-- Open submissions from history on a dedicated page with inline source and details. Admins can inspect submissions before release; students can inspect only their own after release while reveal is enabled. During labs, keep student histories limited to status and configured compiler feedback, except M14’s optional passed/total counts.
+- Open submissions from history on a dedicated page with inline source and details. Admins can inspect submissions before release; students can inspect only their own after release while reveal is enabled. During labs, keep student histories limited to status and configured compiler feedback, except optional partial-task counts and marks.
 - Warn before revealing tests used by another scheduled lab. Admin controls release timing; hiding results cannot undo disclosure.
 - Students access only their own private data, with no student access to network metadata or infrastructure diagnostics.
 - CSV exports contain roll number, name, per-task marks/pass percentages, total marks, active submission count, and last active submission time. Percentages come from counted submissions.
@@ -94,7 +94,7 @@ M11–M14 are implemented; M15–M16 remain planned. Each module has its own tes
 
 ### M14 — Optional Early Feedback
 
-- Add a per-lab, default-off toggle to show passed/total before release for partial-scoring tasks only. This intentionally reveals partial-score information; scoreboard visibility remains independent.
+- Add a per-lab, default-off toggle to show passed/total and earned/maximum marks before release for partial-scoring tasks only. This intentionally reveals partial-score information; scoreboard visibility remains independent.
 - Show official-result counts; no counts without an official result. During rejudge, retain official counts and mark them provisional. Source, testcase details, and test streams remain release/reveal-gated.
 - Audit and announce toggle changes; archived labs remain read-only.
 

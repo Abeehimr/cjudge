@@ -110,8 +110,8 @@ test('admin confirms early feedback disclosure and sees the updated setting', as
   vi.stubGlobal('fetch', fetchMock);
   vi.stubGlobal('confirm', vi.fn(() => true));
   renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab');
-  fireEvent.click(await screen.findByRole('button', { name: 'Early passed/total feedback: Off' }));
-  expect(await screen.findByRole('button', { name: 'Early passed/total feedback: On' })).toBeTruthy();
+  fireEvent.click(await screen.findByRole('button', { name: 'Early results feedback: Off' }));
+  expect(await screen.findByRole('button', { name: 'Early results feedback: On' })).toBeTruthy();
   expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/early-feedback/visibility', expect.objectContaining({
     method: 'PUT', body: JSON.stringify({ version: 1, visible: true }),
     headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }),

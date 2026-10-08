@@ -7,7 +7,7 @@ import { useOffset, useUnsaved } from "./navigation";
 type Submission = { id: string; revision_id: string; filename: string; accepted_at: string; status: string;
   compiler_feedback: string | null; compiler_truncated: boolean; best_for_review?: boolean };
 type AdminSubmission = Submission & { account_id: string; roll_number: string; name: string; attempt_count: number; fault: string | null;
-  client_ip: string; client_mac: string | null; passed: number | null; total: number | null; marks: string | null;
+  client_ip: string; client_mac: string | null; passed: number | null; total: number | null; marks: string | null; maximum_marks: string | null;
   deleted_at: string | null; delete_reason: string | null; rejudge_status: string | null; ip_changed: boolean; mac_changed: boolean };
 type SubmissionDetail = AdminSubmission & { size: number; source: string; score_numerator: string | null; score_denominator: string | null;
   official_run_id: string | null; run_id: string | null; result_revision_id: string | null;
@@ -74,7 +74,7 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
         <td><Link to={`/admin/labs/${labId}/tasks/${row.revision_id}`}>{tasks.find((task) => task.revision_id === row.revision_id)?.title || row.revision_id}</Link></td>
         <td><Link to={`/admin/labs/${labId}/submissions/${row.id}`}>{row.filename}</Link>{row.best_for_review && <span className="block text-green-800">Best for review</span>}</td><td><span className="submission-status" data-status={row.status}>{row.status}</span>
           {row.deleted_at && <p className="text-red-800">Deleted · {row.delete_reason}</p>}
-          {row.marks != null && <p>{row.marks} marks · {row.passed}/{row.total} cases</p>}
+          {row.marks != null && <p>Passed tests: {row.passed}/{row.total} · Marks: {row.marks}/{row.maximum_marks}</p>}
           {row.rejudge_status && <p className="text-amber-800">Rejudge: {row.rejudge_status}</p>}
           {row.compiler_feedback && <details><summary>Compiler feedback</summary><pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></details>}
           {row.compiler_truncated && <p>Compiler feedback truncated.</p>}</td>
@@ -128,7 +128,7 @@ export function AdminSubmissionDetail({ labId, submissionId, csrf, released, arc
         <Link to={`/admin/labs/${labId}/tasks/${row.revision_id}`}>Task</Link></p>
       <p><span className="submission-status" data-status={row.status}>{row.status}</span> · Accepted {new Date(row.accepted_at).toLocaleString()} · {row.attempt_count} judging attempts</p>
       <p>IP: {row.client_ip} · MAC: {row.client_mac || "Unavailable"}</p>
-      {row.passed !== null && <p>Cases passed: {row.passed}/{row.total} · Marks: {row.marks}</p>}
+      {row.passed !== null && <p>Cases passed: {row.passed}/{row.total} · Marks: {row.marks}/{row.maximum_marks}</p>}
       <label>Judge result <select value={run} disabled={busy} onChange={(e) => setParams(e.target.value ? { run: e.target.value } : {})}>
         <option value="">Official result</option>{(row.history || []).map((item) => <option key={item.id} value={item.id}>{item.verdict} · {new Date(item.finished_at).toLocaleString()} · {item.id === row.official_run_id ? 'Official' : 'Retained run'}</option>)}</select></label>
       {run && <p className="notice notice-warning">Viewing retained run; marks use the official result.</p>}
