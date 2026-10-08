@@ -159,6 +159,12 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       </>}
       {section === "overview" && <>
       <Release lab={lab} csrf={csrf} accept={accept} deleted={() => setDestination("/admin/labs")} />
+      <section className="rounded border bg-white p-4"><button aria-pressed={!!lab.early_feedback_visible} disabled={busy || !!lab.archived_at}
+        onClick={() => { if (!lab.early_feedback_visible && !confirm('Show passed/total counts before release for partial-scoring tasks?')) return;
+          void perform(() => mutate('/early-feedback/visibility', 'PUT', { version: lab.version, visible: !lab.early_feedback_visible }));
+        }}>Early passed/total feedback: {lab.early_feedback_visible ? 'On' : 'Off'}</button>
+        <p className="mt-2 text-sm">Students see only their own official counts. Pending rejudges mark counts provisional; source and testcases stay hidden until release.</p>
+      </section>
       <form onSubmit={(e) => { e.preventDefault(); void perform(() => mutate("", "PUT", { version: lab.version, title, strict_ip: strict })); }} className="rounded border bg-white p-4">
         <fieldset disabled={busy || !setupOpen} className="space-y-2"><legend className="font-semibold">Lab settings</legend>
           <label className="block">Lab title <input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} /></label>

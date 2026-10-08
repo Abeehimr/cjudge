@@ -99,6 +99,25 @@ test('frozen enrollment shades its row and keeps the reason visible', async () =
   expect(screen.getByText('Frozen · Review required').className).toContain('notice-warning');
 });
 
+test('admin confirms early feedback disclosure and sees the updated setting', async () => {
+  live();
+  let lab = { ...summary, version: 1, early_feedback_visible: false, strict_ip: false,
+    first_released_at: null, tasks: [], pdfs: [], students: [], announcements: [] };
+  const fetchMock = vi.fn().mockImplementation((path: string, options: RequestInit) => {
+    if (path.endsWith('/early-feedback/visibility') && options.method === 'PUT') lab = { ...lab, version: 2, early_feedback_visible: true };
+    return Promise.resolve({ ok: true, status: 200, json: async () => path === '/api/admin/labs/lab' || path.endsWith('/early-feedback/visibility') ? lab : [] });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  vi.stubGlobal('confirm', vi.fn(() => true));
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab');
+  fireEvent.click(await screen.findByRole('button', { name: 'Early passed/total feedback: Off' }));
+  expect(await screen.findByRole('button', { name: 'Early passed/total feedback: On' })).toBeTruthy();
+  expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/early-feedback/visibility', expect.objectContaining({
+    method: 'PUT', body: JSON.stringify({ version: 1, visible: true }),
+    headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }),
+  }));
+});
+
 test('browser release shows replacement password to admin', async () => {
   live();
   const member = { id: 'student', roll_number: '001A', name: 'Ada', frozen: false, freeze_reason: null,

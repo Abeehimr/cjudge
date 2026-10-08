@@ -66,6 +66,25 @@ test("pending limit disables new uploads with its reason", async () => {
   expect(screen.getByText(/Three submissions are pending/)).toBeTruthy();
 });
 
+test("early feedback shows official counts, provisional runs, and pending work without details", async () => {
+  const rows = [
+    { id: 'one', revision_id: 'revision', filename: 'one.c', accepted_at: admission.server_time, status: 'Failed',
+      early_feedback: { passed: 1, total: 2, provisional: false } },
+    { id: 'two', revision_id: 'revision', filename: 'two.c', accepted_at: admission.server_time, status: 'Judging',
+      early_feedback: { passed: 1, total: 2, provisional: true } },
+    { id: 'three', revision_id: 'revision', filename: 'three.c', accepted_at: admission.server_time, status: 'Queued', early_feedback: null },
+    { id: 'four', revision_id: 'revision', filename: 'four.c', accepted_at: admission.server_time, status: 'Failed', early_feedback: null },
+  ];
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => rows }));
+  renderRoute(<Upload labId="lab" tasks={tasks} admission={admission} csrf="csrf" refresh={vi.fn()} earlyFeedback />, '/labs/lab/tasks/revision');
+  await screen.findByText('one.c');
+  expect(screen.getByText('Passed tests: 1/2')).toBeTruthy();
+  expect(screen.getByText('Passed tests: 1/2 · Provisional during rejudge')).toBeTruthy();
+  expect(screen.getByText('Passed tests: Pending')).toBeTruthy();
+  expect(screen.queryByRole('link', { name: 'one.c' })).toBeNull();
+  expect(screen.getByText('four.c').closest('tr')?.textContent).not.toContain('Passed tests');
+});
+
 test("saving feedback refreshes the parent lab version before further edits", async () => {
   vi.stubGlobal("EventSource", class extends EventTarget { close = vi.fn(); });
   vi.stubGlobal("fetch", vi.fn().mockImplementation((path: string, options: RequestInit) => Promise.resolve({
