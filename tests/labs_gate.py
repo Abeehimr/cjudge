@@ -125,7 +125,10 @@ def binding_checks(admin_id, student_id, revision_id):
             assert exc.status == 423
         else:
             raise AssertionError('Strict IP accepted changed address')
-        lab_binding.release(conn, lab, student_id, 'New browser', admin_id)
+        credential = lab_binding.release(conn, lab, student_id, 'New browser', admin_id)
+        assert len(credential['password']) == 6 and credential['roll_number'] == 'GATE'
+        assert identity.verify_password(conn.execute(sa.select(identity.accounts.c.password_hash)
+            .where(identity.accounts.c.id == student_id)).scalar_one(), credential['password'])
         try:
             lab_binding.access(conn, lab, student_id, session, None, '192.0.2.1', enter=True)
         except labs.LabError as exc:
@@ -292,8 +295,13 @@ def api_checks(admin_id, student_id, revision_id):
             status, lab, _ = call(path + '/deadline', 'POST', {'version': lab['version'], 'action': 'reopen',
                 'reason': 'Reopened', 'ends_at': (identity.now() + timedelta(minutes=4)).isoformat()})
             assert status == 200
-            assert call(path + '/students/' + str(student_id) + '/release', 'POST', {'reason': 'Replace browser'})[0] == 204
+            status, credential, headers = call(path + '/students/' + str(student_id) + '/release', 'POST', {'reason': 'Replace browser'})
+            assert status == 200 and credential['id'] == str(student_id) and len(credential['password']) == 6
+            assert headers['Cache-Control'] == 'no-store'
             assert call(student_path + '/enter', 'POST', role='student')[0] == 401
+            with identity.engine().connect() as conn:
+                assert identity.verify_password(conn.execute(sa.select(identity.accounts.c.password_hash)
+                    .where(identity.accounts.c.id == student_id)).scalar_one(), credential['password'])
             for _ in range(20):
                 event = read_event(stream)
                 if b'event: denied' in event:

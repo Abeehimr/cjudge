@@ -13,7 +13,7 @@ from starlette.concurrency import run_in_threadpool
 
 from cjudge import identity, labs, tasks
 from cjudge.labs import binding as lab_binding, files as lab_files
-from cjudge.identity.api import StrictModel, admin, admin_write, current, write_guard, COOKIE, no_store
+from cjudge.identity.api import CredentialOutput, StrictModel, admin, admin_write, current, write_guard, COOKIE, no_store
 from cjudge.tasks.api import bounded_body, json_input
 from cjudge.tasks.grading import TaskConfig
 
@@ -362,15 +362,18 @@ async def freeze_student(lab_id: UUID, account_id: UUID, request: Request, actor
     await run_in_threadpool(freeze)
 
 
-@admin_router.post('/{lab_id}/students/{account_id}/release', status_code=204)
+@admin_router.post('/{lab_id}/students/{account_id}/release', response_model=CredentialOutput)
 async def release_binding(lab_id: UUID, account_id: UUID, request: Request, actor: dict = Depends(admin_write)):
     body = await json_input(request, ReasonInput)
     if not body.reason.strip():
         raise HTTPException(400, 'Reason required')
     def release():
         with transaction() as conn:
-            lab_binding.release(conn, labs.find(conn, lab_id, shared=True), account_id, body.reason.strip(), actor['id'])
-    await run_in_threadpool(release)
+            return lab_binding.release(conn, labs.find(conn, lab_id, shared=True), account_id, body.reason.strip(), actor['id'])
+    try:
+        return await run_in_threadpool(release)
+    except RuntimeError as exc:
+        raise HTTPException(503, 'Credentials unavailable') from exc
 
 
 @admin_router.post('/{lab_id}/schedule', response_model=AdminLab)

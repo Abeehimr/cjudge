@@ -73,11 +73,16 @@ def access(conn: sa.Connection, lab: dict, account_id: UUID, session_token: str 
     return (row if readonly else labs.enrollment(conn, lab['id'], account_id)), new_token
 
 
-def release(conn: sa.Connection, lab: dict, account_id: UUID, reason: str, actor: UUID) -> None:
+def release(conn: sa.Connection, lab: dict, account_id: UUID, reason: str, actor: UUID) -> dict:
     labs.enrollment(conn, lab['id'], account_id)
+    active = identity.checked_cipher(conn)
+    student = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number,
+        identity.accounts.c.name).where(identity.accounts.c.id == account_id,
+        identity.accounts.c.role == 'student').with_for_update()).mappings().one()
+    password = identity.rotate_student_password(conn, account_id, active)
     conn.execute(sa.update(labs.enrollments).where(labs.enrollments.c.lab_id == lab['id'],
         labs.enrollments.c.account_id == account_id).values(binding_hash=None, bound_ip=None, last_ip=None,
                                                           bound_at=None, ip_changed=False))
-    conn.execute(sa.delete(identity.sessions).where(identity.sessions.c.account_id == account_id))
     identity.audit(conn, 'lab_binding_released', actor, account_id, detail={'lab_id': str(lab['id']), 'reason': reason})
-    labs.announce(conn, lab['id'], f'Browser binding released. Sign in and enter the lab again. Reason: {reason}', actor, account_id)
+    labs.announce(conn, lab['id'], f'Browser binding and password reset. Ask admin for the new password, then sign in and enter the lab again. Reason: {reason}', actor, account_id)
+    return {**student, 'password': password}

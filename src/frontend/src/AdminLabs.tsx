@@ -26,6 +26,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   const [lab, setLab] = useState<AdminLab | null>(null);
   const [options, setOptions] = useState<Task[]>([]), [optionOffset, setOptionOffset] = useState(0), [moreOptions, setMoreOptions] = useState(true);
   const [students, setStudents] = useState<Student[]>([]), [selectedStudentId, setStudentId] = useState(""), [search, setSearch] = useState("");
+  const [releasedCredential, setReleasedCredential] = useState<(Student & { password: string }) | null>(null);
   const [newTitle, setNewTitle] = useState(""), [title, setTitle] = useState(""), [strict, setStrict] = useState(false);
   const [taskIds, setTaskIds] = useState<string[]>([]), [taskId, setTaskId] = useState("");
   const [defaultDates] = useState(() => ({ start: localDate(null, 5), end: localDate(null, 125) }));
@@ -48,6 +49,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     void api<AdminLab>(`/admin/labs/${labId}`, { signal: controller.signal }).then(accept).catch((e) => { if (!controller.signal.aborted) { setFailure(e.status); showError(e.message); } });
     return () => controller.abort();
   }, [labId]);
+  useEffect(() => { setReleasedCredential(null); }, [labId, section, studentId]);
   useEffect(() => {
     if (section !== "tasks" || revisionId || !labId) return;
     void api<Task[]>(`/admin/labs/task-options?offset=${optionOffset}`).then((next) => {
@@ -96,12 +98,13 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     });
   }
   async function rosterAction(member: Enrollment, action: "freeze" | "release") {
-    if (action === "release" && !confirm(`Release ${member.roll_number}'s browser? All their login sessions will end.`)) return;
+    if (action === "release" && !confirm(`Release ${member.roll_number}'s browser and reset their password? All their login sessions will end.`)) return;
     const why = prompt(action === "release" ? "Reason for browser release" : `Reason to ${member.frozen ? "unfreeze" : "freeze"} submissions`);
     if (!why?.trim()) return;
     await perform(async () => {
-      await api<void>(`/admin/labs/${lab!.id}/students/${member.id}/${action}`, { method: "POST",
+      const result = await api<Student & { password: string }>(`/admin/labs/${lab!.id}/students/${member.id}/${action}`, { method: "POST",
         body: JSON.stringify({ reason: why.trim(), ...(action === "freeze" ? { frozen: !member.frozen } : {}) }) }, csrf);
+      if (action === "release") setReleasedCredential(result);
       await reload();
     });
   }
@@ -216,6 +219,12 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       <CompilerFeedback labId={lab.id} csrf={csrf} feedback={lab.compiler_feedback} refreshLab={() => reload()} onDirty={setFeedbackDirty} />
       </>}
       {section === "students" && <>
+      {releasedCredential && <section className="rounded border bg-white p-4" aria-label="New student credential">
+        <div className="flex justify-between"><h2 className="font-semibold">New credential for {releasedCredential.roll_number}</h2>
+          <div className="flex gap-3"><button onClick={() => print()}>Print</button><button onClick={() => setReleasedCredential(null)}>Hide</button></div></div>
+        <p>{releasedCredential.name} · Password: <strong className="font-mono">{releasedCredential.password}</strong></p>
+        <p className="text-sm">Give this password to the student. Their old password and sessions no longer work.</p>
+      </section>}
       <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">{studentId ? `${member?.roll_number} · ${member?.name}` : `Enrollment (${lab.students.length})`}</h2>
         {!studentId && <>
         <form onSubmit={(e) => { e.preventDefault(); void perform(async () => setStudents(await api<Student[]>(`/admin/students?search=${encodeURIComponent(search)}`))); }} className="flex flex-wrap gap-2">

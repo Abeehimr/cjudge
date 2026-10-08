@@ -72,6 +72,26 @@ test('admin student page isolates controls and filters history to the student', 
   expect(screen.queryByLabelText('Student roll number')).toBeNull();
 });
 
+test('browser release shows replacement password to admin', async () => {
+  live();
+  const member = { id: 'student', roll_number: '001A', name: 'Ada', frozen: false, freeze_reason: null,
+    bound_at: '2026-10-01T00:00:00Z', bound_ip: '192.0.2.1', last_ip: '192.0.2.1', ip_changed: false };
+  const lab = { ...summary, version: 1, strict_ip: false, first_released_at: null, tasks: [], pdfs: [], students: [member], announcements: [] };
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path.endsWith('/release') ? { id: 'student', roll_number: '001A', name: 'Ada', password: 'abc123' }
+      : path === '/api/admin/labs/lab' ? lab : [] }));
+  vi.stubGlobal('fetch', fetchMock);
+  vi.stubGlobal('confirm', vi.fn(() => true));
+  vi.stubGlobal('prompt', vi.fn(() => 'Changed computer'));
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students/student');
+  fireEvent.click(await screen.findByRole('button', { name: 'Release browser 001A' }));
+  expect(await screen.findByText('abc123')).toBeTruthy();
+  expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/students/student/release', expect.objectContaining({
+    method: 'POST', body: JSON.stringify({ reason: 'Changed computer' }) }));
+  fireEvent.click(screen.getByRole('button', { name: 'Hide' }));
+  expect(screen.queryByText('abc123')).toBeNull();
+});
+
 test('admin overview does not load account options, task options, or submissions', async () => {
   live(); const lab = { ...summary, version: 1, strict_ip: false, first_released_at: null, compiler_feedback: 'short', tasks: [], pdfs: [], students: [], announcements: [] };
   const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200, json: async () => path.endsWith('/marks') ? [] : lab }));
