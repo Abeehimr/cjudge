@@ -112,7 +112,7 @@ Admin-guide capture: Scoreboard navigation, participant toggle off/on, sorted to
 
 ## Planned Improvements
 
-M11 is implemented; M12–M16 remain planned and independent. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
+M11–M12 are implemented; M13–M16 remain planned and independent. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
 
 ## M11 — Roster and Credentials · requires M2, M4
 
@@ -127,12 +127,14 @@ Evidence: 33 backend tests, 51 frontend tests, frontend build, disposable-databa
 
 ## M12 — Account Lifecycle · requires M2, M4, M8
 
-- [ ] Add active-account state, inactive filtering, and session/access enforcement.
-- [ ] Delete only accounts without enrollment/submission history; preserve audit identity snapshots.
-- [ ] Deactivate accounts with history; preserve marks/evidence and reserve roll numbers.
-- [ ] Reactivate with a new password; imports cannot silently reactivate accounts.
-- [ ] **Test:** eligibility races, audit retention, login/SSE revocation, reactivation, import conflicts, and unchanged marks/history.
-- [ ] **Gate:** account lifecycle and retained-history checks pass; stop for review.
+- [x] Add active-account state, inactive filtering, and session/access enforcement.
+- [x] Delete only accounts without enrollment/submission history; preserve audit identity snapshots.
+- [x] Deactivate accounts with history; preserve marks/evidence and reserve roll numbers.
+- [x] Reactivate with a new password; imports cannot silently reactivate accounts.
+- [x] **Test:** eligibility races, audit retention, login/SSE revocation, reactivation, import conflicts, and unchanged marks/history.
+- [x] **Gate:** account lifecycle and retained-history checks pass; stop for review.
+
+Evidence: 33 backend tests, 53 frontend tests and build, disposable-database lab and marks gates. The legacy identity gate targets the running database and was not used for M12 acceptance.
 
 ## M13 — Interface Readability · requires M4, M8
 

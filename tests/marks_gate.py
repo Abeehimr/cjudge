@@ -104,7 +104,7 @@ def exercise(directory: str) -> None:
     print('PASS: migration backfill, exact best/ties, later CE, half-up marks, deleted evidence and pending versus zero')
 
     def call(path, method='GET', body=None, student=False, csrf_value=csrf, authenticated=True, bound=True):
-        headers = {'Origin': 'https://localhost:8443', 'X-CSRF-Token': csrf_value}
+        headers = {'Origin': os.getenv('CJUDGE_PUBLIC_ORIGIN', 'https://localhost:8443'), 'X-CSRF-Token': csrf_value}
         if authenticated:
             headers['Cookie'] = f'cjudge_session={student_token if student else admin_token}'
             if student and bound:

@@ -1,6 +1,6 @@
 # Product Requirements
 
-Source of truth for cJudge v1 product behavior. M0–M11 are implemented; M12–M16 remain planned. The M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
+Source of truth for cJudge v1 product behavior. M0–M12 are implemented; M13–M16 remain planned. The M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
 
 ## Scope
 
@@ -74,7 +74,7 @@ Deferred: other submission languages, TAs/multiple admins, individual extensions
 
 ## Planned Improvements — M11–M16
 
-M11 is implemented; M12–M16 remain planned. Each module has its own test/review gate in [todo.md](todo.md).
+M11–M12 are implemented; M13–M16 remain planned. Each module has its own test/review gate in [todo.md](todo.md).
 
 ### M11 — Roster and Credentials
 
