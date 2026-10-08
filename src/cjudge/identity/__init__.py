@@ -27,7 +27,7 @@ from cjudge.events import publish
 KEY_FILE = Path("/var/lib/cjudge/credentials.key")
 SESSION_LIFETIME = timedelta(hours=8)
 LOGIN_WINDOW = timedelta(minutes=5)
-PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+PASSWORD_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
 _hasher = PasswordHasher()
 _hash_slots = BoundedSemaphore(4)
 metadata = sa.MetaData()
@@ -120,7 +120,7 @@ def normalize_name(value: str) -> str:
 
 
 def generate_password() -> str:
-    return "".join(secrets.choice(PASSWORD_ALPHABET) for _ in range(12))
+    return "".join(secrets.choice(PASSWORD_ALPHABET) for _ in range(6))
 
 
 def hash_password(password: str) -> str:

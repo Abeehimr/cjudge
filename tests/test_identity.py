@@ -35,7 +35,7 @@ def test_password_storage_and_key_survival(tmp_path, monkeypatch) -> None:
     with pytest.raises(FileExistsError):
         identity.init_key()
     password = identity.generate_password()
-    assert len(password) == 12 and all(char in identity.PASSWORD_ALPHABET for char in password)
+    assert len(password) == 6 and all(char in identity.PASSWORD_ALPHABET for char in password)
     hashed = identity.hash_password(password)
     assert identity.verify_password(hashed, password)
     assert not identity.verify_password(hashed, "wrong")
