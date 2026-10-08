@@ -37,7 +37,7 @@ test("admin reveals selected credentials only after an explicit action", async (
   const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({
     ok: true, status: 200,
     json: async () => path.endsWith("/auth/session") ? admin
-      : path.endsWith("/admin/students") ? [student]
+      : path.includes("/admin/students?search=") ? [student]
       : [{ ...student, password: "PRIVATE-PASS" }],
   }));
   vi.stubGlobal("fetch", fetchMock);
