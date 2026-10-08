@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M11–M16 are planned, not implemented. M0–M10 are implemented; physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M11 are implemented; M12–M16 remain planned. physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 

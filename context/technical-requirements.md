@@ -1,6 +1,6 @@
 # Technical Requirements
 
-Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M11–M16 are planned, not implemented. M0–M10 automated checks pass; physical LAN/offline browser acceptance remains. See [acceptance-results.json](acceptance-results.json).
+Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M11 automated checks pass; M12–M16 remain planned. Physical LAN/offline browser acceptance remains. See [acceptance-results.json](acceptance-results.json).
 
 ## Stack and Storage
 

@@ -1,4 +1,4 @@
-> Original proposal; retained for reference. Final decisions (including reversible cancellation and per-student schedule conflicts) are in [product requirements](product-requirements.md#planned-improvements--m11m16). Implementation modules: [M11–M16](todo.md#m11--roster-and-credentials--requires-m2-m4). These improvements are not implemented.
+> Original proposal; retained for reference. Final decisions (including reversible cancellation and per-student schedule conflicts) are in [product requirements](product-requirements.md#planned-improvements--m11m16). Implementation modules: [M11–M16](todo.md#m11--roster-and-credentials--requires-m2-m4). M11 is implemented; M12–M16 remain planned.
 
 
 # student page

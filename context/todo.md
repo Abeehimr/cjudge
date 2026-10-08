@@ -112,16 +112,18 @@ Admin-guide capture: Scoreboard navigation, participant toggle off/on, sorted to
 
 ## Planned Improvements
 
-M11–M16 are approved, unimplemented, and independent of one another. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
+M11 is implemented; M12–M16 remain planned and independent. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
 
 ## M11 — Roster and Credentials · requires M2, M4
 
-- [ ] Add roster search, accessible row selection, visible-row select-all, and explicit selected counts.
-- [ ] Add confirmed atomic bulk password reset and selected-student CSV credentials.
-- [ ] Generate new/reset student passwords using six random lowercase letters/digits; retain existing passwords.
-- [ ] Make browser release reset the global password, revoke sessions, and return the new credential.
-- [ ] **Test:** filtered selection, nested controls, keyboard access, atomic reset, admin-only/no-store exports, CSV safety, session revocation, and no credential logging.
-- [ ] **Gate:** identity/binding checks pass; stop for review.
+- [x] Add roster search, accessible row selection, visible-row select-all, and explicit selected counts.
+- [x] Add confirmed atomic bulk password reset and selected-student CSV credentials.
+- [x] Generate new/reset student passwords using six random lowercase letters/digits; retain existing passwords.
+- [x] Make browser release reset the global password, revoke sessions, and return the new credential.
+- [x] **Test:** filtered selection, nested controls, keyboard access, atomic reset, admin-only/no-store exports, CSV safety, session revocation, and no credential logging.
+- [x] **Gate:** identity/binding checks pass; stop for review.
+
+Evidence: 33 backend tests, 51 frontend tests, frontend build, disposable-database identity and lab gates.
 
 ## M12 — Account Lifecycle · requires M2, M4, M8
 

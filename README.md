@@ -77,7 +77,7 @@ Refresh or bookmark a nested URL, such as `/admin/labs/<lab-id>/students/<studen
 
 ## M2 accounts
 
-Student accounts are global: each roll number keeps one password across labs. Admin can add students manually or import UTF-8 CSV with `roll_number,name` headers, up to 1 MiB/1,000 rows. Existing roll numbers keep their name/password; name mismatches are reported. Admin can edit names, reveal/print selected credentials, and reset student passwords. Students cannot change passwords. Enroll global accounts from Admin → Labs.
+Student accounts are global: each roll number keeps one password across labs. Admin can add students manually or import UTF-8 CSV with `roll_number,name` headers, up to 1 MiB/1,000 rows. Existing roll numbers keep their name/password; name mismatches are reported. Admin can search accounts, select up to 200 across searches, print/download selected credentials as CSV, and reset selected passwords together. New/reset student passwords have six lowercase letters/digits; existing passwords stay valid until reset. Students cannot change passwords. Enroll global accounts from Admin → Labs.
 
 Admin password is hash-only. Student passwords are hashed for login and separately encrypted for admin reprints. Keep the `credential_keys` Docker volume with database backups; losing it makes existing student passwords unrecoverable. The API mounts that volume read-only. `key-init` refuses to overwrite an existing key. Never copy the key, password sheets, or `.env` into Git. To reset the admin password, run `docker compose run --rm api python -m cjudge.identity reset-admin`; existing admin sessions are revoked.
 
@@ -103,7 +103,7 @@ Under **Admin → Labs**, create a lab, assign ordered published revisions, enro
 
 Students select their assigned lab and explicitly **Enter lab** after start. This binds the browser; missing cookies require admin release even at the same IP. Release revokes all that student's sessions. Strict IP matching defaults off; otherwise IP changes are allowed and flagged. Browser binding remains required after the lab ends.
 
-Test announcements and PDF replacement with a student tab open: SSE refreshes materials and deadlines. Previous PDFs remain admin-only. Test **Freeze/Unfreeze**, browser release, whole-lab extension, and pre-release reopening; reasons are audited. Freeze blocks new submissions while materials stay readable.
+Test announcements and PDF replacement with a student tab open: SSE refreshes materials and deadlines. Previous PDFs remain admin-only. Test **Freeze/Unfreeze**, browser release, whole-lab extension, and pre-release reopening; reasons are audited. Browser release resets the global student password, revokes all sessions, and shows the new credential to admin. Freeze blocks new submissions while materials stay readable.
 
 Lab time, PDF, problem/correction, and result changes automatically post announcements, including supplied reasons. Individual deletion/restoration, rejudge/retry, freeze, and binding-release notices reach only the affected student; admins see their audience. Deleted student submissions remain listed with their reason and exclusion from marks; source and judging details remain release-gated. This update adds migration `20261006_notices`: rebuild API/web/worker, stop API/worker, migrate, then restart.
 
