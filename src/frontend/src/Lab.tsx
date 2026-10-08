@@ -9,11 +9,16 @@ export type PublicTask = { position: number; revision_id: string; previous_revis
 export type PublicLab = Summary & { scoreboard_visible?: boolean; results_visible?: boolean; frozen: boolean; tasks: PublicTask[]; pdfs: Pdf[]; announcements: Message[]; admission?: { allowed: boolean; reason: string; code: string; pending: number; retry_at: string | null; server_time: string } };
 
 export function Announcements({ messages }: { messages: Message[] }) {
+  const newest = messages[messages.length - 1];
+  const older = messages.slice(0, -1).reverse();
+  const item = (message: Message) => <li className="border-t pt-2" key={message.id}>
+    <span className="block text-sm font-medium">{message.audience || "Everyone"}</span>
+    <time className="text-sm">{new Date(message.created_at).toLocaleString()}</time>
+    <p className="whitespace-pre-wrap">{message.body}</p>
+  </li>;
   return <section className="notice notice-warning"><h2 className="font-semibold">Announcements</h2>
-    {messages.length ? <ul className="space-y-3">{[...messages].reverse().map((message) => <li className="border-t pt-2" key={message.id}>
-      <span className="block text-sm font-medium">{message.audience || "Everyone"}</span>
-      <time className="text-sm">{new Date(message.created_at).toLocaleString()}</time>
-      <p className="whitespace-pre-wrap">{message.body}</p>
-    </li>)}</ul> : <p>No announcements.</p>}
+    {newest ? <><ul className="space-y-3">{item(newest)}</ul>
+      {older.length > 0 && <details className="mt-3"><summary>Older announcements ({older.length})</summary>
+        <ul className="space-y-3">{older.map(item)}</ul></details>}</> : <p>No announcements.</p>}
   </section>;
 }

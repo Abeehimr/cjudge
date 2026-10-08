@@ -1,12 +1,27 @@
-import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { AdminLabs } from "./AdminLabs";
 import { StudentLabs } from "./StudentLabs";
 import { renderRoute } from "./testRouter";
+import { Announcements } from "./Lab";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const summary = { id: "lab", title: "C practice", phase: "Running", starts_at: "2020-01-01T00:00:00Z", ends_at: "2099-01-01T00:00:00Z", server_time: "2026-09-30T00:00:00Z" };
 const materials = { ...summary, frozen: false, tasks: [{ position: 1, revision_id: "revision", title: "Addition", statement: "Add two numbers.", maximum_marks: "10", cpu_seconds: 1, wall_seconds: 2, memory_mib: 64, stack_mib: 8 }], pdfs: [], announcements: [] };
+test('latest announcement stays visible while older notices use native disclosure', () => {
+  const first = { id: '1', body: 'Private old', audience: 'Only you', created_at: '2026-10-01T00:00:00Z' };
+  const second = { id: '2', body: 'Lab update', audience: 'Everyone', created_at: '2026-10-02T00:00:00Z' };
+  const view = render(<Announcements messages={[first, second]} />);
+  expect(screen.getByText('Lab update')).toBeTruthy();
+  const older = screen.getByText('Older announcements (1)').closest('details')!;
+  expect(older.open).toBe(false);
+  fireEvent.click(older.querySelector('summary')!);
+  expect(older.open).toBe(true);
+  expect(screen.getByText('Private old')).toBeTruthy();
+  view.rerender(<Announcements messages={[first, second, { id: '3', body: 'Live notice', created_at: '2026-10-03T00:00:00Z' }]} />);
+  expect(screen.getByText('Live notice')).toBeTruthy();
+  expect(screen.getByText('Older announcements (2)').closest('details')!.open).toBe(true);
+});
 class Live extends EventTarget {
   static instances: Live[] = [];
   onopen = null; onerror = null; close = vi.fn();
