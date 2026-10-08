@@ -140,8 +140,33 @@ def main():
             (len(result["created"]), len(result["existing"])) for result in outcomes]
         assert call(f"/admin/students/{student['id']}", "PATCH", {"name": "Ada Updated"},
                     admin_cookie, admin_csrf)[1]["name"] == "Ada Updated"
+        second_id = test_ids[-2]
+        status, old_sheet, _ = call("/admin/students/credentials", "POST", {"ids": [student["id"], second_id]},
+                                     admin_cookie, admin_csrf)
+        assert status == 200
+        old_passwords = {entry["id"]: entry["password"] for entry in old_sheet}
+        assert call("/admin/students/reset", "POST", {"ids": [student["id"], str(uuid4())]},
+                    admin_cookie, admin_csrf)[0] == 404
+        assert call("/auth/session", cookie=student_cookie)[0] == 200
+        assert call("/admin/students/reset", "POST", {"ids": [student["id"], student["id"]]},
+                    admin_cookie, admin_csrf)[0] == 400
+        assert call("/admin/students/reset", "POST", {"ids": [student["id"]]},
+                    student_cookie, student_session["csrf_token"])[0] == 403
+        assert call("/admin/students/reset", "POST", {"ids": [student["id"]]},
+                    admin_cookie)[0] == 403
+        status, new_sheet, _ = call("/admin/students/reset", "POST", {"ids": [student["id"], second_id]},
+                                    admin_cookie, admin_csrf)
+        assert status == 200 and [entry["id"] for entry in new_sheet] == [student["id"], second_id]
+        assert all(len(entry["password"]) == 6 and entry["password"].isalnum()
+                   and entry["password"] == entry["password"].lower() for entry in new_sheet)
+        assert call("/auth/session", cookie=student_cookie)[0] == 401
+        assert all(login("student", entry["roll_number"], old_passwords[entry["id"]])[0] == 401
+                   for entry in new_sheet)
+        assert all(login("student", entry["roll_number"], entry["password"])[0] == 200
+                   for entry in new_sheet)
+        password = new_sheet[0]["password"]
         status, new_credential, _ = call(f"/admin/students/{student['id']}/reset", "POST", None,
-                                          admin_cookie, admin_csrf)
+                    admin_cookie, admin_csrf)
         assert status == 200 and new_credential["password"] != password
         assert call("/auth/session", cookie=student_cookie)[0] == 401
         assert login("student", roll, password)[0] == 401

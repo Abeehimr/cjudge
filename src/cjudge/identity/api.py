@@ -237,14 +237,32 @@ def reset_student(account_id: UUID, response: Response, account: dict = Depends(
         with store.engine().begin() as conn:
             cipher = store.checked_cipher(conn)
             row = student_row(conn, account_id)
-            password = store.generate_password()
-            conn.execute(sa.update(store.accounts).where(store.accounts.c.id == account_id).values(
-                password_hash=store.hash_password(password),
-                encrypted_password=cipher.encrypt(password.encode())))
-            conn.execute(sa.delete(store.sessions).where(store.sessions.c.account_id == account_id))
-            publish(conn, account_id=account_id)
+            password = store.rotate_student_password(conn, account_id, cipher)
             store.audit(conn, "student_password_reset", account["id"], account_id)
         no_store(response)
         return {**row, "password": password}
+    except RuntimeError as exc:
+        raise HTTPException(503, "Credentials unavailable") from exc
+
+
+@router.post("/admin/students/reset", response_model=list[CredentialOutput])
+def reset_students(body: CredentialSelection, response: Response, account: dict = Depends(admin_write)) -> list[dict]:
+    if len(body.ids) != len(set(body.ids)):
+        raise HTTPException(400, "Duplicate student selection")
+    try:
+        with store.engine().begin() as conn:
+            cipher = store.checked_cipher(conn)
+            rows = conn.execute(sa.select(store.accounts.c.id, store.accounts.c.roll_number, store.accounts.c.name)
+                                .where(store.accounts.c.id.in_(body.ids), store.accounts.c.role == "student")
+                                .order_by(store.accounts.c.id).with_for_update()).mappings().all()
+            if len(rows) != len(body.ids):
+                raise HTTPException(404, "Student not found")
+            by_id = {row["id"]: row for row in rows}
+            result = [{**by_id[account_id], "password": store.rotate_student_password(conn, account_id, cipher)}
+                      for account_id in body.ids]
+            store.audit(conn, "student_passwords_reset", account["id"],
+                        detail={"student_ids": [str(account_id) for account_id in body.ids]})
+        no_store(response)
+        return result
     except RuntimeError as exc:
         raise HTTPException(503, "Credentials unavailable") from exc

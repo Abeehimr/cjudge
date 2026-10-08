@@ -123,6 +123,15 @@ def generate_password() -> str:
     return "".join(secrets.choice(PASSWORD_ALPHABET) for _ in range(6))
 
 
+def rotate_student_password(conn: sa.Connection, account_id: UUID, active: Fernet) -> str:
+    password = generate_password()
+    conn.execute(sa.update(accounts).where(accounts.c.id == account_id, accounts.c.role == "student").values(
+        password_hash=hash_password(password), encrypted_password=active.encrypt(password.encode())))
+    conn.execute(sa.delete(sessions).where(sessions.c.account_id == account_id))
+    publish(conn, account_id=account_id)
+    return password
+
+
 def hash_password(password: str) -> str:
     with _hash_slots:
         return _hasher.hash(password)
