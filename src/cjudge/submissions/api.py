@@ -22,6 +22,12 @@ student_router = APIRouter(prefix='/api/labs/{lab_id}/submissions', dependencies
 admin_router = APIRouter(prefix='/api/admin/labs/{lab_id}/submissions', dependencies=[Depends(admin), Depends(no_store)])
 
 
+class EarlyFeedback(StrictModel):
+    passed: int
+    total: int
+    provisional: bool
+
+
 class SubmissionOutput(StrictModel):
     id: UUID
     revision_id: UUID
@@ -34,6 +40,7 @@ class SubmissionOutput(StrictModel):
     best_for_review: bool = False
     deleted_at: datetime | None = None
     delete_reason: str | None = None
+    early_feedback: EarlyFeedback | None = None
 
 
 class AdminSubmission(SubmissionOutput):
@@ -78,13 +85,15 @@ def transaction():
 
 def query(lab_id: UUID):
     assigned_revision = tasks.revisions.alias('assigned_revision')
+    result_revision = tasks.revisions.alias('result_revision')
     assigned = sa.select(labs.assignments.c.revision_id).join(assigned_revision,
         assigned_revision.c.id == labs.assignments.c.revision_id).where(labs.assignments.c.lab_id == lab_id,
         assigned_revision.c.task_id == tasks.revisions.c.task_id).correlate(tasks.revisions).scalar_subquery()
     return sa.select(store.submissions, assigned.label('current_revision_id'), tasks.revisions.c.task_id,
         store.reviews.c.run_id, store.reviews.c.deleted_at, store.reviews.c.delete_reason,
         store.jobs.c.kind, store.jobs.c.batch_id,
-        store.runs.c.revision_id.label('result_revision_id'), identity.accounts.c.roll_number, identity.accounts.c.name, store.jobs.c.state, store.jobs.c.attempt_count,
+        store.runs.c.revision_id.label('result_revision_id'), result_revision.c.config.label('result_config'),
+        identity.accounts.c.roll_number, identity.accounts.c.name, store.jobs.c.state, store.jobs.c.attempt_count,
         store.runs.c.verdict, store.runs.c.compiler_feedback, store.runs.c.compiler_truncated,
         store.runs.c.passed, store.runs.c.total, store.runs.c.score_numerator, store.runs.c.score_denominator,
         store.attempts.c.fault).select_from(store.submissions.join(store.jobs,
@@ -92,15 +101,19 @@ def query(lab_id: UUID):
         identity.accounts.c.id == store.submissions.c.account_id).join(tasks.revisions,
         tasks.revisions.c.id == store.submissions.c.revision_id).outerjoin(store.reviews,
         store.reviews.c.submission_id == store.submissions.c.id).outerjoin(store.runs,
-        store.runs.c.id == store.reviews.c.run_id).outerjoin(store.attempts,
+        store.runs.c.id == store.reviews.c.run_id).outerjoin(result_revision,
+        result_revision.c.id == store.runs.c.revision_id).outerjoin(store.attempts,
         store.attempts.c.id == store.jobs.c.attempt_id)).where(store.submissions.c.lab_id == lab_id)
 
 
-def output(row: dict, feedback: str, *, admin_view: bool = False) -> dict:
+def output(row: dict, feedback: str, *, admin_view: bool = False, early_feedback_enabled: bool = False) -> dict:
     status = ('Passed' if row['verdict'] == 'AC' else 'Compile error' if row['verdict'] == 'CE' else 'Failed') if row['run_id'] else {
         'queued': 'Queued', 'judging': 'Judging', 'delayed': 'Judging delayed', 'complete': 'Judging'}[row['state']]
-    result = {key: row[key] for key in SubmissionOutput.model_fields if key not in ('status', 'compiler_feedback', 'compiler_truncated', 'best_for_review')}
+    result = {key: row[key] for key in SubmissionOutput.model_fields if key not in ('status', 'compiler_feedback', 'compiler_truncated', 'best_for_review', 'early_feedback')}
     result.update(status=status, compiler_feedback=None, compiler_truncated=False, best_for_review=False)
+    if early_feedback_enabled and row['run_id'] and row['result_config'].get('scoring', 'partial') == 'partial':
+        result['early_feedback'] = {'passed': row['passed'], 'total': row['total'],
+                                    'provisional': row['state'] != 'complete' or bool(row['batch_id'])}
     result['revision_id'] = row['current_revision_id'] or row['revision_id']
     if row['verdict'] == 'CE' and (admin_view or feedback != 'none'):
         diagnostic = row['compiler_feedback'] or ''
@@ -129,7 +142,8 @@ async def upload(lab_id: UUID, request: Request, response: Response,
             lab, enrollment, _ = student_access(conn, lab_id, account, request)
             row, created = service.accept(conn, lab, enrollment, revision_id, idempotency_key, filename, source, client_ip(request))
             result = conn.execute(query(lab_id).where(store.submissions.c.id == row['id'])).mappings().one()
-            return output(result, lab['compiler_feedback']), created
+            return output(result, lab['compiler_feedback'], early_feedback_enabled=lab['early_feedback_visible']
+                and not (lab['first_released_at'] and lab['reveal_results'])), created
     value, created = await run_in_threadpool(create)
     response.status_code = 201 if created else 200
     return value
@@ -146,7 +160,8 @@ def history(lab_id: UUID, request: Request, offset: int = Query(default=0, ge=0)
                 .where(tasks.revisions.c.id == revision_id).scalar_subquery())
         rows = conn.execute(selection.order_by(store.submissions.c.accepted_at.desc(), store.submissions.c.id).offset(offset).limit(100)).mappings()
         best = review.best_for_review(conn, lab_id, account['id']) if lab['first_released_at'] and lab['reveal_results'] else set()
-        return [dict(output(row, lab['compiler_feedback']), best_for_review=row['id'] in best) for row in rows]
+        return [dict(output(row, lab['compiler_feedback'], early_feedback_enabled=lab['early_feedback_visible']
+            and not (lab['first_released_at'] and lab['reveal_results'])), best_for_review=row['id'] in best) for row in rows]
 
 
 @student_router.get('/{submission_id}', response_model=SubmissionOutput)
@@ -157,7 +172,8 @@ def detail(lab_id: UUID, submission_id: UUID, request: Request, account: dict = 
             store.submissions.c.account_id == account['id'])).mappings().first()
         if not row:
             raise HTTPException(404, 'Submission not found')
-        return output(row, lab['compiler_feedback'])
+        return output(row, lab['compiler_feedback'], early_feedback_enabled=lab['early_feedback_visible']
+            and not (lab['first_released_at'] and lab['reveal_results']))
 
 
 @admin_router.get('', response_model=list[AdminSubmission])

@@ -47,6 +47,10 @@ class VersionInput(StrictModel):
     version: int = Field(ge=1)
 
 
+class EarlyFeedbackInput(VersionInput):
+    visible: bool
+
+
 class EditInput(TitleInput, VersionInput):
     pass
 
@@ -155,6 +159,7 @@ class RosterOutput(StrictModel):
 
 class AdminLab(LabSummary):
     scoreboard_visible: bool
+    early_feedback_visible: bool
     version: int
     strict_ip: bool
     compiler_feedback: str
@@ -169,6 +174,7 @@ class AdminLab(LabSummary):
 
 class StudentLab(LabSummary):
     scoreboard_visible: bool
+    early_feedback_visible: bool
     results_visible: bool
     frozen: bool
     tasks: list[PublicTask]
@@ -242,6 +248,7 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
         from cjudge.submissions.service import allowance
         result.update(results_visible=bool(lab['first_released_at'] and lab['reveal_results']), frozen=enrollment['frozen'], tasks=public_tasks, admission=allowance(conn, lab, enrollment))
     result['scoreboard_visible'] = scoreboard_visible
+    result['early_feedback_visible'] = lab['early_feedback_visible']
     return result
 
 
@@ -286,6 +293,18 @@ async def create_lab(request: Request, actor: dict = Depends(admin_write)):
 def admin_lab(lab_id: UUID):
     with transaction() as conn:
         return snapshot(conn, labs.find(conn, lab_id, shared=True))
+
+
+@admin_router.put('/{lab_id}/early-feedback/visibility', response_model=AdminLab)
+async def early_feedback_visibility(lab_id: UUID, request: Request, actor: dict = Depends(admin_write)):
+    body = await json_input(request, EarlyFeedbackInput)
+    def change():
+        with transaction() as conn:
+            lab = labs.find(conn, lab_id, body.version)
+            return snapshot(conn, labs.changed(conn, lab, actor['id'], 'lab_early_feedback_visibility',
+                message=f'Early passed/total feedback {"enabled" if body.visible else "disabled"}.',
+                early_feedback_visible=body.visible))
+    return await run_in_threadpool(change)
 
 
 @admin_router.put('/{lab_id}', response_model=AdminLab)

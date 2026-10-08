@@ -107,13 +107,61 @@ def exercise(directory):
         assert call(private + '/details', student_view=True)[0] == 403
         assert call(private + '/source', student_view=True)[0] == 403
         assert 'marks' not in call(private, student_view=True)[1]
+        assert call(private, student_view=True)[1]['early_feedback'] is None
         assert not any(row['best_for_review'] for row in call(f'/labs/{lab_id}/submissions', student_view=True)[1])
+        assert call(base)[1]['early_feedback_visible'] is False
+        assert call(f'/labs/{lab_id}', student_view=True)[1]['early_feedback_visible'] is False
         assert call(base + '/stop', 'POST', {'version': 1, 'reason': 'Finished'}, bad_csrf=True)[0] == 403
         assert call(base + '/stop', 'POST', {'version': 1, 'reason': 'Finished'}, student_view=True)[0] == 403
         with ThreadPoolExecutor(2) as pool:
             stops = list(pool.map(lambda _: call(base + '/stop', 'POST', {'version': 1, 'reason': 'Finished'})[0], range(2)))
         assert sorted(stops) == [200, 409], stops
         assert call(base)[1]['phase'] == 'Ended'
+        feedback = base + '/early-feedback/visibility'
+        setting = {'version': call(base)[1]['version'], 'visible': True}
+        assert call(feedback, 'PUT', setting, bad_csrf=True)[0] == 403
+        assert call(feedback, 'PUT', setting, student_view=True)[0] == 403
+        assert call(feedback, 'PUT', {**setting, 'version': setting['version'] + 1})[0] == 409
+        stream = urlopen(Request(f'http://127.0.0.1:8019/api/labs/{lab_id}/events', headers={
+            'Cookie': f'cjudge_session={student_token}; cjudge_lab_{lab_id.hex}={binding}'}), timeout=10)
+        assert stream.readline().strip() == b'event: refresh'
+        stream.readline(); stream.readline()
+        assert call(feedback, 'PUT', setting)[1]['early_feedback_visible'] is True
+        assert stream.readline().strip() == b'event: refresh'
+        stream.close()
+        assert call(f'/labs/{lab_id}', student_view=True)[1]['early_feedback_visible'] is True
+        assert 'Early passed/total feedback enabled.' in [row['body'] for row in call(f'/labs/{lab_id}', student_view=True)[1]['announcements']]
+        own = call(private, student_view=True)[1]
+        assert own['early_feedback'] == {'passed': 1, 'total': 2, 'provisional': False}
+        assert not {'marks', 'source', 'cases', 'stdout', 'client_ip'} & own.keys()
+        assert call(private, other_view=True)[0] == 404
+        other_rows = call(f'/labs/{lab_id}/submissions', other_view=True)[1]
+        assert next(row for row in other_rows if row['id'] == str(excluded))['early_feedback'] is None
+        with identity.engine().begin() as conn:
+            conn.execute(sa.update(store.jobs).where(store.jobs.c.submission_id == submission).values(state='queued'))
+        assert call(private, student_view=True)[1]['early_feedback']['provisional'] is True
+        with identity.engine().begin() as conn:
+            batch = uuid4()
+            conn.execute(sa.insert(store.batches).values(id=batch, lab_id=lab_id, task_id=task_id,
+                base_revision_id=revision, revision_id=revision, reason='Test correction', actor_id=admin))
+            conn.execute(sa.update(store.jobs).where(store.jobs.c.submission_id == submission)
+                .values(state='complete', batch_id=batch))
+        assert call(private, student_view=True)[1]['early_feedback']['provisional'] is True
+        with identity.engine().begin() as conn:
+            conn.execute(sa.update(store.jobs).where(store.jobs.c.submission_id == submission).values(batch_id=None))
+            conn.execute(sa.delete(store.batches).where(store.batches.c.id == batch))
+            all_or_nothing = uuid4()
+            case_key = conn.execute(sa.select(tasks.revisions.c.cases_key).where(tasks.revisions.c.id == revision)).scalar_one()
+            conn.execute(sa.insert(tasks.revisions).values(id=all_or_nothing, task_id=task_id, number=99,
+                draft_version=99, config={**config, 'scoring': 'all_or_nothing'}, cases_key=case_key, case_count=2))
+            conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(revision_id=all_or_nothing))
+        assert call(private, student_view=True)[1]['early_feedback'] is None
+        with identity.engine().begin() as conn:
+            conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(revision_id=revision))
+        assert call(feedback, 'PUT', {'version': call(base)[1]['version'], 'visible': False})[0] == 200
+        assert call(private, student_view=True)[1]['early_feedback'] is None
+        assert call(feedback, 'PUT', {'version': call(base)[1]['version'], 'visible': True})[0] == 200
+        assert call(private, student_view=True)[1]['early_feedback']['passed'] == 1
         with identity.engine().begin() as conn:
             lab = labs.find(conn, lab_id)
             with conn.begin_nested() as savepoint:
@@ -197,6 +245,7 @@ def exercise(directory):
         assert call(base + '/marks.csv', student_view=True)[0] == 403
         assert call(base + '/archive', 'POST', {'version': call(base)[1]['version'], 'reason': 'Retain final lab'})[0] == 200
         archived = call(base)[1]; assert archived['phase'] == 'Archived'
+        assert call(feedback, 'PUT', {'version': archived['version'], 'visible': False})[0] == 409
         assert call(base + f'/submissions/{submission}/rejudge', 'POST', {'expected_run_id': str(run), 'reason': 'No'})[0] == 409
         assert call(base + '/announcements', 'POST', {'body': 'No'})[0] == 409
         assert call(base + f'/submissions/{excluded}/review', 'PUT', {'reason': 'No', 'deleted': False})[0] == 409
@@ -278,7 +327,7 @@ def main():
         subprocess.run(['python', '-m', 'alembic', 'upgrade', 'head'], check=True)
         with identity.engine().begin() as conn:
             old = labs.find(conn, legacy)
-            assert not old['reveal_results'] and old['archived_at'] is None
+            assert not old['reveal_results'] and old['archived_at'] is None and not old['early_feedback_visible']
             conn.execute(sa.delete(labs.labs).where(labs.labs.c.id == legacy))
         with tempfile.TemporaryDirectory() as directory: exercise(directory)
     finally:
