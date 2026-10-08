@@ -67,6 +67,7 @@ export default function Accounts({ csrf }: { csrf: string }) {
   }
 
   async function showCredentials() {
+    setCredentials([]);
     try {
       setCredentials(await api<Credential[]>("/admin/students/credentials", {
         method: "POST", body: JSON.stringify({ ids: selected }),
@@ -92,6 +93,7 @@ export default function Accounts({ csrf }: { csrf: string }) {
   async function resetSelected() {
     if (!confirm(`Reset passwords for ${selected.length} selected students? All their sessions will end.`)) return;
     setBusy(true);
+    setCredentials([]);
     try {
       setCredentials(await api<Credential[]>("/admin/students/reset", {
         method: "POST", body: JSON.stringify({ ids: selected }),
@@ -103,6 +105,7 @@ export default function Accounts({ csrf }: { csrf: string }) {
 
   async function resetStudent(student: Student) {
     if (!confirm(`Reset password for ${student.roll_number}? Existing sessions will end.`)) return;
+    setCredentials([]);
     try {
       setCredentials([await api<Credential>(`/admin/students/${student.id}/reset`, { method: "POST" }, csrf)]);
       setMessage("Password reset. Print or save new credential now.");

@@ -14,8 +14,16 @@ test("roster search retains explicit selection and bulk reset uses selected IDs"
       ? [{ ...ada, password: "abc123" }, { ...bob, password: "def456" }] : [ada, bob] }));
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("confirm", vi.fn(() => true));
+  vi.stubGlobal("prompt", vi.fn(() => null));
   renderRoute(<Accounts csrf="csrf" />, "/admin/students");
-  fireEvent.click(await screen.findByText("A1"));
+  const row = (await screen.findByText("A1")).closest("tr")!;
+  fireEvent.click(row);
+  expect(screen.getByText(/selected 1/)).toBeTruthy();
+  fireEvent.click(screen.getAllByRole("button", { name: "Edit name" })[0]);
+  expect(screen.getByText(/selected 1/)).toBeTruthy();
+  fireEvent.keyDown(row, { key: " " });
+  expect(screen.getByText(/selected 0/)).toBeTruthy();
+  fireEvent.keyDown(row, { key: "Enter" });
   expect(screen.getByText(/selected 1/)).toBeTruthy();
   fireEvent.change(screen.getByLabelText("Search students"), { target: { value: "B" } });
   await waitFor(() => expect(screen.queryByText("A1")).toBeNull());

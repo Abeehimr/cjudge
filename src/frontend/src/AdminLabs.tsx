@@ -101,6 +101,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     if (action === "release" && !confirm(`Release ${member.roll_number}'s browser and reset their password? All their login sessions will end.`)) return;
     const why = prompt(action === "release" ? "Reason for browser release" : `Reason to ${member.frozen ? "unfreeze" : "freeze"} submissions`);
     if (!why?.trim()) return;
+    if (action === "release") setReleasedCredential(null);
     await perform(async () => {
       const result = await api<Student & { password: string }>(`/admin/labs/${lab!.id}/students/${member.id}/${action}`, { method: "POST",
         body: JSON.stringify({ reason: why.trim(), ...(action === "freeze" ? { frozen: !member.frozen } : {}) }) }, csrf);
