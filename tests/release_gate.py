@@ -289,7 +289,20 @@ def exercise(directory):
         assert call(base + '/marks.csv')[0] == 409
         assert call(cancellation, 'PUT', {'version': call(base)[1]['version'], 'cancelled': True,
             'reason': 'Final review'})[0] == 204
+        archive_stream = urlopen(Request(f'http://127.0.0.1:8019/api/labs/{lab_id}/events', headers={
+            'Cookie': f'cjudge_session={student_token}; cjudge_lab_{lab_id.hex}={binding}'}), timeout=10)
+        assert archive_stream.readline().strip() == b'event: refresh'
+        archive_stream.readline(); archive_stream.readline()
         assert call(base + '/archive', 'POST', {'version': call(base)[1]['version'], 'reason': 'Retain final lab'})[0] == 200
+        assert archive_stream.readline().strip() == b'event: denied'
+        archive_stream.close()
+        assert str(lab_id) not in [row['id'] for row in call('/labs', student_view=True)[1]]
+        for path in (f'/labs/{lab_id}', f'/labs/{lab_id}/pdfs/{pdf}', f'/labs/{lab_id}/scoreboard',
+                     f'/labs/{lab_id}/events', f'/labs/{lab_id}/submissions', private, private + '/details', private + '/source'):
+            assert call(path, student_view=True)[0] == 404, path
+        assert call(f'/labs/{lab_id}/enter', 'POST', {}, student_view=True)[0] == 404
+        assert call(base)[0] == 200
+        assert call(base + f'/submissions/{submission}')[0] == 200
         archived = call(base)[1]; assert archived['phase'] == 'Archived'
         assert call(cancellation, 'PUT', {'version': archived['version'], 'cancelled': False, 'reason': 'No'})[0] == 409
         with identity.engine().connect() as conn:

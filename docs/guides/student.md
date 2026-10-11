@@ -18,6 +18,8 @@ For certificate warnings, ask the instructor to set up trust before entering cre
 2. Click **Enter lab** after the start. Materials are hidden beforehand.
 3. Keep the same computer/browser. Do not clear cookies or use a private window.
 
+Archived labs are hidden and cannot be reopened from saved links. Ask admin if you need archived work.
+
 **Sign in** identifies you; **Enter lab** binds your browser. Refresh preserves binding; losing it requires admin release.
 
 ![Assigned labs with start times, deadlines, and statuses](imgs/lab-list.png)

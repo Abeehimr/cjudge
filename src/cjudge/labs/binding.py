@@ -44,6 +44,8 @@ def access(conn: sa.Connection, lab: dict, account_id: UUID, session_token: str 
         lab.update(labs.find(conn, lab['id'], shared=True))
         row = labs.enrollment(conn, lab['id'], account_id)
         readonly = False
+    if lab.get('archived_at'):
+        raise labs.LabError(404, 'Lab not found')
     timestamp = labs.now(conn)
     session = conn.execute(sa.select(identity.sessions.c.token_hash).where(
         identity.sessions.c.account_id == account_id,

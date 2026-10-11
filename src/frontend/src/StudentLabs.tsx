@@ -34,8 +34,8 @@ export function StudentLabs({ csrf }: { csrf: string }) {
       if (signal?.aborted || currentLab.current !== id) return;
       const error = e as Error & { status: number };
       setMessage(error.message); setFailure(error.status);
-      if ([401, 403, 404, 423].includes(error.status)) setDetail(null);
-      if ([403, 423].includes(error.status)) await list(signal);
+      if ([401, 403, 404, 423].includes(error.status)) { setDetail(null); setDrafts({}); }
+      if ([403, 404, 423].includes(error.status)) await list(signal);
     }
   }
   useEffect(() => {
@@ -69,7 +69,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
       } catch (e) {
         if (controller.signal.aborted) return;
         const error = e as Error & { status: number }; setMessage(error.message); setFailure(error.status);
-        if ([401, 403, 404, 423].includes(error.status)) { source.close(); setDetail(null); }
+        if ([401, 403, 404, 423].includes(error.status)) { source.close(); setDetail(null); setDrafts({}); void list(); }
       } finally { fetching = false; }
     }
     function connect() {
@@ -77,7 +77,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
       source.onopen = () => setConnection('Live updates connected');
       source.onerror = () => setConnection('Updates reconnecting…');
       source.addEventListener('refresh', () => { void load(); });
-      source.addEventListener('denied', () => { controller.abort(); source.close(); setDetail(null); setFailure(423); setMessage('Lab access changed. Sign in or enter again.'); });
+      source.addEventListener('denied', () => { controller.abort(); source.close(); setDetail(null); setDrafts({}); setFailure(423); setMessage('Lab access changed. Sign in or enter again.'); void refresh(); });
       source.addEventListener('reconnect', () => { source.close(); setConnection('Updates reconnecting…'); retry = setTimeout(connect, 3000); });
     }
     connect();

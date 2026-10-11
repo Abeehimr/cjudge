@@ -181,7 +181,7 @@ Integration when applicable: verify deactivation plus cancellation, credential r
 
 ## Improvements v2 — M17–M27
 
-M17 is complete; M18–M27 remain planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
+M17 and M18 are complete; M19–M27 remain planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
 
 ## M17 — Architecture Documentation · independent
 
@@ -193,10 +193,12 @@ M17 is complete; M18–M27 remain planned. Agreed decisions: [improvements_v2.md
 
 ## M18 — Archive Access and Roster Removal · requires M4, M8
 
-- [ ] Hide archived labs and block student direct URLs/APIs/files/details/scoreboard/events; retain admin access.
-- [ ] Add individual/selected/CSV enrollment removal before start only; preserve global accounts.
-- [ ] Validate CSV roll numbers, preview selection, confirm atomic removal; preserve scheduled-lab last-student protection.
-- [ ] **Gate:** archived disclosure, live-access revocation, removal/start races, invalid/duplicate/unknown rolls, last-student protection.
+- [x] Hide archived labs and block student direct URLs/APIs/files/details/scoreboard/events; retain admin access.
+- [x] Add individual/selected/CSV enrollment removal before start only; preserve global accounts.
+- [x] Validate CSV roll numbers, preview selection, confirm atomic removal; preserve scheduled-lab last-student protection.
+- [x] **Gate:** archived disclosure, live-access revocation, removal/start races, invalid/duplicate/unknown rolls, last-student protection.
+
+Evidence: 35 backend tests, 64 frontend tests and production build; disposable-database lab/release gates cover atomic removal, CSV validation, start/removal races, archive denial and live access revocation. No migration required.
 
 ## M19 — Localhost and Multiple Network Addresses · independent
 

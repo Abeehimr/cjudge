@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15 and M17 are implemented; M16 and M18–M27 remain planned. Physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15, M17 and M18 are implemented; M16 and M19–M27 remain planned. Physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -100,3 +100,7 @@ Agreed decisions: [improvements_v2.md](improvements_v2.md); implementation gates
 Reuse existing web/API/PostgreSQL/artifact storage and isolate workers. M17 adds linked schema, Docker and network documents under `docs/`; M19 supports validated localhost/multiple LAN addresses. M20 moves current automatic maxima into lab assignments while preserving historical evidence. M21 transfers task assets and M22 adds separate admin tester jobs/history through the existing pool. M23–M24 add assigned-lab TA authorization, mobile student lookup, operation ownership and review claims/marks. TA marks remain absent from student responses and scoreboard. M25–M26 extend immutable task policy and sandbox language profiles. M18/M27 extend access and existing interface flows.
 
 No new runtime services, polling, or student-program host execution. Refresh diagrams as modules land; planned features must not appear as deployed components.
+
+### M18 Access and Roster Removal
+
+Archived student access is denied in shared authorization, including revalidation of existing SSE. Student views discard materials/upload drafts and refresh the assigned list on denial. Admin archive review remains available. Before start, roster checkboxes retain selections across search, select-all affects visible rows, and CSV preview resolves rolls to current identities before confirmed atomic removal. Lab version/locks fence stale previews and competing starts; removal does not alter global accounts or other labs. No schema change is required.

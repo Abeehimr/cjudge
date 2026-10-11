@@ -316,3 +316,91 @@ test('SSE hide-results refresh removes previously visible student source', async
   expect(screen.getByText(/details are hidden/)).toBeTruthy();
   expect(Live.instances).toHaveLength(1);
 });
+
+
+test('archive denial clears student materials and refreshes the assigned list', async () => {
+  live(); let archived = false;
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({
+    ok: !(archived && path === '/api/labs/lab'), status: archived && path === '/api/labs/lab' ? 404 : 200,
+    json: async () => path === '/api/labs' ? archived ? [] : [summary] : path.includes('/submissions') ? [] : archived ? { detail: 'Lab not found' } : materials,
+  }));
+  vi.stubGlobal('fetch', fetchMock);
+  renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab/tasks/revision');
+  expect(await screen.findByText('Add two numbers.')).toBeTruthy();
+  archived = true;
+  act(() => Live.instances[0].dispatchEvent(new Event('denied')));
+  await waitFor(() => expect(screen.queryByText('Add two numbers.')).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Enter lab' })).toBeNull());
+  expect(Live.instances[0].close).toHaveBeenCalled();
+  await waitFor(() => expect(fetchMock.mock.calls.filter(([path]) => path === '/api/labs').length).toBeGreaterThan(1));
+});
+
+const rosterMembers = [
+  { id: 'ada', roll_number: 'A', name: 'Ada', frozen: false, freeze_reason: null, cancelled: false, cancel_reason: null, bound_at: null, bound_ip: null, last_ip: null, ip_changed: false },
+  { id: 'grace', roll_number: 'B', name: 'Grace', frozen: false, freeze_reason: null, cancelled: false, cancel_reason: null, bound_at: null, bound_ip: null, last_ip: null, ip_changed: false },
+];
+function rosterLab() { return { ...summary, phase: 'Draft', starts_at: null, ends_at: null, version: 1, strict_ip: false,
+  first_released_at: null, tasks: [], pdfs: [], students: rosterMembers, announcements: [] }; }
+
+test('bulk enrollment removal preserves selection across filters and requires confirmation', async () => {
+  live(); let lab = rosterLab();
+  const fetchMock = vi.fn().mockImplementation((path: string, options: RequestInit) => {
+    if (path.endsWith('/students/remove')) {
+      const { ids } = JSON.parse(options.body as string);
+      lab = { ...lab, version: lab.version + 1, students: lab.students.filter((row) => !ids.includes(row.id)) };
+    }
+    return Promise.resolve({ ok: true, status: 200, json: async () => path === '/api/admin/students' ? [] : lab });
+  });
+  vi.stubGlobal('fetch', fetchMock); vi.stubGlobal('confirm', vi.fn().mockReturnValueOnce(false).mockReturnValue(true));
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students');
+  fireEvent.click(await screen.findByLabelText('Select A'));
+  fireEvent.change(screen.getByLabelText('Filter roster'), { target: { value: 'Grace' } });
+  fireEvent.click(screen.getByLabelText('Select all visible students'));
+  expect(screen.getByText('2 selected')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Remove selected' }));
+  expect(fetchMock.mock.calls.some(([path]) => path.endsWith('/students/remove'))).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove selected' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/students/remove', expect.objectContaining({
+    method: 'POST', body: JSON.stringify({ version: 1, ids: ['ada', 'grace'] }), headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }),
+  })));
+  expect(await screen.findByText('2 enrollment(s) removed.')).toBeTruthy();
+  expect(screen.getByText('0 selected')).toBeTruthy();
+});
+
+test('CSV removal previews current identities and rejects stale confirmation until uploaded again', async () => {
+  live(); let lab = rosterLab();
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path.includes('/removal-preview') ? { version: lab.version, students: [rosterMembers[0]] } : path === '/api/admin/students' ? [] : lab }));
+  vi.stubGlobal('fetch', fetchMock); vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students');
+  const file = new File(['roll_number\nA\n'], 'remove.csv', { type: 'text/csv' });
+  fireEvent.change(await screen.findByLabelText(/Remove roster CSV/), { target: { files: [file] } });
+  expect(await screen.findByText('A · Ada')).toBeTruthy();
+  expect(fetchMock.mock.calls.some(([path]) => path.endsWith('/students/remove'))).toBe(false);
+  expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/students/removal-preview?version=1', expect.objectContaining({
+    body: file, headers: expect.objectContaining({ 'Content-Type': 'text/csv', 'X-CSRF-Token': 'csrf' }),
+  }));
+  lab = { ...lab, version: 2 };
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh lab' }));
+  expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Lab changed. Upload the CSV again before confirming.');
+  expect((screen.getByRole('button', { name: 'Confirm CSV removal' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText(/Remove roster CSV/), { target: { files: [file] } });
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Confirm CSV removal' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm CSV removal' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/students/remove', expect.objectContaining({
+    body: JSON.stringify({ version: 2, ids: ['ada'] }),
+  })));
+});
+
+test('roster removal controls disappear when the lab starts', async () => {
+  live(); let lab = rosterLab();
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path === '/api/admin/students' ? [] : lab })));
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students');
+  expect(await screen.findByRole('button', { name: 'Remove selected' })).toBeTruthy();
+  lab = { ...lab, phase: 'Running' };
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh lab' }));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove selected' })).toBeNull());
+  expect(screen.queryByLabelText('Select A')).toBeNull();
+  expect(screen.queryByLabelText(/Remove roster CSV/)).toBeNull();
+});
