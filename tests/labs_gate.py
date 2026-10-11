@@ -87,6 +87,36 @@ def roster_checks(admin_id, student_id, revision_id):
             assert exc.status == 409
         else:
             raise AssertionError('Late removal allowed')
+    with identity.engine().begin() as conn:
+        draft = labs.create(conn, 'Remove roster', False, admin_id)
+        late = conn.execute(sa.select(identity.accounts.c.id).where(identity.accounts.c.roll_number == 'LATE')).scalar_one()
+        draft = labs.enroll(conn, draft, [student_id, late], admin_id)
+        for ids in ([], [student_id, student_id], [student_id, uuid4()]):
+            try:
+                labs.remove_students(conn, draft, ids, admin_id)
+            except labs.LabError as exc:
+                assert exc.status == 400
+            else:
+                raise AssertionError('Invalid removal accepted')
+            assert conn.execute(sa.select(sa.func.count()).select_from(labs.enrollments).where(
+                labs.enrollments.c.lab_id == draft['id'])).scalar_one() == 2
+        future = labs.now(conn) + timedelta(days=10)
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == draft['id']).values(starts_at=future, ends_at=future + timedelta(hours=1)))
+        scheduled = labs.find(conn, draft['id'])
+        try:
+            labs.remove_students(conn, scheduled, [student_id, late], admin_id)
+        except labs.LabError as exc:
+            assert exc.status == 400
+        else:
+            raise AssertionError('Scheduled roster emptied')
+        trimmed = labs.remove_students(conn, scheduled, [student_id], admin_id)
+        assert trimmed['version'] == scheduled['version'] + 1
+        assert labs.enrollment(conn, b['id'], student_id)
+        assert conn.execute(sa.select(identity.accounts.c.id).where(identity.accounts.c.id == student_id)).scalar_one()
+        audit = conn.execute(sa.select(identity.audit_events.c.detail).where(identity.audit_events.c.action == 'lab_student_removed')
+            .order_by(identity.audit_events.c.id.desc()).limit(1)).scalar_one()
+        assert audit['students'][0]['id'] == str(student_id)
+    print('PASS: atomic removal, last-student protection, preserved accounts/other enrollment, identity audit')
     print('PASS: account reuse, atomic enrollment, name mismatch, late additions, freeze isolation')
 
 
@@ -222,6 +252,21 @@ def api_checks(admin_id, student_id, revision_id):
             assert call('/admin/labs', role='student')[0] == 403
             assert call('/labs', role='admin')[0] == 403
             assert call('/admin/labs', 'POST', {'title': 'API'}, token='wrong')[0] == 403
+            _, removal_lab, _ = call('/admin/labs', 'POST', {'title': 'Bulk removal'})
+            removal_path = '/admin/labs/' + removal_lab['id']
+            _, removal_lab, _ = call(removal_path + '/students', 'POST', {'version': removal_lab['version'],
+                'ids': [str(student_id), str(outsider)]})
+            removal_body = {'version': removal_lab['version'], 'ids': [str(student_id)]}
+            assert call(removal_path + '/students/remove', 'POST', removal_body, role='student')[0] == 403
+            assert call(removal_path + '/students/remove', 'POST', removal_body, token='wrong')[0] == 403
+            assert call(removal_path + '/students/remove', 'POST', {**removal_body, 'ids': []})[0] == 422
+            assert call(removal_path + '/students/remove', 'POST', {**removal_body, 'ids': [str(student_id), str(uuid4())]})[0] == 400
+            assert len(call(removal_path)[1]['students']) == 2
+            with ThreadPoolExecutor(2) as pool:
+                outcomes = list(pool.map(lambda _: call(removal_path + '/students/remove', 'POST', removal_body)[0], range(2)))
+            assert sorted(outcomes) == [200, 409], outcomes
+            assert len(call(removal_path)[1]['students']) == 1
+            assert any(row['id'] == str(student_id) for row in call('/admin/students')[1])
             status, lab, _ = call('/admin/labs', 'POST', {'title': 'API'})
             assert status == 201
             path = '/admin/labs/' + lab['id']

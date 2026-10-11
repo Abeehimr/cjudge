@@ -257,14 +257,32 @@ def enrollment(conn: sa.Connection, lab_id: UUID, account_id: UUID, *, lock: boo
     return dict(row)
 
 
-def remove_student(conn: sa.Connection, lab: dict, account_id: UUID, actor: UUID) -> dict:
+def remove_students(conn: sa.Connection, lab: dict, ids: list[UUID], actor: UUID) -> dict:
+    editable(lab)
+    if not 1 <= len(ids) <= 1000 or len(ids) != len(set(ids)):
+        raise LabError(400, 'Select 1–1000 distinct enrolled students')
+    rows = list(conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number,
+        identity.accounts.c.name).join(enrollments, enrollments.c.account_id == identity.accounts.c.id)
+        .where(enrollments.c.lab_id == lab['id'], enrollments.c.account_id.in_(ids))
+        .order_by(identity.accounts.c.roll_number)).mappings())
+    if len(rows) != len(ids):
+        raise LabError(400, 'Every selected student must be enrolled in this lab')
+    count = conn.execute(sa.select(sa.func.count()).select_from(enrollments).where(
+        enrollments.c.lab_id == lab['id'])).scalar_one()
     setup_open(lab, now(conn))
-    enrollment(conn, lab['id'], account_id)
-    if lab['starts_at'] and conn.execute(sa.select(sa.func.count()).select_from(enrollments).where(
-            enrollments.c.lab_id == lab['id'])).scalar_one() == 1:
+    if lab['starts_at'] is not None and count == len(ids):
         raise LabError(400, 'Scheduled lab needs at least one student')
-    conn.execute(sa.delete(enrollments).where(enrollments.c.lab_id == lab['id'], enrollments.c.account_id == account_id))
-    return changed(conn, lab, actor, 'lab_student_removed')
+    conn.execute(sa.delete(enrollments).where(enrollments.c.lab_id == lab['id'], enrollments.c.account_id.in_(ids)))
+    conn.execute(sa.update(labs).where(labs.c.id == lab['id']).values(version=lab['version'] + 1))
+    identity.audit(conn, 'lab_student_removed' if len(ids) == 1 else 'lab_students_removed', actor,
+        detail={'lab_id': str(lab['id']), 'students': [dict(id=str(row['id']),
+            roll_number=row['roll_number'], name=row['name']) for row in rows]})
+    notify(conn, lab_id=lab['id'])
+    return find(conn, lab['id'])
+
+
+def remove_student(conn: sa.Connection, lab: dict, account_id: UUID, actor: UUID) -> dict:
+    return remove_students(conn, lab, [account_id], actor)
 
 
 def freeze(conn: sa.Connection, lab: dict, account_id: UUID, frozen: bool, reason: str, actor: UUID) -> None:

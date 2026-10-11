@@ -376,6 +376,19 @@ async def import_students(lab_id: UUID, request: Request, version: int = Query(g
     return await run_in_threadpool(enroll)
 
 
+class RemovalInput(VersionInput):
+    ids: list[UUID] = Field(min_length=1, max_length=1000)
+
+
+@admin_router.post('/{lab_id}/students/remove', response_model=AdminLab)
+async def remove_students(lab_id: UUID, request: Request, actor: dict = Depends(admin_write)):
+    body = await json_input(request, RemovalInput)
+    def remove():
+        with transaction() as conn:
+            return snapshot(conn, labs.remove_students(conn, labs.find(conn, lab_id, body.version), body.ids, actor['id']))
+    return await run_in_threadpool(remove)
+
+
 @admin_router.delete('/{lab_id}/students/{account_id}', response_model=AdminLab)
 def remove_student(lab_id: UUID, account_id: UUID, version: int = Query(ge=1), actor: dict = Depends(admin_write)):
     with transaction() as conn:
