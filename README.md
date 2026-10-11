@@ -37,22 +37,21 @@ Stop services with `docker compose down`. The PostgreSQL volume survives contain
 1. Reserve the server's IPv4 address in DHCP or use a static IP. Find the current address with `ip -4 route`; use the LAN address, not a Docker bridge address. The example below uses `192.168.0.106`; replace it with your server address.
 2. Set these entries in `.env`:
    ```dotenv
-   CJUDGE_BIND_ADDRESS=192.168.0.106
+   CJUDGE_BIND_ADDRESS=0.0.0.0
    CJUDGE_ALLOWED_HOSTS=localhost,127.0.0.1,192.168.0.106
-   CJUDGE_PUBLIC_ORIGIN=https://192.168.0.106:8443
    ```
-   `CJUDGE_BIND_ADDRESS=0.0.0.0` optionally listens on all IPv4 interfaces; a specific LAN address limits exposure. Login accepts the configured public origin only: admins on the server must use the LAN URL too.
+   Add each Wi-Fi/Ethernet IP to `CJUDGE_ALLOWED_HOSTS`. The all-interface bind lets localhost and both LAN addresses work simultaneously; nginx and the API reject unlisted hosts. Keep the host firewall scoped to the lab networks.
 3. Generate the certificate with an IP SAN:
    ```sh
-   sh scripts/create-cert.sh 192.168.0.106 'DNS:localhost,IP:127.0.0.1,IP:192.168.0.106'
-   docker compose up -d --force-recreate api web
+   sh scripts/create-cert.sh 192.168.0.106 'DNS:localhost,IP:127.0.0.1,IP:192.168.0.106,IP:192.168.1.106'
+   docker compose up -d --build --force-recreate api web
    sh scripts/smoke.sh https://192.168.0.106:8443 http://192.168.0.106:8080
    ```
-   Certificate generation replaces the existing certificate/key. Keep a protected copy before replacement if you need rollback. Install only `certs/server.crt` as trusted in lab browsers/devices; never distribute `server.key`. Changed certificates require updated trust. No database migration is needed; volumes and workers remain unchanged.
+   Replace the example second IP with the real Ethernet IP, or omit it when unused. Include every configured hostname/IP in the certificate SAN list. Certificate generation replaces the existing certificate/key. Keep a protected copy before replacement if you need rollback. Install only `certs/server.crt` as trusted in lab browsers/devices; never distribute `server.key`. Changed certificates require updated trust. No database migration is needed; volumes and workers remain unchanged.
 4. If a host firewall is enabled, allow TCP 8080/8443 from the lab subnet. Check Docker's published-port firewall behavior; do not rely on UFW alone to restrict Docker ports. Disable Wi-Fi client isolation on the lab network if it prevents devices reaching the server. Do not add router port forwarding.
-5. From another device, open `https://192.168.0.106:8443`. Check student/admin login and logout, lab entry, PDFs, uploads, live announcements, and recorded student IPs. Confirm API/database ports are not published. Repeat with internet disconnected but LAN connected.
+5. From another device, open each LAN address. Check student/admin login and logout, lab entry, PDFs, uploads, live announcements, and recorded student IPs. Confirm API/database ports are not published. Repeat with internet disconnected but LAN connected. Browser cookies are per hostname/IP, so changing address requires a new login and lab entry; strict-IP binding still applies.
 
-To return to local-only access, restore `CJUDGE_BIND_ADDRESS=127.0.0.1`, localhost host/origin settings, and the prior certificate (or generate a new localhost certificate), then recreate API/web. If DHCP changes the server IP, update the configuration, certificate, and client trust before the next lab.
+To return to local-only access, restore `CJUDGE_BIND_ADDRESS=127.0.0.1`, `CJUDGE_ALLOWED_HOSTS=localhost,127.0.0.1`, and the prior certificate (or generate a new localhost certificate), then recreate API/web. If DHCP changes a server IP, update the host list, certificate, and client trust before the next lab.
 
 ## Checks
 
@@ -287,7 +286,7 @@ docker compose --profile judging up -d web worker
 Backend checks: `uv run pytest -q`. Frontend checks: `npm run test --prefix src/frontend` and `npm run build --prefix src/frontend`. The expanded database gate is `tests/marks_gate.py`; it creates/drops its own database and does not execute submitted code:
 
 ```sh
-docker compose run --rm -e CJUDGE_PUBLIC_ORIGIN=https://localhost:8443 -e CJUDGE_ALLOWED_HOSTS=localhost,127.0.0.1 -v ./tests:/app/tests:ro api python tests/marks_gate.py
+docker compose run --rm -e CJUDGE_ALLOWED_HOSTS=localhost,127.0.0.1 -v ./tests:/app/tests:ro api python tests/marks_gate.py
 ```
 
 ## M15 Lab Cancellation

@@ -1,6 +1,6 @@
 # Product Requirements
 
-Source of truth for cJudge v1 product behavior. M0–M15, M17 and M18 are implemented; M16 and M19–M27 remain planned. The M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
+Source of truth for cJudge v1 product behavior. M0–M15, M17 and M18 are implemented; M19 code is complete pending physical network checks. M16 and M20–M27 remain planned. The M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
 
 ## Scope
 
@@ -116,7 +116,7 @@ M11–M15 are implemented; M16 remains planned. M17–M27 are specified below. E
 
 ## Planned Improvements — M17–M27
 
-Decisions: [improvements_v2.md](improvements_v2.md). Atomic steps and module gates: [todo.md](todo.md#m17--architecture-documentation--independent). M17 documentation and M18 are complete; M19–M27 describe future behavior.
+Decisions: [improvements_v2.md](improvements_v2.md). Atomic steps and module gates: [todo.md](todo.md#m17--architecture-documentation--independent). M17 documentation and M18 are complete; M19 code is complete pending physical network checks. M20–M27 describe future behavior.
 
 - **M17–M19:** document complete schema/container/network architecture; hide and block archived student access; add atomic pre-start CSV enrollment removal; support localhost and both configured LAN interfaces with address-relative links.
 - **M20:** automatic maximum marks belong to each lab assignment, not reusable task revisions. Admin may change them until archive with reason/announcement. Recompute current scores without rerunning programs; preserve historical runs, archived results, and verified exports.

@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15, M17 and M18 are implemented; M16 and M19–M27 remain planned. Physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15, M17 and M18 are implemented; M19 code is complete pending physical network checks. M16 and M20–M27 remain planned. Physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 

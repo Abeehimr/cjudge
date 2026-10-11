@@ -181,7 +181,7 @@ Integration when applicable: verify deactivation plus cancellation, credential r
 
 ## Improvements v2 — M17–M27
 
-M17 and M18 are complete; M19–M27 remain planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
+M17 and M18 are complete; M19 code is complete pending physical network checks. M20–M27 remain planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
 
 ## M17 — Architecture Documentation · independent
 
@@ -202,10 +202,12 @@ Evidence: 35 backend tests, 64 frontend tests and production build; disposable-d
 
 ## M19 — Localhost and Multiple Network Addresses · independent
 
-- [ ] Support localhost without connectivity and simultaneous Wi-Fi/Ethernet through explicit configured hosts/interfaces.
-- [ ] Use relative links; validate write origins against allowed HTTPS request addresses; preserve CSRF/secure cookies.
-- [ ] Update certificates, configuration examples, redirects, trusted-proxy and network documentation.
+- [x] Support localhost without connectivity and simultaneous Wi-Fi/Ethernet through explicit configured hosts/interfaces.
+- [x] Use relative links; validate write origins against allowed HTTPS request addresses; preserve CSRF/secure cookies.
+- [x] Update certificates, configuration examples, redirects, trusted-proxy and network documentation.
 - [ ] **Gate:** localhost offline, both LAN interfaces, deep links/downloads/uploads/SSE, strict-IP behavior, hostile host/origin rejection.
+
+Evidence: 36 backend tests and 64 frontend tests pass; Docker web/API builds and disposable-database lab gate pass. Temporary nginx accepts localhost and a second configured host, redirects deep links and rejects unknown hosts; API origin and port cases pass unit checks. Physical two-interface/offline browser testing remains pending.
 
 ## M20 — Lab-Owned Marks · requires M6, M8, M10
 

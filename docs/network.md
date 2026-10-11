@@ -20,7 +20,7 @@ flowchart LR
 
 ## Address, trust, and client IP
 
-`CJUDGE_BIND_ADDRESS` controls the host interface for both published web ports; default `127.0.0.1`. `0.0.0.0` exposes them on every IPv4 interface. `CJUDGE_ALLOWED_HOSTS` limits accepted HTTP hosts in FastAPI. `CJUDGE_PUBLIC_ORIGIN` is **one exact HTTPS origin** used for login and write-origin checks. Therefore, even with multiple allowed hosts or all-interface binding, writes from two different IP-address URLs cannot both work today. Multiple-address support is planned in M19.
+`CJUDGE_BIND_ADDRESS` controls the host interface for both published web ports; default `127.0.0.1`. `0.0.0.0` exposes them on every IPv4 interface. `CJUDGE_ALLOWED_HOSTS` explicitly lists accepted browser hostnames/IPs; nginx rejects other hosts on both ports and FastAPI also validates API hosts. Login and write requests require an Origin matching the validated request host on HTTPS port 8443. The frontend uses relative URLs, so localhost, Wi-Fi and Ethernet addresses work simultaneously when listed. Cookies are address-specific; switching addresses requires a new login and lab entry.
 
 nginx sends `Host` and `X-Real-IP` to FastAPI. The API accepts `X-Real-IP` only when its TCP peer resolves to the configured trusted web container; otherwise it uses the peer IP. A separate upstream proxy can make nginx's `$remote_addr` the proxy/router address unless nginx is configured to trust that proxy. Submission IPs and strict-IP lab binding use this selected address; MAC address collection is not implemented. Do not treat arbitrary browser headers as trusted client identity.
 
@@ -33,4 +33,4 @@ docker compose --profile judging ps
 sh scripts/smoke.sh https://localhost:8443 http://localhost:8080
 ```
 
-The second command checks localhost only if the configured public origin and certificate cover localhost; use the configured LAN URL otherwise. The M9 second-device offline browser check remains outstanding. M19 will add simultaneous localhost/Wi-Fi/Ethernet support; this document intentionally describes current behavior.
+Repeat the smoke check for each configured address with a matching certificate SAN. The M9 second-device offline browser check remains outstanding.

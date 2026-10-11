@@ -1,6 +1,6 @@
 # Technical Requirements
 
-Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M15 and M18 automated checks and M17 documentation checks pass; M16 and M19–M27 remain planned. Physical LAN/offline browser acceptance remains. See [acceptance-results.json](acceptance-results.json).
+Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M15 and M18 automated checks and M17 documentation checks pass; M19 code is complete pending physical network checks; M16 and M20–M27 remain planned. Physical LAN/offline browser acceptance remains. See [acceptance-results.json](acceptance-results.json).
 
 ## Stack and Storage
 
