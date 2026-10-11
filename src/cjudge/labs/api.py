@@ -13,7 +13,7 @@ from starlette.concurrency import run_in_threadpool
 
 from cjudge import identity, labs, tasks
 from cjudge.labs import binding as lab_binding, files as lab_files
-from cjudge.identity.api import CredentialOutput, StrictModel, admin, admin_write, current, write_guard, COOKIE, no_store
+from cjudge.identity.api import CredentialOutput, StudentOutput, StrictModel, admin, admin_write, current, write_guard, COOKIE, no_store
 from cjudge.tasks.api import bounded_body, json_input
 from cjudge.tasks.grading import TaskConfig
 
@@ -374,6 +374,35 @@ async def import_students(lab_id: UUID, request: Request, version: int = Query(g
         with transaction() as conn:
             return labs.import_roster(conn, labs.find(conn, lab_id, version), identity.parse_csv(payload), actor['id'])
     return await run_in_threadpool(enroll)
+
+
+class RemovalPreview(StrictModel):
+    version: int
+    students: list[StudentOutput]
+
+
+@admin_router.post('/{lab_id}/students/removal-preview', response_model=RemovalPreview)
+async def preview_removal(lab_id: UUID, request: Request, version: int = Query(ge=1), actor: dict = Depends(admin_write)):
+    from cjudge.labs.roster import parse_removal_csv
+    if request.headers.get('content-type', '').split(';')[0] != 'text/csv':
+        raise HTTPException(415, 'CSV required')
+    payload = await bounded_body(request, 1024 * 1024)
+    def preview():
+        with transaction() as conn:
+            lab = labs.find(conn, lab_id, version)
+            labs.editable(lab)
+            labs.setup_open(lab, labs.now(conn))
+            rolls = parse_removal_csv(payload)
+            students = list(conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number,
+                identity.accounts.c.name, identity.accounts.c.active).join(labs.enrollments,
+                labs.enrollments.c.account_id == identity.accounts.c.id).where(labs.enrollments.c.lab_id == lab_id,
+                identity.accounts.c.roll_number.in_(rolls)).order_by(identity.accounts.c.roll_number)).mappings())
+            found = {row['roll_number'] for row in students}
+            missing = [roll for roll in rolls if roll not in found]
+            if missing:
+                raise labs.LabError(400, 'Unknown or unenrolled roll numbers: ' + ', '.join(missing[:10]))
+            return {'version': lab['version'], 'students': students}
+    return await run_in_threadpool(preview)
 
 
 class RemovalInput(VersionInput):

@@ -256,6 +256,17 @@ def api_checks(admin_id, student_id, revision_id):
             removal_path = '/admin/labs/' + removal_lab['id']
             _, removal_lab, _ = call(removal_path + '/students', 'POST', {'version': removal_lab['version'],
                 'ids': [str(student_id), str(outsider)]})
+            preview_path = removal_path + '/students/removal-preview?version=' + str(removal_lab['version'])
+            assert call(preview_path, 'POST', b'roll_number\nGATE\n', role='student', content_type='text/csv')[0] == 403
+            assert call(preview_path, 'POST', b'roll_number\nGATE\n', token='wrong', content_type='text/csv')[0] == 403
+            assert call(preview_path, 'POST', {}, content_type='application/json')[0] == 415
+            for invalid in (b'roll_number\nGATE\nLATE\n', b'roll_number\nGATE\nUNKNOWN\n', b'roll_number\nGATE\ngate\n', b'roll_number,name\nGATE\n'):
+                assert call(preview_path, 'POST', invalid, content_type='text/csv')[0] == 400
+            status, preview, _ = call(preview_path, 'POST', b'roll_number,name\nGATE,Ignored\n', content_type='text/csv')
+            assert status == 200 and preview['version'] == removal_lab['version']
+            assert [row['id'] for row in preview['students']] == [str(student_id)]
+            assert not {'password', 'encrypted_password', 'password_hash'} & preview['students'][0].keys()
+            assert len(call(removal_path)[1]['students']) == 2
             removal_body = {'version': removal_lab['version'], 'ids': [str(student_id)]}
             assert call(removal_path + '/students/remove', 'POST', removal_body, role='student')[0] == 403
             assert call(removal_path + '/students/remove', 'POST', removal_body, token='wrong')[0] == 403
@@ -265,6 +276,7 @@ def api_checks(admin_id, student_id, revision_id):
             with ThreadPoolExecutor(2) as pool:
                 outcomes = list(pool.map(lambda _: call(removal_path + '/students/remove', 'POST', removal_body)[0], range(2)))
             assert sorted(outcomes) == [200, 409], outcomes
+            assert call(preview_path, 'POST', b'roll_number\nGATE\n', content_type='text/csv')[0] == 409
             assert len(call(removal_path)[1]['students']) == 1
             assert any(row['id'] == str(student_id) for row in call('/admin/students')[1])
             status, lab, _ = call('/admin/labs', 'POST', {'title': 'API'})
@@ -304,6 +316,8 @@ def api_checks(admin_id, student_id, revision_id):
             assert call(path + '/tasks', 'PUT', {'version': lab['version'], 'revision_ids': []})[0] == 409
             assert call(path + '/students/' + str(student_id), 'DELETE')[0] == 422
             assert call(path + '/students/' + str(student_id) + '?version=' + str(lab['version']), 'DELETE')[0] == 409
+            assert call(path + '/students/removal-preview?version=' + str(lab['version']), 'POST', b'roll_number\nGATE\n', content_type='text/csv')[0] == 409
+            assert call(path + '/students/remove', 'POST', {'version': lab['version'], 'ids': [str(student_id)]})[0] == 409
             def open_events():
                 return urlopen(Request('http://127.0.0.1:8012/api' + student_path + '/events', headers={
                     'Cookie': 'cjudge_session=' + cookies['student'] + '; ' + binding,

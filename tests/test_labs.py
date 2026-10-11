@@ -33,3 +33,17 @@ def test_forwarded_ip_is_trusted_only_from_proxy(monkeypatch):
     with pytest.raises(LabError) as exc:
         client_ip(request('172.18.0.2', 'invalid'))
     assert exc.value.status == 400
+
+
+def test_removal_csv_is_bounded_and_uses_rolls_only():
+    from cjudge.labs.roster import parse_removal_csv
+    assert parse_removal_csv(b'\xef\xbb\xbfroll_number\r\n a \r\nB\r\n') == ['A', 'B']
+    assert parse_removal_csv(b'roll_number,name\nA,Ignored\nB,\n') == ['A', 'B']
+    for payload in (b'roll_number\nA\na\n', b'name,roll_number\nAda,A\n', b'roll_number\n',
+                    b'roll_number,name\nA\n', b'roll_number\nA,extra\n', b'roll_number\nADMIN\n',
+                    b'roll_number\n"unclosed\n', b'\xff', b'x' * (1024 * 1024 + 1)):
+        with pytest.raises(ValueError):
+            parse_removal_csv(payload)
+    assert len(parse_removal_csv(('roll_number\n' + '\n'.join(str(i) for i in range(1000))).encode())) == 1000
+    with pytest.raises(ValueError, match='1000'):
+        parse_removal_csv(('roll_number\n' + '\n'.join(str(i) for i in range(1001))).encode())
