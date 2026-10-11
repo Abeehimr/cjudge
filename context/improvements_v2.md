@@ -1,6 +1,6 @@
 # Improvements v2 — Agreed Plan
 
-Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M17–M27 are planned, not implemented. M16 remains pending. Work one module at a time with small tested commits and review at each gate.
+Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M17 is complete; M18–M27 remain planned. M16 remains pending. Work one module at a time with small tested commits and review at each gate.
 
 ## Documentation — M17
 

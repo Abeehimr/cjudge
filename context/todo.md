@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-Each module includes its API, UI where applicable, migrations, and tests. Complete its test gate before dependent modules. Modules sharing completed prerequisites may proceed independently.
+Each module includes its API, UI where applicable, migrations, and tests. Complete its test gate before dependent modules. Modules sharing completed prerequisites may proceed independently. Start each new module on its own branch from `master`; make small tested commits and merge only on the user's command.
 
 ## M0 — Compose Foundation · v0.1
 
@@ -181,15 +181,15 @@ Integration when applicable: verify deactivation plus cancellation, credential r
 
 ## Improvements v2 — M17–M27
 
-All modules below are planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
+M17 is complete; M18–M27 remain planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
 
 ## M17 — Architecture Documentation · independent
 
-- [ ] Add `docs/schema.md`: every table, primary/foreign keys, relationships; minimal Mermaid diagram.
-- [ ] Add `docs/docker.md`: services, worker pool, volumes, networks, isolation, startup/shutdown.
-- [ ] Add `docs/network.md`: localhost/LAN, TLS/proxy, API/SSE, private services, workers.
-- [ ] Link from README/design; separate current architecture from planned changes; avoid duplicate diagrams.
-- [ ] **Gate:** diagrams match current schema/Compose; commands and links verified.
+- [x] Add `docs/schema.md`: every table, primary/foreign keys, relationships; minimal Mermaid diagram.
+- [x] Add `docs/docker.md`: services, worker pool, volumes, networks, isolation, startup/shutdown.
+- [x] Add `docs/network.md`: localhost/LAN, TLS/proxy, API/SSE, private services, workers.
+- [x] Link from README/design; separate current architecture from planned changes; avoid duplicate diagrams.
+- [x] **Gate:** diagrams match current schema/Compose; commands and links verified.
 
 ## M18 — Archive Access and Roster Removal · requires M4, M8
 

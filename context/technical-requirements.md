@@ -1,6 +1,6 @@
 # Technical Requirements
 
-Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M15 automated checks pass; M16–M27 remain planned. Physical LAN/offline browser acceptance remains. See [acceptance-results.json](acceptance-results.json).
+Implements [product-requirements.md](product-requirements.md); [design.md](design.md) describes component and UI organization. M0–M15 automated checks and M17 documentation checks pass; M16 and M18–M27 remain planned. Physical LAN/offline browser acceptance remains. See [acceptance-results.json](acceptance-results.json).
 
 ## Stack and Storage
 
@@ -121,7 +121,7 @@ Compare full permitted stdout before retaining previews. Bound stderr, temporary
 
 ## Planned Interfaces and Constraints — M17–M27
 
-Agreed behavior: [improvements_v2.md](improvements_v2.md). Gates: [todo.md](todo.md#m17--architecture-documentation--independent). Extend existing services and protocols; no additional runtime service is planned.
+Agreed behavior: [improvements_v2.md](improvements_v2.md). Gates: [todo.md](todo.md#m17--architecture-documentation--independent). M17 documentation is complete; remaining modules extend existing services and protocols without another runtime service.
 
 - **M17:** derive minimal ER keys/relations from all live table definitions/migrations; document actual Compose services, worker processes, network boundaries, mounts, and TLS/proxy/SSE paths. Keep planned architecture distinct.
 - **M18:** centralize archived student denial across reads, downloads, binding/entry, and SSE revalidation. Reuse setup/version locks for atomic selected-ID/roll-number CSV removal; reject invalid selections and scheduled-lab empty rosters.

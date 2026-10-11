@@ -1,20 +1,10 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15 are implemented; M16–M27 remain planned. Physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15 and M17 are implemented; M16 and M18–M27 remain planned. Physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
-```mermaid
-flowchart LR
-    Browser[Student / admin browser] -->|HTTPS| Nginx[nginx]
-    Nginx --> Assets[Local frontend assets]
-    Nginx --> API[FastAPI and SSE]
-    API --> DB[(PostgreSQL)]
-    API --> Files[(Protected artifacts)]
-    Workers[Judge container: workers] --> DB
-    Workers --> Files
-    Workers --> Sandbox[isolate]
-```
+Current architecture: [database schema](../docs/schema.md), [Docker deployment](../docs/docker.md), and [network diagram](../docs/network.md).
 
 Docker Compose separates `web`, `api`, `db`, and runtime `worker`; standalone `judge` runs isolation gates without networking. The worker container holds an environment-configured process pool, with independent isolate boxes/cgroups/UIDs. PostgreSQL distributes fair leased jobs. The API owns authentication, lab policy, and admission; release/export are implemented with shared grading and lab policies. Only web ports are public. Protected volumes hold artifacts; workers mount source/test data read-only. API and workers share writable `authoring_files` for protected staged generation and cached binaries. Student isolate processes cannot access this volume.
 

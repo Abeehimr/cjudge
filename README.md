@@ -4,6 +4,8 @@ Offline C lab judge. M0–M4 provide HTTPS, isolation, accounts, tasks, and labs
 
 ## Repository layout
 
+Architecture references: [database schema](docs/schema.md), [Docker deployment](docs/docker.md), and [network architecture](docs/network.md). These describe the current system; future modules are tracked in [context/todo.md](context/todo.md).
+
 User guides: [Student lab guide](docs/guides/student.md) and [TA released-results guide](docs/guides/ta.md). Both include interface screenshots and placeholders for remaining captures. The admin guide is the next documentation module.
 
 To export both guides with screenshots, install LibreOffice and run `python3 scripts/export-guides.py`. PDFs are written to `docs/guides/pdf/`. Direct Markdown-to-PDF conversion can omit linked images; this command embeds them through intermediate HTML.
