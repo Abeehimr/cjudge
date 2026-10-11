@@ -26,6 +26,8 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   const [lab, setLab] = useState<AdminLab | null>(null);
   const [options, setOptions] = useState<Task[]>([]), [optionOffset, setOptionOffset] = useState(0), [moreOptions, setMoreOptions] = useState(true);
   const [students, setStudents] = useState<Student[]>([]), [selectedStudentId, setStudentId] = useState(""), [search, setSearch] = useState("");
+  const [selectedRoster, setSelectedRoster] = useState<string[]>([]);
+  const [removalPreview, setRemovalPreview] = useState<{ version: number; students: Student[] } | null>(null);
   const [releasedCredential, setReleasedCredential] = useState<(Student & { password: string }) | null>(null);
   const [newTitle, setNewTitle] = useState(""), [title, setTitle] = useState(""), [strict, setStrict] = useState(false);
   const [taskIds, setTaskIds] = useState<string[]>([]), [taskId, setTaskId] = useState("");
@@ -38,6 +40,31 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   function setMessage(text: string) { setMessageError(false); setMessageText(text); }
   function showError(text: string) { setMessageError(true); setMessageText(text); }
   const setupOpen = !!lab && (lab.phase === "Draft" || lab.phase === "Scheduled");
+  const visibleRoster = studentId ? lab?.students.filter((row) => row.id === studentId) || [] :
+    lab?.students.filter((row) => `${row.roll_number} ${row.name}`.toLowerCase().includes(rosterSearch.toLowerCase())) || [];
+  const selectableRoster = setupOpen && !studentId;
+  useEffect(() => { setSelectedRoster([]); setRemovalPreview(null); }, [labId, setupOpen]);
+  function selectRoster(id: string) {
+    setSelectedRoster((old) => old.includes(id) ? old.filter((key) => key !== id) : [...old, id]);
+  }
+  async function removeRoster(ids: string[], version: number) {
+    if (!lab || !ids.length || !confirm(`Remove ${ids.length} student(s) from this lab? Global accounts and other labs are kept.`)) return;
+    await perform(async () => {
+      await mutate('/students/remove', 'POST', { version, ids });
+      setSelectedRoster([]); setRemovalPreview(null); setMessage(`${ids.length} enrollment(s) removed.`);
+    });
+  }
+  async function previewRemoval(file: File) {
+    if (!lab) return;
+    const id = lab.id, version = lab.version;
+    setRemovalPreview(null);
+    await perform(async () => {
+      if (file.size > 1024 * 1024) throw new Error('CSV exceeds 1 MiB.');
+      const preview = await api<{ version: number; students: Student[] }>(`/admin/labs/${id}/students/removal-preview?version=${version}`,
+        { method: 'POST', body: file }, csrf);
+      if (currentLab.current === id) setRemovalPreview(preview);
+    });
+  }
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   async function list(page = offset) { setRows(await api<Summary[]>(`/admin/labs?offset=${page}`)); }
   useEffect(() => { if (!labId) void list().catch((e) => showError(e.message)); }, [offset, labId]);
@@ -61,6 +88,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     if (value.id !== currentLab.current) return;
     const previous = savedLab.current, keep = !reset && previous?.id === value.id;
     setLab(value);
+    setSelectedRoster((old) => old.filter((id) => value.students.some((row) => row.id === id)));
     setTitle((old) => keep && old !== previous!.title ? old : value.title);
     setStrict((old) => keep && old !== previous!.strict_ip ? old : value.strict_ip);
     setTaskIds((old) => keep && JSON.stringify(old) !== JSON.stringify(previous!.tasks.map((t) => t.revision_id)) ? old : value.tasks.map((t) => t.revision_id));
@@ -265,10 +293,27 @@ export function AdminLabs({ csrf }: { csrf: string }) {
             await reload(); setMessage(`${result.created.length} created; ${result.existing.length} existing. Name mismatches: ${result.name_mismatches.join(", ") || "none"}.`);
           });
         }} /></label>
+        {setupOpen && <section className="space-y-2 rounded border p-3" aria-label="Remove enrollments">
+          <p role="status">{selectedRoster.length} selected{selectedRoster.length > 1000 && ' · Select at most 1,000 students.'}</p>
+          <button disabled={busy || !selectedRoster.length || selectedRoster.length > 1000} onClick={() => { void removeRoster(selectedRoster, lab.version); }}>Remove selected</button>
+          <label className="block">Remove roster CSV (roll_number; optional name)<input type="file" accept=".csv,text/csv" disabled={busy} onChange={(e) => {
+            const file = e.target.files?.[0]; e.target.value = ''; if (file) void previewRemoval(file);
+          }} /></label>
+          {removalPreview && <div aria-label="Removal preview">
+            <p>{removalPreview.students.length} enrollment(s) matched. Names come from current accounts.</p>
+            <ul className="max-h-48 overflow-y-auto">{removalPreview.students.map((row) => <li key={row.id}>{row.roll_number} · {row.name}</li>)}</ul>
+            {removalPreview.version !== lab.version && <p role="alert">Lab changed. Upload the CSV again before confirming.</p>}
+            <button disabled={busy || removalPreview.version !== lab.version} onClick={() => { void removeRoster(removalPreview.students.map((row) => row.id), removalPreview.version); }}>Confirm CSV removal</button>
+            <button disabled={busy} onClick={() => setRemovalPreview(null)}>Discard preview</button>
+          </div>}
+        </section>}
         <label className="block">Filter roster <input value={rosterSearch} onChange={(e) => setParams(e.target.value ? { search: e.target.value } : {}, { replace: true })} /></label>
         </>}
-        <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Roll number</th><th>Name</th><th>Browser / IP</th><th>Submissions</th><th>Actions</th></tr></thead>
-          <tbody>{(studentId ? [member!] : lab.students.filter((item) => `${item.roll_number} ${item.name}`.toLowerCase().includes(rosterSearch.toLowerCase()))).map((member) => <tr className="border-t" data-frozen={member.frozen || undefined} data-cancelled={member.cancelled || undefined} key={member.id}><td><Link to={`/admin/labs/${lab.id}/students/${member.id}`}>{member.roll_number}</Link></td><td>{member.name}</td>
+        <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{selectableRoster && <th><input type="checkbox" aria-label="Select all visible students" disabled={busy || !visibleRoster.length}
+            checked={visibleRoster.length > 0 && visibleRoster.every((row) => selectedRoster.includes(row.id))}
+            onChange={(e) => setSelectedRoster((old) => e.target.checked ? [...new Set([...old, ...visibleRoster.map((row) => row.id)])] : old.filter((id) => !visibleRoster.some((row) => row.id === id)))} /></th>}<th>Roll number</th><th>Name</th><th>Browser / IP</th><th>Submissions</th><th>Actions</th></tr></thead>
+          <tbody>{visibleRoster.map((member) => <tr className="border-t" data-frozen={member.frozen || undefined} data-cancelled={member.cancelled || undefined} key={member.id}>{selectableRoster && <td><input type="checkbox" aria-label={`Select ${member.roll_number}`} disabled={busy}
+              checked={selectedRoster.includes(member.id)} onChange={() => selectRoster(member.id)} /></td>}<td><Link to={`/admin/labs/${lab.id}/students/${member.id}`}>{member.roll_number}</Link></td><td>{member.name}</td>
             <td>{member.bound_at ? `Bound · ${member.last_ip}` : "Not bound"}{member.ip_changed && <span className="block">IP changed (original {member.bound_ip})</span>}</td>
             <td><span className={member.cancelled ? 'notice-danger rounded px-2 py-1' : member.frozen ? "notice-warning rounded px-2 py-1" : ""}>{member.cancelled ? `Cancelled · ${member.cancel_reason}` : member.frozen ? `Frozen · ${member.freeze_reason}` : "Enabled during lab"}</span></td><td><div className="flex flex-wrap gap-2">
               <button disabled={busy || !!lab?.archived_at} onClick={() => rosterAction(member, "freeze")}>{member.frozen ? "Unfreeze" : "Freeze"} {member.roll_number}</button>

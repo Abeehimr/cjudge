@@ -279,6 +279,26 @@ def api_checks(admin_id, student_id, revision_id):
             assert call(preview_path, 'POST', b'roll_number\nGATE\n', content_type='text/csv')[0] == 409
             assert len(call(removal_path)[1]['students']) == 1
             assert any(row['id'] == str(student_id) for row in call('/admin/students')[1])
+            _, start_race, _ = call('/admin/labs', 'POST', {'title': 'Start/removal race'})
+            start_path = '/admin/labs/' + start_race['id']
+            _, start_race, _ = call(start_path + '/tasks', 'PUT', {'version': start_race['version'], 'revision_ids': [str(revision_id)]})
+            _, start_race, _ = call(start_path + '/students', 'POST', {'version': start_race['version'], 'ids': [str(student_id), str(outsider)]})
+            with ThreadPoolExecutor(2) as pool:
+                removal = pool.submit(call, start_path + '/students/remove', 'POST', {'version': start_race['version'], 'ids': [str(student_id)]})
+                starting = pool.submit(call, start_path + '/schedule', 'POST', {'version': start_race['version'],
+                    'ends_at': (identity.now() + timedelta(minutes=2)).isoformat()})
+                removal_status, start_status = removal.result()[0], starting.result()[0]
+            assert sorted([removal_status, start_status]) == [200, 409], (removal_status, start_status)
+            start_race = call(start_path)[1]
+            assert len(start_race['students']) == (1 if removal_status == 200 else 2)
+            if start_race['phase'] == 'Draft':
+                _, start_race, _ = call(start_path + '/schedule', 'POST', {'version': start_race['version'],
+                    'ends_at': (identity.now() + timedelta(minutes=2)).isoformat()})
+            assert call(start_path + '/students/remove', 'POST', {'version': start_race['version'], 'ids': [str(outsider)]})[0] == 409
+            with identity.engine().begin() as conn:
+                conn.execute(sa.update(labs.labs).where(labs.labs.c.id == start_race['id']).values(ends_at=labs.now(conn)))
+                # Retire the race fixture before testing the outsider's empty assigned list.
+                conn.execute(sa.delete(labs.enrollments).where(labs.enrollments.c.lab_id == start_race['id']))
             status, lab, _ = call('/admin/labs', 'POST', {'title': 'API'})
             assert status == 201
             path = '/admin/labs/' + lab['id']
