@@ -266,6 +266,8 @@ def student_access(conn: sa.Connection, lab_id: UUID, account: dict, request: Re
                    enter: bool = False, readonly: bool = False) -> tuple[dict, dict, str | None]:
     readonly = readonly and not enter
     lab = labs.find(conn, lab_id, shared=True, lock=not readonly)
+    if lab['archived_at']:
+        raise labs.LabError(404, 'Lab not found')
     row, token = lab_binding.access(conn, lab, account['id'], request.cookies.get(COOKIE),
         request.cookies.get(lab_binding.cookie_name(lab_id)), lab_binding.client_ip(request), enter=enter, readonly=readonly)
     return lab, row, token
@@ -487,7 +489,8 @@ def assigned_labs(account: dict = Depends(student)):
     with transaction() as conn:
         timestamp = labs.now(conn)
         rows = conn.execute(sa.select(labs.labs).join(labs.enrollments, labs.labs.c.id == labs.enrollments.c.lab_id)
-            .where(labs.enrollments.c.account_id == account['id'], labs.labs.c.starts_at.is_not(None))
+            .where(labs.enrollments.c.account_id == account['id'], labs.labs.c.starts_at.is_not(None),
+                labs.labs.c.archived_at.is_(None))
             .order_by(labs.labs.c.starts_at.desc())).mappings()
         return [summary(conn, dict(row), timestamp) for row in rows]
 

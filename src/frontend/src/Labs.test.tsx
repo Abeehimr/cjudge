@@ -316,3 +316,21 @@ test('SSE hide-results refresh removes previously visible student source', async
   expect(screen.getByText(/details are hidden/)).toBeTruthy();
   expect(Live.instances).toHaveLength(1);
 });
+
+
+test('archive denial clears student materials and refreshes the assigned list', async () => {
+  live(); let archived = false;
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({
+    ok: !(archived && path === '/api/labs/lab'), status: archived && path === '/api/labs/lab' ? 404 : 200,
+    json: async () => path === '/api/labs' ? archived ? [] : [summary] : path.includes('/submissions') ? [] : archived ? { detail: 'Lab not found' } : materials,
+  }));
+  vi.stubGlobal('fetch', fetchMock);
+  renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab/tasks/revision');
+  expect(await screen.findByText('Add two numbers.')).toBeTruthy();
+  archived = true;
+  act(() => Live.instances[0].dispatchEvent(new Event('denied')));
+  await waitFor(() => expect(screen.queryByText('Add two numbers.')).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Enter lab' })).toBeNull());
+  expect(Live.instances[0].close).toHaveBeenCalled();
+  await waitFor(() => expect(fetchMock.mock.calls.filter(([path]) => path === '/api/labs').length).toBeGreaterThan(1));
+});
