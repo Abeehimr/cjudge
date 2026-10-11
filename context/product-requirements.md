@@ -1,6 +1,6 @@
 # Product Requirements
 
-Source of truth for cJudge v1 product behavior. M0–M15 are implemented; M16–M27 remain planned. The M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
+Source of truth for cJudge v1 product behavior. M0–M15 and M18 are implemented on this branch; M17 is complete on its separate unmerged branch. M16 and M19–M27 remain planned. The M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
 
 ## Scope
 
@@ -22,7 +22,7 @@ Deferred: languages beyond C/C++, multiple admins, individual extensions, weight
 
 - Attach PDFs containing the lab tasks to the lab; PDFs are optional only when every assigned task has nonempty Markdown. Leave empty statement sections hidden. During a running lab, PDF additions/replacements automatically announce the change; retain previous PDFs for admin access.
 - Lifecycle: Draft → Scheduled → Running → Ended → Results released → Archived. Hide lab PDFs and task statements until start and allow only assigned students to participate.
-- Freeze task assignments and enrollment removals at start; allow late enrollment additions.
+- Freeze task assignments and enrollment removals at start; allow late enrollment additions. Before start, remove individual/selected enrollments or preview and confirm a roll-number CSV; reject invalid/stale batches atomically, preserve global accounts/other labs, and keep at least one student in scheduled labs.
 - Require explicit Enter lab to bind the browser, including after the lab ends.
 - Admin may stop a running lab immediately with confirmation and a reason. Stop closes new uploads but finishes accepted judging; reopening remains possible before first release.
 - Admin may freeze/unfreeze new submissions per student and lab with an audit reason; retain materials access and prior accepted work. Unfreezing adds no time.
@@ -59,7 +59,7 @@ Deferred: languages beyond C/C++, multiple admins, individual extensions, weight
 - Warn before revealing tests used by another scheduled lab. Admin controls release timing; hiding results cannot undo disclosure.
 - Students access only their own private data, with no student access to network metadata or infrastructure diagnostics.
 - CSV exports contain roll number, name, per-task marks/pass percentages, total marks, active submission count, and last active submission time. Percentages come from counted submissions.
-- Explicit Archive after release freezes lab and grading edits; admin exports remain available. Until M18, students retain existing reveal access; M18 blocks all archived student access.
+- Explicit Archive after release freezes lab and grading edits; admin exports remain available. Archived labs are hidden from students and deny all direct URLs, files, submission evidence, scoreboard, and events; admins retain access.
 - Lab ZIPs include lab PDFs, optional task Markdown statements, tests, configurations/revisions, all retained sources including deleted attempts, judge history, marks, and audit records. Export does not delete the lab; permanent deletion requires a current verified export, saved-copy acknowledgment, matching typed lab title, and audit reason. Global accounts and shared tasks remain. ZIPs are not full-server backups.
 
 ## M10 Lab Scoreboard
@@ -116,7 +116,7 @@ M11–M15 are implemented; M16 remains planned. M17–M27 are specified below. E
 
 ## Planned Improvements — M17–M27
 
-Decisions: [improvements_v2.md](improvements_v2.md). Atomic steps and module gates: [todo.md](todo.md#m17--architecture-documentation--independent). These requirements describe future behavior, not completed features.
+Decisions: [improvements_v2.md](improvements_v2.md). Atomic steps and module gates: [todo.md](todo.md#m17--architecture-documentation--independent). M18 is implemented; other requirements below describe planned modules or M17 documentation on its separate branch.
 
 - **M17–M19:** document complete schema/container/network architecture; hide and block archived student access; add atomic pre-start CSV enrollment removal; support localhost and both configured LAN interfaces with address-relative links.
 - **M20:** automatic maximum marks belong to each lab assignment, not reusable task revisions. Admin may change them until archive with reason/announcement. Recompute current scores without rerunning programs; preserve historical runs, archived results, and verified exports.

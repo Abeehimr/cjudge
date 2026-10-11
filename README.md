@@ -103,11 +103,15 @@ Upgrade with `docker compose build api web`, `docker compose run --rm api alembi
 
 Under **Admin → Labs**, create a lab, assign ordered published revisions, enroll students, and upload lab PDFs. Schedule a future start or choose **Start now**. At least one task/student is required; PDFs may be omitted only when every task has a Markdown statement. Overlapping lab windows are rejected. Task assignments and enrollment removals close at start; late additions remain available.
 
+Before start, Admin → Lab → Students supports individual removal, selected-row removal, and **Remove roster CSV**. Select-all affects visible filtered rows; the selected count includes hidden selections. CSV uses `roll_number` or `roll_number,name`, up to 1 MiB/1,000 rows; names are ignored and the preview displays current account names. Confirm before removal. Unknown/unenrolled/duplicate rolls reject the entire preview; stale lab versions require a new preview. Removal preserves global accounts and other labs. A scheduled lab must retain one student. After start, use cancellation instead.
+
 Students select their assigned lab and explicitly **Enter lab** after start. This binds the browser; missing cookies require admin release even at the same IP. Release revokes all that student's sessions. Strict IP matching defaults off; otherwise IP changes are allowed and flagged. Browser binding remains required after the lab ends.
 
 Test announcements and PDF replacement with a student tab open: SSE refreshes materials and deadlines. Previous PDFs remain admin-only. Test **Freeze/Unfreeze**, browser release, whole-lab extension, and pre-release reopening; reasons are audited. Browser release resets the global student password, revokes all sessions, and shows the new credential to admin. Freeze blocks new submissions while materials stay readable.
 
 Lab overviews show the latest announcement and collapse older messages. Frozen enrollment rows use muted yellow. Admin and released-student submission details shade testcase verdicts: AC green, WA/RE red, and TLE/MLE/OLE yellow.
+
+Archived labs disappear from student lists and deny saved URLs, PDFs, submissions, scoreboard, and live events. Existing student views close after the archive event. Admins retain archive review and export access. Apply this M18 update by rebuilding API/web; no database migration is required.
 
 **Early results feedback** on the admin lab overview is off by default. When enabled, students see passed/total and submission marks out of maximum for their own official partial-scoring runs before release; pending work has no result, and results under rejudge are provisional. Partial passes have an amber status. All-or-nothing tasks remain opaque. This setting does not change scoreboard visibility or reveal source/testcases. Apply migration `20261009_early_feedback` before starting updated API/worker images.
 

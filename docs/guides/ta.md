@@ -7,6 +7,7 @@
 - Review the student's own logged-in screen; cJudge has no separate TA login. Do not ask for the student's password.
 - Admin must release results **and enable reveal**. An ended lab alone does not expose details.
 - Ask the student to open their lab and click **Submissions**. Confirm the name/roll number in the header.
+- Archived labs cannot be opened on student screens; ask admin for archive review.
 - If details remain hidden, contact admin. Browser-binding problems also require admin assistance.
 
 ## 2. Choose the submission

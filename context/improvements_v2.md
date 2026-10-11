@@ -1,16 +1,16 @@
 # Improvements v2 — Agreed Plan
 
-Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M17–M27 are planned, not implemented. M16 remains pending. Work one module at a time with small tested commits and review at each gate.
+Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M18 is implemented on this branch; M17 is complete on its separate unmerged branch; M19–M27 remain planned. M16 remains pending. Work one module at a time with small tested commits and review at each gate.
 
 ## Documentation — M17
 
 Add `docs/schema.md`: every table, primary/foreign keys, and relationships in a minimal Mermaid diagram. Add `docs/docker.md`: all services, worker pool, volumes, networks, startup/shutdown. Add `docs/network.md`: browsers, TLS/proxy, API/SSE, private services, workers. Link from README/design rather than duplicating diagrams. Separate current architecture from planned changes.
 
-## Lab Access and Enrollment — M18
+## Lab Access and Enrollment — M18 (implemented)
 
 Hide archived labs from students and deny direct access to URLs, APIs, protected files, submission details, scoreboard, and events. Admin retains archive access.
 
-Remove enrollments individually, by selection, or CSV **before start only**. CSV identifies students by roll number; preview selection and reject invalid batches atomically. Preserve scheduled-lab last-student protection. Removal never deletes global accounts. After start use cancellation.
+Remove enrollments individually, by selection, or CSV **before start only**. CSV identifies students by normalized roll number (`roll_number` or `roll_number,name` headers; names ignored), up to 1 MiB/1,000 rows. Preview current identities and reject invalid batches atomically. Stale preview versions require a fresh upload. Preserve scheduled-lab last-student protection. Removal never deletes global accounts. After start use cancellation.
 
 ## Network — M19
 
