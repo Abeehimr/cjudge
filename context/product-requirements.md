@@ -1,12 +1,14 @@
 # Product Requirements
 
-Source of truth for cJudge v1 product behavior. M0–M14 are implemented; M15–M16 remain planned. The M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
+Source of truth for cJudge v1 product behavior. M0–M15 are implemented; M16–M27 remain planned. The M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
 
 ## Scope
 
 An offline-operable LAN judge for C programming labs: one admin, with a performance baseline of 150 concurrent students total, five tasks, ten cases per task, and a two-hour lab. M16 will allow concurrent labs without a configured lab-count limit; current scheduling permits only one active lab. Installation and maintenance may use internet; running a lab must not.
 
-Deferred: other submission languages, TAs/multiple admins, individual extensions, weighted cases, subtask groups, testlib, plagiarism detection, an in-browser editor, offline installation bundles, automated backups, server restoration, and archive import.
+Planned in M17–M27: architecture docs, archive access, roster removal, multiple network addresses, lab-owned marks, task transfer/tester, TAs, source restrictions, C++17, and focused UI changes. Agreed details: [improvements_v2.md](improvements_v2.md).
+
+Deferred: languages beyond C/C++, multiple admins, individual extensions, weighted cases, subtask groups, testlib, plagiarism detection, an in-browser editor, offline installation bundles, automated backups, server restoration, and archive import.
 
 ## Accounts and Tasks
 
@@ -57,7 +59,7 @@ Deferred: other submission languages, TAs/multiple admins, individual extensions
 - Warn before revealing tests used by another scheduled lab. Admin controls release timing; hiding results cannot undo disclosure.
 - Students access only their own private data, with no student access to network metadata or infrastructure diagnostics.
 - CSV exports contain roll number, name, per-task marks/pass percentages, total marks, active submission count, and last active submission time. Percentages come from counted submissions.
-- Explicit Archive after release freezes lab and grading edits; reveal and exports remain available.
+- Explicit Archive after release freezes lab and grading edits; admin exports remain available. Until M18, students retain existing reveal access; M18 blocks all archived student access.
 - Lab ZIPs include lab PDFs, optional task Markdown statements, tests, configurations/revisions, all retained sources including deleted attempts, judge history, marks, and audit records. Export does not delete the lab; permanent deletion requires a current verified export, saved-copy acknowledgment, matching typed lab title, and audit reason. Global accounts and shared tasks remain. ZIPs are not full-server backups.
 
 ## M10 Lab Scoreboard
@@ -70,11 +72,11 @@ Deferred: other submission languages, TAs/multiple admins, individual extensions
 - Task boxes show marks and counted submission time. No graded submission is blank; queued/judging work without an official result shows **Pending**. Graded zero shows `0` on a neutral background.
 - Use muted shades: partial positive score yellow; full score green; earliest current non-deleted full-score submission per task darker green. Resolve exact first-solve timestamp ties by submission ID. Provide status text and a legend.
 - Pending judging/rejudging overrides the box color with blue; preserve prior official marks/time and label the row provisional. Delayed judging shows a warning. Recompute rankings and first-solve after deletion, restoration, rejudging or correction.
-- Audit and publicly announce visibility changes. Archived labs preserve their saved visibility and remain read-only. Other students' code, test data and private notices remain inaccessible.
+- Audit and publicly announce visibility changes. Archived labs preserve their saved visibility and remain read-only; M18 blocks archived participant access regardless of that saved flag. Other students' code, test data and private notices remain inaccessible.
 
 ## Planned Improvements — M11–M16
 
-M11–M14 are implemented; M15–M16 remain planned. Each module has its own test/review gate in [todo.md](todo.md).
+M11–M15 are implemented; M16 remains planned. M17–M27 are specified below. Each module has its own test/review gate in [todo.md](todo.md).
 
 ### M11 — Roster and Credentials
 
@@ -111,6 +113,18 @@ M11–M14 are implemented; M15–M16 remain planned. Each module has its own tes
 - Allow concurrent labs with disjoint rosters and historical/non-overlapping enrollment for a student. Enforce conflicts during manual/CSV enrollment, scheduling, start-now, extensions, and reopening. Adjacent schedules are allowed.
 - Reject conflicts with the student and conflicting lab/time identified. Draft enrollments are checked when scheduled; cancelled/deactivated students retain their enrollment reservations.
 - Share the existing sandbox pool and fair queue. No configured lab-count limit; the performance baseline remains 150 concurrent users total, not a product enrollment cap. Higher capacity remains unverified.
+
+## Planned Improvements — M17–M27
+
+Decisions: [improvements_v2.md](improvements_v2.md). Atomic steps and module gates: [todo.md](todo.md#m17--architecture-documentation--independent). These requirements describe future behavior, not completed features.
+
+- **M17–M19:** document complete schema/container/network architecture; hide and block archived student access; add atomic pre-start CSV enrollment removal; support localhost and both configured LAN interfaces with address-relative links.
+- **M20:** automatic maximum marks belong to each lab assignment, not reusable task revisions. Admin may change them until archive with reason/announcement. Recompute current scores without rerunning programs; preserve historical runs, archived results, and verified exports.
+- **M21–M22:** transfer one published task revision with its assets into a new draft; test published revisions singly or in bounded ZIP batches without a lab or student cooldown. Show pass counts/percentages; retain separate tester history until admin deletes it.
+- **M23:** assigned-lab TA accounts use unified login and a minimal mobile student-lookup/status flow. Permit freeze/cancel/browser release and selected-student password reveal. Only acting TA/admin reverses freeze/cancellation; display actor. Main settings and grading corrections remain admin-only.
+- **M24:** after release, TA claims/finalizes a student's per-task review with explicit Done flags. Original TA/admin may reopen; owner releases unfinished claims/admin transfers them. Separate TA maxima and marks add to automatic admin totals/exports, remain hidden from students, and never affect scoreboard ranking. Preserve earned fractions when scaling maxima. Cancelled participation is excluded; frozen marks count. Grading changes flag recheck without erasing reviews; archive can contain incomplete reviews and locks further edits.
+- **M25–M26:** revisioned banned identifier tokens reject before compilation with Restricted source, matched identifier/line, and zero automatic marks. Add per-task C11/C++17/both policies and sandboxed C++ authoring. Identifier restrictions are teaching rules, not security isolation.
+- **M27:** admin roster frozen/cancelled filters; student quick-submit dialog reusing all existing admission/retry protections.
 
 ## Success Targets
 

@@ -178,3 +178,94 @@ Evidence: 34 backend tests, 60 frontend tests and build, disposable-database mar
 - [ ] **Gate:** scheduling database checks and a concurrent-lab run at 150 total users pass; record measured performance and stop for review.
 
 Integration when applicable: verify deactivation plus cancellation, credential resets across concurrent labs, and early-feedback/release boundaries together. Preserve the outstanding M9 physical LAN/offline gate; higher capacity remains unverified.
+
+## Improvements v2 — M17–M27
+
+All modules below are planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
+
+## M17 — Architecture Documentation · independent
+
+- [ ] Add `docs/schema.md`: every table, primary/foreign keys, relationships; minimal Mermaid diagram.
+- [ ] Add `docs/docker.md`: services, worker pool, volumes, networks, isolation, startup/shutdown.
+- [ ] Add `docs/network.md`: localhost/LAN, TLS/proxy, API/SSE, private services, workers.
+- [ ] Link from README/design; separate current architecture from planned changes; avoid duplicate diagrams.
+- [ ] **Gate:** diagrams match current schema/Compose; commands and links verified.
+
+## M18 — Archive Access and Roster Removal · requires M4, M8
+
+- [ ] Hide archived labs and block student direct URLs/APIs/files/details/scoreboard/events; retain admin access.
+- [ ] Add individual/selected/CSV enrollment removal before start only; preserve global accounts.
+- [ ] Validate CSV roll numbers, preview selection, confirm atomic removal; preserve scheduled-lab last-student protection.
+- [ ] **Gate:** archived disclosure, live-access revocation, removal/start races, invalid/duplicate/unknown rolls, last-student protection.
+
+## M19 — Localhost and Multiple Network Addresses · independent
+
+- [ ] Support localhost without connectivity and simultaneous Wi-Fi/Ethernet through explicit configured hosts/interfaces.
+- [ ] Use relative links; validate write origins against allowed HTTPS request addresses; preserve CSRF/secure cookies.
+- [ ] Update certificates, configuration examples, redirects, trusted-proxy and network documentation.
+- [ ] **Gate:** localhost offline, both LAN interfaces, deep links/downloads/uploads/SSE, strict-IP behavior, hostile host/origin rejection.
+
+## M20 — Lab-Owned Marks · requires M6, M8, M10
+
+- [ ] Move automatic maxima to lab-task assignments; retain task scoring rules; require marks on assignment.
+- [ ] Backfill assignments; preserve historical runs/configuration, archived results, verified export receipts.
+- [ ] Calculate current official marks from retained outcomes and assignment maxima without executing code again.
+- [ ] Update assignment forms, submission displays, best-attempt selection, totals, scoreboard, CSV, archives.
+- [ ] Allow maximum changes until archive with reason/audit/announcement.
+- [ ] **Gate:** task reuse with different maxima, exact scoring/rounding/ties, corrections, historical evidence, archive protection.
+
+## M21 — Whole-Task ZIP Transfer · requires M3, M7
+
+- [ ] Define versioned bundle; export one published revision with statement/configuration/cases/associated scripts.
+- [ ] Import into a new draft; no overwrite, lab/student data, or automatic script execution.
+- [ ] Add import/export controls and validation errors.
+- [ ] **Gate:** round-trip fidelity, missing assets, unsupported format, duplicates, traversal, entry types, expanded-size limits.
+
+## M22 — Admin Task Tester · requires M1, M3, M5
+
+- [ ] Add separate published-revision test jobs/history through existing sandbox workers; no lab/student records or cooldown.
+- [ ] Accept single source or ZIP: at most 20 sources, 16 MiB compressed, existing source limits; bound expansion/outstanding jobs.
+- [ ] Show source, diagnostics, verdicts, case streams, pass counts/percentages; retain until explicit admin deletion.
+- [ ] **Gate:** bounded admission, sandbox isolation, worker recovery/fairness, hidden-data authorization, cleanup, no grading/export effects.
+
+## M23 — TA Accounts and Lab Operations · requires M2, M4, M15
+
+- [ ] Add TA accounts, unified login, admin lab assignment, and server-side permission checks.
+- [ ] Add mobile-first lab selection/student lookup/compact status; released evidence access only.
+- [ ] Add freeze/cancellation/binding operations until archive; only acting TA/admin reverses freeze/cancellation; show actor.
+- [ ] Add explicit audited selected-student password reveal; no-store, no bulk export/cache/logging.
+- [ ] **Gate:** assigned-lab boundaries, ownership/races, reasons/private notices, credential secrecy, session revocation, archive write locks.
+
+## M24 — TA Review Marks · requires M20, M23
+
+- [ ] Add separate TA maximum per lab task, default disabled; admin configuration until archive.
+- [ ] After release, claim student and save task marks/Done flags; finalize when all TA-enabled tasks are Done.
+- [ ] Reject competing claims/stale saves; show reviewer; owner releases unfinished claims/admin transfers with audit.
+- [ ] Permit original TA/admin reopening; other TAs cannot overwrite finalized reviews.
+- [ ] Show admin remaining reviews, automatic/TA/combined totals; admin exports include separate/combined marks.
+- [ ] Keep TA marks hidden from students and scoreboard; exclude cancelled participation, retain review evidence.
+- [ ] Scale marks from stored fractions on maximum changes; zero maximum only when no reviews exist.
+- [ ] Retain reviews on grading changes, flag Needs recheck; archive permits incomplete reviews and locks changes.
+- [ ] **Gate:** claim/save/finalize races, zero/no-submission marks, scale/rounding, reopen/transfer, cancellation/freeze, disclosure, exports/archive.
+
+## M25 — Restricted Source Identifiers · requires M3, M5
+
+- [ ] Add revisioned case-sensitive banned identifiers; scan tokens excluding comments/string literals before compile.
+- [ ] Retain rejection as Restricted source, matched identifier/line, zero automatic marks; do not compile/run.
+- [ ] Apply to student judging/rejudging and tester when M22 exists; document bypass limits.
+- [ ] **Gate:** token boundaries, escapes/comments/literals/malformed source, correction/history, no execution after rejection.
+
+## M26 — C++17 Support · requires M1, M3, M5
+
+- [ ] Add revision-level C11/C++17/both allowlist; existing tasks default C11; persist explicit submission language.
+- [ ] Add sandboxed C++17 compilation and generator/reference support.
+- [ ] Extend uploads, feedback, rejudge, archive and existing tester/ZIP/restriction features when implemented.
+- [ ] **Gate:** language validation, compile errors, sandbox limits/recovery, C history compatibility, authoring and integrations.
+
+## M27 — Focused UI Improvements · requires M4, M5, M15
+
+- [ ] Add independent frozen/cancelled filters to admin roster only; preserve search/URL state.
+- [ ] Add student top-bar quick-submit dialog with task/file selection; reuse upload/idempotency/error handling.
+- [ ] **Gate:** mobile/keyboard use, cooldown, binding loss, freeze/cancellation, deadline, safe retries.
+
+Integration when applicable: test TA reviews with maximum changes, cancellations, corrections and archives; test tester/ZIP/source restrictions with C++. Refresh M17 diagrams as modules land. Higher capacity remains unverified.

@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M11 are implemented; M12–M16 remain planned. physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15 are implemented; M16–M27 remain planned. Physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -102,3 +102,11 @@ SSE prompts state refresh. Reconnect by fetching authoritative state; a dropped 
 ## Delivery Order
 
 Follow [todo.md](todo.md) for module dependencies, milestones, and per-module test gates.
+
+## Planned Architecture Changes — M17–M27
+
+Agreed decisions: [improvements_v2.md](improvements_v2.md); implementation gates: [todo.md](todo.md#m17--architecture-documentation--independent). The system diagram above describes current architecture.
+
+Reuse existing web/API/PostgreSQL/artifact storage and isolate workers. M17 adds linked schema, Docker and network documents under `docs/`; M19 supports validated localhost/multiple LAN addresses. M20 moves current automatic maxima into lab assignments while preserving historical evidence. M21 transfers task assets and M22 adds separate admin tester jobs/history through the existing pool. M23–M24 add assigned-lab TA authorization, mobile student lookup, operation ownership and review claims/marks. TA marks remain absent from student responses and scoreboard. M25–M26 extend immutable task policy and sandbox language profiles. M18/M27 extend access and existing interface flows.
+
+No new runtime services, polling, or student-program host execution. Refresh diagrams as modules land; planned features must not appear as deployed components.
