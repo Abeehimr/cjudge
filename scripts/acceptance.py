@@ -234,7 +234,7 @@ def main() -> None:
     config = json.loads(command(normal + ['--profile', 'judging', 'config', '--format', 'json'], capture=True))
     running = command(normal + ['ps', '--services', '--status', 'running'], capture=True).split()
     stopped = [name for name in running if name in ('worker', 'judge')]
-    env = dict(os.environ, CJUDGE_BIND_ADDRESS='127.0.0.1', CJUDGE_ALLOWED_HOSTS='localhost,127.0.0.1', CJUDGE_PUBLIC_ORIGIN=BASE)
+    env = dict(os.environ, CJUDGE_BIND_ADDRESS='127.0.0.1', CJUDGE_ALLOWED_HOSTS='localhost,127.0.0.1')
     project = 'cjudge-m9-' + uuid4().hex[:10]
     compose = normal + ['-p', project, '-f', 'compose.yaml', '-f', 'deploy/acceptance.yaml']
     report = dict(timestamp=datetime.now(timezone.utc).isoformat(), platform=platform.platform(), cpu_count=os.cpu_count(),

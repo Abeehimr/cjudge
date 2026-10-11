@@ -16,7 +16,7 @@ from cjudge import identity as store
 
 
 BASE = "http://api:8000/api"
-ORIGIN = os.getenv("CJUDGE_PUBLIC_ORIGIN", "https://localhost:8443")
+ORIGIN = "https://localhost:8443"
 
 
 def call(path, method="GET", body=None, cookie=None, csrf=None, content_type="application/json", origin=ORIGIN):

@@ -1,8 +1,37 @@
 import os
 
 import pytest
+from fastapi import HTTPException
+from starlette.requests import Request
 
 from cjudge import identity
+from cjudge.identity.api import same_origin
+
+
+def test_write_origin_matches_allowed_request_address(monkeypatch) -> None:
+    monkeypatch.setenv('CJUDGE_ALLOWED_HOSTS', 'localhost,127.0.0.1,192.0.2.10,192.0.2.11')
+
+    def request(host: str, origin: str | None) -> Request:
+        headers = [(b'host', host.encode())]
+        if origin is not None:
+            headers.append((b'origin', origin.encode()))
+        return Request({'type': 'http', 'method': 'POST', 'path': '/', 'headers': headers})
+
+    for host in ('localhost', '127.0.0.1', '192.0.2.10', '192.0.2.11'):
+        same_origin(request(host, f'https://{host}:8443'))
+        same_origin(request(f'{host}:8443', f'https://{host}:8443'))
+    same_origin(request('LOCALHOST:8443', 'https://localhost:8443'))
+    for host, origin in (
+        ('192.0.2.10', 'https://192.0.2.11:8443'),
+        ('192.0.2.10', 'http://192.0.2.10:8443'),
+        ('192.0.2.10', 'https://192.0.2.10:8080'),
+        ('192.0.2.10:9999', 'https://192.0.2.10:9999'),
+        ('evil.example', 'https://evil.example:8443'),
+        ('localhost', None),
+    ):
+        with pytest.raises(HTTPException) as error:
+            same_origin(request(host, origin))
+        assert error.value.status_code == 403
 
 
 def test_global_rolls_and_csv_validation() -> None:

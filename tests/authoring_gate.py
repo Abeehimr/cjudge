@@ -44,7 +44,7 @@ def exercise(directory: str) -> None:
         conn.execute(sa.insert(tasks.tasks).values(id=task, version=1, config={'title': 'Generated'}, case_count=1, cases_key=tasks.save_cases([(b'3\n', b'6\n')])))
         queue.register(conn, 0, generation); queue.worker_status(conn, 0, generation, 'Idle')
     def call(path='', method='GET', body=None, role='admin', csrf_value=csrf):
-        headers = {'Origin': 'https://localhost:8443', 'X-CSRF-Token': csrf_value,
+        headers = {'Host': 'localhost', 'Origin': 'https://localhost:8443', 'X-CSRF-Token': csrf_value,
                    'Cookie': f'cjudge_session={token if role == "admin" else student_token}'}
         payload = None
         if body is not None:

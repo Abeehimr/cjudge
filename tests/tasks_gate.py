@@ -51,7 +51,7 @@ def main() -> None:
 
             def call(path='', method='GET', body=None, role='admin', token=csrf, content_type='application/json', origin='https://localhost:8443'):
                 data = json.dumps(body).encode() if body is not None and content_type == 'application/json' else body
-                headers = {'Origin': origin, 'X-CSRF-Token': token, 'Content-Type': content_type}
+                headers = {'Host': 'localhost', 'Origin': origin, 'X-CSRF-Token': token, 'Content-Type': content_type}
                 if role:
                     headers['Cookie'] = 'cjudge_session=' + cookies[role]
                 request = Request('http://127.0.0.1:8011/api/admin/tasks' + path, method=method, data=data, headers=headers)

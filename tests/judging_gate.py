@@ -61,7 +61,7 @@ def exercise(directory: str) -> None:
 
     def call(path, method='GET', body=None, student=0, token=csrf, admin=False, key=None, cookie=True):
         account_id, session, binding = students[student]
-        headers = {'Origin': 'https://localhost:8443', 'X-CSRF-Token': token}
+        headers = {'Host': 'localhost', 'Origin': 'https://localhost:8443', 'X-CSRF-Token': token}
         if cookie:
             headers['Cookie'] = 'cjudge_session=' + (admin_token if admin else session)
             if not admin:

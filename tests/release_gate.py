@@ -86,7 +86,7 @@ def exercise(directory):
     def call(path, method='GET', body=None, student_view=False, bad_csrf=False, bound=True, other_view=False):
         cookie = f'cjudge_session={other_token if other_view else student_token if student_view else token}'
         if (student_view or other_view) and bound: cookie += f'; cjudge_lab_{lab_id.hex}={other_binding if other_view else binding}'
-        headers = {'Cookie': cookie, 'Origin': os.getenv('CJUDGE_PUBLIC_ORIGIN', 'https://localhost:8443'),
+        headers = {'Host': 'localhost', 'Cookie': cookie, 'Origin': 'https://localhost:8443',
                    'X-CSRF-Token': 'bad' if bad_csrf else csrf}
         payload = None
         if body is not None: headers['Content-Type'] = 'application/json'; payload = json.dumps(body).encode()

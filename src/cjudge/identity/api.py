@@ -83,8 +83,10 @@ def no_store(response: Response) -> None:
 
 
 def same_origin(request: Request) -> None:
-    expected = os.getenv("CJUDGE_PUBLIC_ORIGIN", "https://localhost:8443")
-    if request.headers.get("origin") != expected:
+    host, separator, port = request.headers.get("host", "").lower().partition(":")
+    allowed = {name.lower() for name in os.getenv("CJUDGE_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")}
+    if (host not in allowed or (separator and port != "8443") or
+            request.headers.get("origin") != f"https://{host}:8443"):
         raise HTTPException(403, "Invalid request origin")
 
 
