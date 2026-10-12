@@ -56,7 +56,7 @@ def exercise(directory: str) -> None:
             conn.execute(sa.insert(tasks.tasks).values(id=task_id, version=1, config=config, case_count=len(pairs)))
             conn.execute(sa.insert(tasks.revisions).values(id=revision_id, task_id=task_id, number=1,
                 draft_version=1, config=config, case_count=len(pairs), cases_key=case_key))
-            conn.execute(sa.insert(labs.assignments).values(lab_id=lab_id, position=position, revision_id=revision_id))
+            conn.execute(sa.insert(labs.assignments).values(lab_id=lab_id, position=position, revision_id=revision_id, maximum_marks='7'))
             revision_ids.append(revision_id)
 
     def call(path, method='GET', body=None, student=0, token=csrf, admin=False, key=None, cookie=True):

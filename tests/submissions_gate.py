@@ -40,7 +40,7 @@ def checks() -> None:
         conn.execute(sa.insert(tasks.revisions).values(id=revision_id, task_id=task_id, number=1,
             draft_version=1, config=config, case_count=1, cases_key=uuid4()))
         lab = labs.create(conn, 'Gate', False, admin_id)
-        labs.set_tasks(conn, lab, [revision_id], admin_id)
+        labs.set_tasks(conn, lab, [dict(revision_id=revision_id, maximum_marks='100')], admin_id)
         labs.enroll(conn, lab, [student_id, other_id], admin_id)
         timestamp = labs.now(conn)
         labs.schedule(conn, labs.find(conn, lab['id']), None, timestamp + timedelta(hours=1), admin_id)
@@ -130,7 +130,7 @@ def checks() -> None:
     print('PASS: fair distinct claims, lease fencing, stale writes, retry exhaustion, admin retry, atomic publication')
     with identity.engine().begin() as conn:
         short = labs.create(conn, 'Deadline durability', False, admin_id)
-        labs.set_tasks(conn, short, [revision_id], admin_id)
+        labs.set_tasks(conn, short, [dict(revision_id=revision_id, maximum_marks='100')], admin_id)
         labs.enroll(conn, short, [student_id], admin_id)
         timestamp = labs.now(conn)
         labs.schedule(conn, labs.find(conn, short['id']), None, timestamp + timedelta(seconds=2), admin_id)

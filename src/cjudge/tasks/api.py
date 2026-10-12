@@ -5,7 +5,7 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 import sqlalchemy as sa
 from starlette.concurrency import run_in_threadpool
 
@@ -29,6 +29,13 @@ class StrictModel(BaseModel):
 class DraftInput(StrictModel):
     version: int = Field(ge=1)
     config: TaskConfig
+
+    @model_validator(mode='before')
+    @classmethod
+    def marks_belong_to_lab(cls, value):
+        if isinstance(value, dict) and isinstance(value.get('config'), dict) and 'maximum_marks' in value['config']:
+            raise ValueError('Maximum marks belong to a lab assignment')
+        return value
 
 
 class VersionInput(StrictModel):

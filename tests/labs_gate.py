@@ -35,7 +35,7 @@ def core_checks():
         b = labs.create(conn, 'B', False, admin_id)
         for lab in [a, b]:
             conn.execute(sa.insert(labs.enrollments).values(lab_id=lab['id'], account_id=student_id))
-            labs.set_tasks(conn, lab, [revision_id], admin_id)
+            labs.set_tasks(conn, lab, [dict(revision_id=revision_id, maximum_marks='100')], admin_id)
         timestamp = labs.now(conn)
     def schedule(key):
         try:
@@ -281,7 +281,7 @@ def api_checks(admin_id, student_id, revision_id):
             assert any(row['id'] == str(student_id) for row in call('/admin/students')[1])
             _, start_race, _ = call('/admin/labs', 'POST', {'title': 'Start/removal race'})
             start_path = '/admin/labs/' + start_race['id']
-            _, start_race, _ = call(start_path + '/tasks', 'PUT', {'version': start_race['version'], 'revision_ids': [str(revision_id)]})
+            _, start_race, _ = call(start_path + '/tasks', 'PUT', {'version': start_race['version'], 'assignments': [dict(revision_id=str(revision_id), maximum_marks='100')]})
             _, start_race, _ = call(start_path + '/students', 'POST', {'version': start_race['version'], 'ids': [str(student_id), str(outsider)]})
             with ThreadPoolExecutor(2) as pool:
                 removal = pool.submit(call, start_path + '/students/remove', 'POST', {'version': start_race['version'], 'ids': [str(student_id)]})
@@ -305,7 +305,7 @@ def api_checks(admin_id, student_id, revision_id):
             student_path = '/labs/' + lab['id']
             assert call(path + '/students/manual', 'POST', {'version': lab['version'], 'roll_number': 'ADMIN', 'name': 'Reserved'})[0] == 400
             assert call(path + '/students/import?version=' + str(lab['version']), 'POST', b'roll_number,name\nADMIN,Reserved\n', content_type='text/csv')[0] == 400
-            _, lab, _ = call(path + '/tasks', 'PUT', {'version': lab['version'], 'revision_ids': [str(revision_id)]})
+            _, lab, _ = call(path + '/tasks', 'PUT', {'version': lab['version'], 'assignments': [dict(revision_id=str(revision_id), maximum_marks='100')]})
             _, lab, _ = call(path + '/students', 'POST', {'version': lab['version'], 'ids': [str(student_id)]})
             data = b'%PDF-1.7\nlab\n%%EOF\n'
             _, lab, _ = call(path + '/pdfs?version=' + str(lab['version']) + '&name=Lab.pdf', 'POST', data, content_type='application/pdf')
@@ -333,7 +333,7 @@ def api_checks(admin_id, student_id, revision_id):
                 assert call(student_path + suffix, role='outsider', binding=binding)[0] == 403
             assert call(student_path, role='student')[0] == 423
             assert call(student_path + '/pdfs/' + pdf_id, role='student', binding=binding)[1] == data
-            assert call(path + '/tasks', 'PUT', {'version': lab['version'], 'revision_ids': []})[0] == 409
+            assert call(path + '/tasks', 'PUT', {'version': lab['version'], 'assignments': []})[0] == 409
             assert call(path + '/students/' + str(student_id), 'DELETE')[0] == 422
             assert call(path + '/students/' + str(student_id) + '?version=' + str(lab['version']), 'DELETE')[0] == 409
             assert call(path + '/students/removal-preview?version=' + str(lab['version']), 'POST', b'roll_number\nGATE\n', content_type='text/csv')[0] == 409

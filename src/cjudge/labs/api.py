@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from collections.abc import Iterator
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -55,8 +56,13 @@ class EditInput(TitleInput, VersionInput):
     pass
 
 
+class TaskAssignmentInput(StrictModel):
+    revision_id: UUID
+    maximum_marks: Decimal = Field(gt=0, le=10000, max_digits=7, decimal_places=2)
+
+
 class TaskInput(VersionInput):
-    revision_ids: list[UUID] = Field(max_length=100)
+    assignments: list[TaskAssignmentInput] = Field(max_length=100)
 
 
 class EnrollmentInput(VersionInput):
@@ -81,6 +87,10 @@ class DeadlineInput(VersionInput):
 
 class ReasonInput(StrictModel):
     reason: str = Field(min_length=1, max_length=500)
+
+
+class MaximumInput(ReasonInput, VersionInput):
+    maximum_marks: Decimal = Field(gt=0, le=10000, max_digits=7, decimal_places=2)
 
 
 class StopInput(ReasonInput, VersionInput):
@@ -127,6 +137,7 @@ class AssignedTask(StrictModel):
     previous_revision_ids: list[UUID] = []
     task_id: UUID
     number: int
+    maximum_marks: str | None = None
     config: TaskConfig
 
 
@@ -245,14 +256,16 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
         result.update(version=lab['version'], strict_ip=lab['strict_ip'], compiler_feedback=lab['compiler_feedback'], first_released_at=lab['first_released_at'], reveal_results=lab['reveal_results'], archived_at=lab['archived_at'],
             students=[dict(row) for row in roster], tasks=[{'position': row['position'], 'revision_id': row['id'],
                 'previous_revision_ids': previous.get(row['task_id'], []),
-                'task_id': row['task_id'], 'number': row['number'], 'config': row['config']} for row in assigned])
+                'task_id': row['task_id'], 'number': row['number'], 'maximum_marks': f"{row['maximum_marks']:.2f}",
+                'config': row['config']} for row in assigned])
     else:
         public_tasks = []
         for row in assigned:
             config = TaskConfig.model_validate(row['config']).model_dump(mode='json')
             public_tasks.append({'position': row['position'], 'revision_id': row['id'],
                 'previous_revision_ids': previous.get(row['task_id'], []),
-                **{key: config[key] for key in PublicTask.model_fields if key not in ('position', 'revision_id', 'previous_revision_ids')}})
+                **{key: f"{row['maximum_marks']:.2f}" if key == 'maximum_marks' else config[key]
+                   for key in PublicTask.model_fields if key not in ('position', 'revision_id', 'previous_revision_ids')}})
         from cjudge.submissions.service import allowance
         result.update(results_visible=bool(lab['first_released_at'] and lab['reveal_results']), frozen=enrollment['frozen'],
             cancelled=enrollment['cancelled'], cancel_reason=enrollment['cancel_reason'], tasks=public_tasks,
@@ -287,7 +300,7 @@ def task_options(offset: int = Query(default=0, ge=0)):
         rows = conn.execute(sa.select(tasks.revisions).order_by(tasks.revisions.c.created_at.desc(), tasks.revisions.c.id)
                             .offset(offset).limit(100)).mappings()
         return [{'position': 0, 'revision_id': row['id'], 'task_id': row['task_id'], 'number': row['number'],
-                 'config': row['config']} for row in rows]
+                 'maximum_marks': None, 'config': row['config']} for row in rows]
 
 
 @admin_router.post('', response_model=AdminLab, status_code=201)
@@ -337,8 +350,20 @@ async def assign_tasks(lab_id: UUID, request: Request, actor: dict = Depends(adm
     body = await json_input(request, TaskInput)
     def assign():
         with transaction() as conn:
-            return snapshot(conn, labs.set_tasks(conn, labs.find(conn, lab_id, body.version), body.revision_ids, actor['id']))
+            return snapshot(conn, labs.set_tasks(conn, labs.find(conn, lab_id, body.version),
+                [item.model_dump() for item in body.assignments], actor['id']))
     return await run_in_threadpool(assign)
+
+
+@admin_router.put('/{lab_id}/tasks/{task_id}/maximum', response_model=AdminLab)
+async def task_maximum(lab_id: UUID, task_id: UUID, request: Request, actor: dict = Depends(admin_write)):
+    body = await json_input(request, MaximumInput)
+    def change():
+        with transaction() as conn:
+            lab = labs.find(conn, lab_id, body.version)
+            return snapshot(conn, labs.change_maximum(conn, lab, task_id, body.maximum_marks,
+                body.reason, actor['id']))
+    return await run_in_threadpool(change)
 
 
 @admin_router.post('/{lab_id}/students', response_model=AdminLab)

@@ -39,7 +39,7 @@ with identity.engine().begin() as conn:
         conn.execute(sa.insert(tasks.tasks).values(id=task_id, version=1, config=config, case_count=10))
         conn.execute(sa.insert(tasks.revisions).values(id=revision, task_id=task_id, number=1, draft_version=1,
             config=config, case_count=10, cases_key=key))
-        conn.execute(sa.insert(labs.assignments).values(lab_id=lab_id, position=position, revision_id=revision))
+        conn.execute(sa.insert(labs.assignments).values(lab_id=lab_id, position=position, revision_id=revision, maximum_marks='10'))
         programs.append(dict(title=title, source=source, revision_id=str(revision), cases=10,
             source_sha256=hashlib.sha256(source.encode()).hexdigest(),
             cases_sha256=hashlib.sha256(json.dumps([(a.hex(), b.hex()) for a, b in cases]).encode()).hexdigest()))

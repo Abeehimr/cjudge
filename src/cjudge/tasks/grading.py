@@ -37,7 +37,7 @@ class TaskConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     title: str = Field(min_length=1, max_length=160)
     statement: str = Field(default="", max_length=65536)
-    maximum_marks: Decimal = Field(default=Decimal(100), gt=0, le=10000, max_digits=7, decimal_places=2)
+    maximum_marks: Decimal = Field(default=Decimal(100), gt=0, le=10000, max_digits=7, decimal_places=2, exclude=True)
     scoring: Literal["partial", "all_or_nothing"] = "partial"
     checker: Checker = Field(default_factory=Checker)
     cpu_seconds: float = Field(default=2, gt=0, le=60)
