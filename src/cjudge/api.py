@@ -16,6 +16,7 @@ from cjudge.judging.api import router as judging_admin
 from cjudge.submissions.review_api import router as review_admin
 from cjudge.labs.scoreboard import router as scoreboard_router
 from cjudge.authoring.api import router as authoring_admin
+from cjudge.tester.api import router as tester_admin
 from cjudge.labs import exports, archive  # Register protected CSV routes before including the lab router.
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -33,6 +34,7 @@ app.include_router(judging_admin)
 app.include_router(review_admin)
 app.include_router(scoreboard_router)
 app.include_router(authoring_admin)
+app.include_router(tester_admin)
 
 
 @app.get("/api/health")

@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
-from cjudge import authoring, events, identity, labs
+from cjudge import authoring, events, identity, labs, tester
 from cjudge.submissions import submissions, jobs, attempts, workers, turns, runs, cases, reviews, members
 
 SCHEDULER_LOCK = 51002
@@ -76,14 +76,17 @@ def claim(conn: sa.Connection, slot: int, generation: UUID) -> dict | None:
     scheduler_lock(conn)
     worker = conn.execute(sa.select(workers).where(workers.c.slot == slot,
         workers.c.generation == generation)).mappings().first()
-    if not worker or worker['state'] not in ('Idle', 'Judging', 'Generating'):
+    if not worker or worker['state'] not in ('Idle', 'Judging', 'Generating', 'Testing'):
         return None
     recover(conn)
     authoring.recover(conn)
+    tester.recover(conn)
     if worker['attempt_id'] and conn.execute(sa.select(jobs.c.submission_id).where(
             jobs.c.attempt_id == worker['attempt_id'], jobs.c.state == 'judging')).first():
         return None
     if worker['attempt_id'] and authoring.valid(conn, worker['attempt_id']):
+        return None
+    if worker['attempt_id'] and tester.valid(conn, worker['attempt_id']):
         return None
     row = conn.execute(sa.select(submissions, jobs.c.attempt_count, jobs.c.revision_id.label('judge_revision_id')).join(jobs,
         jobs.c.submission_id == submissions.c.id).join(turns, turns.c.account_id == submissions.c.account_id)
@@ -92,9 +95,15 @@ def claim(conn: sa.Connection, slot: int, generation: UUID) -> dict | None:
         .limit(1).with_for_update(of=jobs, skip_locked=True)).mappings().first()
     timestamp = labs.now(conn)
     if not row:
-        generated = authoring.claim(conn, slot, generation)
-        if generated:
-            return generated
+        # Student work always wins. Round-robin the two background classes.
+        last = worker.get('last_background_kind')
+        for kind in (('tester', 'generation') if last == 'generation' else ('generation', 'tester')):
+            selected = (tester.claim(conn, slot, generation) if kind == 'tester'
+                        else authoring.claim(conn, slot, generation))
+            if selected:
+                conn.execute(sa.update(workers).where(workers.c.slot == slot,
+                    workers.c.generation == generation).values(last_background_kind=kind))
+                return selected
         if worker['state'] != 'Idle' or (timestamp - worker['heartbeat_at']).total_seconds() >= 30:
             worker_status(conn, slot, generation, 'Idle')
         return None
@@ -114,7 +123,7 @@ def heartbeat(conn: sa.Connection, slot: int, generation: UUID, attempt_id: UUID
     row = conn.execute(sa.select(jobs).where(jobs.c.attempt_id == attempt_id, jobs.c.state == 'judging')
                        .with_for_update()).mappings().first()
     if not row:
-        return authoring.heartbeat(conn, attempt_id, slot, generation)
+        return authoring.heartbeat(conn, attempt_id, slot, generation) or tester.heartbeat(conn, attempt_id, slot, generation)
     timestamp = labs.now(conn)
     result = conn.execute(sa.update(attempts).where(attempts.c.id == attempt_id,
         attempts.c.worker_slot == slot, attempts.c.worker_generation == generation,

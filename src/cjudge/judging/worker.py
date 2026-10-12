@@ -12,7 +12,7 @@ from uuid import uuid4
 import psycopg
 import sqlalchemy as sa
 
-from cjudge import authoring, identity, labs, runner, tasks
+from cjudge import authoring, identity, labs, runner, tasks, tester
 from cjudge.judging import queue
 from cjudge.submissions import files, review, batches
 from cjudge.tasks.authoring import check_python
@@ -151,6 +151,13 @@ def work(slot: int) -> None:
                                     raise runner.SandboxError('Lease lost')
                         active = None
                         continue
+                    if active.get('tester'):
+                        result = tester.run_case(active)
+                        with identity.engine().begin() as conn:
+                            if lost.is_set() or not tester.checkpoint(conn, active['attempt_id'], result):
+                                raise runner.SandboxError('Lease lost')
+                        active = None
+                        continue
                     result = judge(active, lost)
                     if lost.is_set():
                         raise runner.SandboxError('Lease lost')
@@ -171,6 +178,8 @@ def work(slot: int) -> None:
                 if active:
                     if active.get('authoring'):
                         authoring.fail(conn, active['attempt_id'], message)
+                    elif active.get('tester'):
+                        tester.fail(conn, active['attempt_id'], message)
                     else:
                         queue.fail(conn, active['attempt_id'], message)
                 queue.worker_status(conn, slot, generation, 'Faulted', message)
