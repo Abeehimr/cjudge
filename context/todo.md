@@ -227,10 +227,12 @@ Evidence: 36 backend tests and 64 frontend tests pass; Docker web/API builds and
 
 ## M22 — Admin Task Tester · requires M1, M3, M5
 
-- [ ] Add separate published-revision test jobs/history through existing sandbox workers; no lab/student records or cooldown.
-- [ ] Accept single source or ZIP: at most 20 sources, 16 MiB compressed, existing source limits; bound expansion/outstanding jobs.
-- [ ] Show source, diagnostics, verdicts, case streams, pass counts/percentages; retain until explicit admin deletion.
-- [ ] **Gate:** bounded admission, sandbox isolation, worker recovery/fairness, hidden-data authorization, cleanup, no grading/export effects.
+- [x] Add separate published-revision test jobs/history through existing sandbox workers; no lab/student records or cooldown.
+- [x] Accept single source or ZIP: at most 20 sources, 16 MiB compressed, existing source limits; bound expansion/outstanding jobs.
+- [x] Show source, diagnostics, verdicts, case streams, pass counts/percentages; retain until explicit admin deletion.
+- [x] **Gate:** bounded admission, sandbox isolation, worker recovery/fairness, hidden-data authorization, cleanup, no grading/export effects.
+
+Evidence: 40 backend tests, 66 frontend tests and production build; disposable-database API/queue gate with real isolate passes admission, CSRF, idempotency, fairness, lease recovery, retries, case evidence, cleanup and zero student submission/run records.
 
 ## M23 — TA Accounts and Lab Operations · requires M2, M4, M15
 
