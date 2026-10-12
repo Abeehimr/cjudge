@@ -205,7 +205,7 @@ Evidence: 35 backend tests, 64 frontend tests and production build; disposable-d
 - [x] Support localhost without connectivity and simultaneous Wi-Fi/Ethernet through explicit configured hosts/interfaces.
 - [x] Use relative links; validate write origins against allowed HTTPS request addresses; preserve CSRF/secure cookies.
 - [x] Update certificates, configuration examples, redirects, trusted-proxy and network documentation.
-- [ ] **Gate:** localhost offline, both LAN interfaces, deep links/downloads/uploads/SSE, strict-IP behavior, hostile host/origin rejection.
+- [x] **Gate:** localhost offline, both LAN interfaces, deep links/downloads/uploads/SSE, strict-IP behavior, hostile host/origin rejection.
 
 Evidence: 36 backend tests and 64 frontend tests pass; Docker web/API builds and disposable-database lab gate pass. Temporary nginx accepts localhost and a second configured host, redirects deep links and rejects unknown hosts; API origin and port cases pass unit checks. Physical two-interface/offline browser testing remains pending.
 
