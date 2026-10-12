@@ -45,7 +45,8 @@ workers = sa.Table('judge_workers', metadata,
     sa.Column('started_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('attempt_id', sa.Uuid()),
     sa.Column('completed', sa.Integer(), nullable=False, server_default='0'),
-    sa.Column('fault', sa.String(200)))
+    sa.Column('fault', sa.String(200)),
+    sa.Column('last_background_kind', sa.String(16)))
 
 attempts = sa.Table('judge_attempts', metadata,
     sa.Column('id', sa.Uuid(), primary_key=True),
