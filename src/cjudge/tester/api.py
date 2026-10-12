@@ -205,5 +205,12 @@ async def delete(task_id: UUID, batch_id: UUID, request: Request, actor: dict = 
                     if re.fullmatch(r'[0-9a-f]{32}\.tmp', temporary.name):
                         temporary.unlink()
                 directory.rmdir()
+        with identity.engine().begin() as conn:
+            conn.execute(sa.select(tester.batches.c.id).where(tester.batches.c.id == batch_id).with_for_update())
+            source_ids = [row['id'] for row in rows]
+            conn.execute(sa.delete(tester.cases).where(tester.cases.c.source_id.in_(source_ids)))
+            conn.execute(sa.delete(tester.attempts).where(tester.attempts.c.source_id.in_(source_ids)))
+            conn.execute(sa.delete(tester.sources).where(tester.sources.c.batch_id == batch_id))
+            conn.execute(sa.delete(tester.batches).where(tester.batches.c.id == batch_id))
     await run_in_threadpool(perform)
     return Response(status_code=204)

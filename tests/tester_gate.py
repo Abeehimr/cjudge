@@ -111,6 +111,9 @@ def exercise(directory: str, sandbox: bool) -> None:
             headers={'Content-Type': 'application/json'})[0] == 204
         assert call(f'/{batch_id}')[0] == 404
         assert not tester.path(UUID(batch_id), UUID(source_id), 'c').exists()
+        with identity.engine().connect() as conn:
+            assert conn.execute(sa.select(sa.func.count()).select_from(tester.cases)).scalar_one() == 0
+            assert conn.execute(sa.select(sa.func.count()).select_from(tester.sources)).scalar_one() == 0
         # After testing, pending generation gets the next background turn.
         with identity.engine().begin() as conn:
             conn.execute(sa.insert(authoring.jobs).values(id=uuid4(), task_id=task_id, base_version=1,
