@@ -5,6 +5,10 @@ import { renderRoute } from "./testRouter";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
+function expectAbove(first: Element, second: Element) {
+  expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+}
+
 test("admin creates draft, adds case, reviews and publishes once", async () => {
   vi.stubGlobal("EventSource", class extends EventTarget { close = vi.fn(); });
   const config = { title: "Sum", statement: "", maximum_marks: "100", scoring: "partial",
@@ -31,14 +35,19 @@ test("admin creates draft, adds case, reviews and publishes once", async () => {
   fireEvent.change(screen.getByLabelText("New task title"), { target: { value: "Sum" } });
   fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
   expect(await screen.findByText("Draft version 1")).toBeTruthy();
+  expectAbove(screen.getByRole("heading", { name: "Published revisions" }), screen.getByText("Task settings"));
   fireEvent.change(screen.getByLabelText("Case input"), { target: { value: "1" } });
   fireEvent.change(screen.getByLabelText("Expected output"), { target: { value: "2" } });
   fireEvent.click(screen.getByRole("button", { name: "Add pasted case" }));
   expect(await screen.findByText("Draft version 2")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Review draft" }));
+  expectAbove(screen.getByRole("heading", { name: "Published revisions" }),
+    screen.getByText("1 cases. Review case inputs and answers below."));
   fireEvent.click(screen.getByRole("button", { name: "Publish reviewed draft" }));
   expect(await screen.findByText("Revision 1 published.")).toBeTruthy();
   expect(await screen.findByRole("heading", { name: "Revision 1 (read-only)" })).toBeTruthy();
+  expectAbove(screen.getByRole("heading", { name: "Published revisions" }),
+    screen.getByText("1 cases. Review case inputs and answers below."));
   cleanup();
   renderRoute(<TaskLibrary csrf="csrf" />, "/admin/tasks/task?revision=revision");
   expect(await screen.findByRole("heading", { name: "Revision 1 (read-only)" })).toBeTruthy();

@@ -176,6 +176,11 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
         <button disabled={busy} onClick={() => select(draft.id)}>Reload draft</button>
         {dirty && <span role="status" className="notice notice-warning">Unsaved settings — save before changing cases or publishing.</span>}
       </div>
+      <section className="rounded border bg-white p-4"><h2 className="font-semibold">Published revisions</h2>
+        {draft.revisions.length ? <ul>{draft.revisions.map((revision) => <li key={revision.id}>
+          <Link to={`?revision=${revision.id}`}>Revision {revision.number}</Link> · draft {revision.draft_version} · {new Date(revision.created_at).toLocaleString()}
+        </li>)}</ul> : <p>No published revisions.</p>}
+      </section>
       {published || review ? <section className="space-y-3 rounded border bg-white p-4">
         <Summary config={published?.config || draft.config} />
         <p>{published?.case_count ?? draft.case_count} cases. Review case inputs and answers below.</p>
@@ -242,11 +247,6 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
         </fieldset>}
       </section>
       {!published && !review && <Generation key={draft.id} taskId={draft.id} version={draft.version} csrf={csrf} disabled={busy || dirty} onDirty={setGenerationDirty} applied={async () => { accept(await api<Detail>(`/admin/tasks/${draft.id}`)); }} />}
-      <section className="rounded border bg-white p-4"><h2 className="font-semibold">Published revisions</h2>
-        {draft.revisions.length ? <ul>{draft.revisions.map((revision) => <li key={revision.id}>
-          <Link to={`?revision=${revision.id}`}>Revision {revision.number}</Link> · draft {revision.draft_version} · {new Date(revision.created_at).toLocaleString()}
-        </li>)}</ul> : <p>No published revisions.</p>}
-      </section>
     </>}
     {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
   </div>;
