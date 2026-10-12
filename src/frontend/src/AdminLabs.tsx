@@ -31,6 +31,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   const [releasedCredential, setReleasedCredential] = useState<(Student & { password: string }) | null>(null);
   const [newTitle, setNewTitle] = useState(""), [title, setTitle] = useState(""), [strict, setStrict] = useState(false);
   const [taskIds, setTaskIds] = useState<string[]>([]), [taskId, setTaskId] = useState("");
+  const [taskMarks, setTaskMarks] = useState<Record<string, string>>({}), [newTaskMarks, setNewTaskMarks] = useState('100.00');
   const [defaultDates] = useState(() => ({ start: localDate(null, 5), end: localDate(null, 125) }));
   function dateInput(value: string | null, minutes: number): string { return value ? localDate(value) : defaultDates[minutes === 5 ? "start" : "end"]; }
   const [start, setStart] = useState(defaultDates.start), [end, setEnd] = useState(defaultDates.end), [reason, setReason] = useState("");
@@ -92,6 +93,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     setTitle((old) => keep && old !== previous!.title ? old : value.title);
     setStrict((old) => keep && old !== previous!.strict_ip ? old : value.strict_ip);
     setTaskIds((old) => keep && JSON.stringify(old) !== JSON.stringify(previous!.tasks.map((t) => t.revision_id)) ? old : value.tasks.map((t) => t.revision_id));
+    setTaskMarks((old) => ({...old, ...Object.fromEntries(value.tasks.map((t) => [t.revision_id, t.maximum_marks || '100.00']))}));
     setStart((old) => keep && old !== dateInput(previous!.starts_at, 5) ? old : dateInput(value.starts_at, 5));
     setEnd((old) => keep && old !== dateInput(previous!.ends_at, 125) ? old : dateInput(value.ends_at, 125));
     savedLab.current = value;
@@ -216,14 +218,15 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       <section className="rounded border bg-white p-4"><h2 className="font-semibold">Ordered tasks</h2>
         <fieldset disabled={busy || !setupOpen} className="space-y-2">
           <ol>{taskIds.map((id, index) => { const item = options.find((o) => o.revision_id === id) || lab.tasks.find((t) => t.revision_id === id);
-            return <li className="flex flex-wrap items-center gap-2 border-t py-2" key={id}>{index + 1}. <Link to={`/admin/labs/${lab.id}/tasks/${id}`}>{item?.config.title || id}</Link> · revision {item?.number}
+            return <li className="flex flex-wrap items-center gap-2 border-t py-2" key={id}>{index + 1}. <Link to={`/admin/labs/${lab.id}/tasks/${id}`}>{item?.config.title || id}</Link> · revision {item?.number} · {taskMarks[id]} marks
               <button disabled={!index} onClick={() => move(index, -1)} aria-label={`Move task ${index + 1} up`}>↑</button>
               <button disabled={index === taskIds.length - 1} onClick={() => move(index, 1)} aria-label={`Move task ${index + 1} down`}>↓</button>
               <button onClick={() => setTaskIds(taskIds.filter((value) => value !== id))}>Remove task {index + 1}</button></li>; })}</ol>
           <label>Published task revision <select value={taskId} onChange={(e) => setTaskId(e.target.value)}><option value="">Select revision</option>
             {options.map((option) => <option key={option.revision_id} value={option.revision_id}>{option.config.title} · revision {option.number}</option>)}</select></label>{" "}
-          <button disabled={!taskId || taskIds.includes(taskId)} onClick={() => { setTaskIds([...taskIds, taskId]); setTaskId(""); }}>Add task</button>{" "}
-          <button onClick={() => perform(() => mutate("/tasks", "PUT", { version: lab.version, revision_ids: taskIds }))}>Save task order</button>
+          <label>Maximum marks <input type="number" min="0.01" max="10000" step="0.01" value={newTaskMarks} onChange={(e) => setNewTaskMarks(e.target.value)} /></label>{" "}
+          <button disabled={!taskId || taskIds.includes(taskId) || !newTaskMarks || Number(newTaskMarks) <= 0 || Number(newTaskMarks) > 10000} onClick={() => { setTaskIds([...taskIds, taskId]); setTaskMarks({...taskMarks, [taskId]: newTaskMarks}); setTaskId(""); }}>Add task</button>{" "}
+          <button onClick={() => perform(() => mutate("/tasks", "PUT", { version: lab.version, assignments: taskIds.map((revision_id) => ({revision_id, maximum_marks: taskMarks[revision_id]})) }))}>Save task order</button>
         </fieldset>
         {moreOptions && <button onClick={() => setOptionOffset(optionOffset + 100)}>Load more task revisions</button>}
       </section>
@@ -331,7 +334,11 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       <Announcements messages={lab.announcements} />
       </>}
       {revisionId && task && <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">{task.config.title} · revision {task.number}</h2>
-        <p>{task.config.maximum_marks} marks · CPU {task.config.cpu_seconds}s · Wall {task.config.wall_seconds}s · Memory {task.config.memory_mib} MiB</p>
+        <p>{task.maximum_marks} marks · CPU {task.config.cpu_seconds}s · Wall {task.config.wall_seconds}s · Memory {task.config.memory_mib} MiB</p>
+        {!lab.archived_at && <form key={`${task.task_id}-${task.maximum_marks}`} onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const maximum_marks = (form.elements.namedItem('maximum_marks') as HTMLInputElement).value; const reason = (form.elements.namedItem('reason') as HTMLInputElement).value; void perform(() => mutate(`/tasks/${task.task_id}/maximum`, 'PUT', {version: lab.version, maximum_marks, reason})); }} className="flex flex-wrap gap-2">
+          <label>Maximum marks <input name="maximum_marks" type="number" min="0.01" max="10000" step="0.01" defaultValue={task.maximum_marks || ''} required /></label>
+          <label>Reason <input name="reason" maxLength={500} required /></label><button disabled={busy}>Change marks</button>
+        </form>}
         <Statement text={task.config.statement} /><p><Link to={`/admin/tasks/${task.task_id}?revision=${task.revision_id}`}>View library revision and cases</Link></p>
       </section>}
       {(section === 'overview' || studentId || task) && <Marks labId={lab.id} accountId={studentId} taskId={task?.task_id} />}

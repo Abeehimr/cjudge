@@ -7,7 +7,7 @@ import { NotFound, useOffset, useUnsaved } from "./navigation";
 
 type Checker = { kind: "exact" | "tokens" | "python"; source?: string; ignore_final_newline: boolean; ignore_case: boolean;
   absolute_tolerance: string; relative_tolerance: string };
-type Config = { title: string; statement: string; maximum_marks: string; scoring: "partial" | "all_or_nothing";
+type Config = { title: string; statement: string; scoring: "partial" | "all_or_nothing";
   checker: Checker; cpu_seconds: number; wall_seconds: number; memory_mib: number; stack_mib: number; stdout_mib: number };
 type Case = { number: number; input_bytes: number; answer_bytes: number };
 type Revision = { id: string; number: number; draft_version: number; created_at: string };
@@ -18,7 +18,7 @@ type Published = Revision & { task_id: string; config: Config; cases: Case[]; ca
 function Summary({ config }: { config: Config }) {
   const c = config.checker;
   return <div className="space-y-2 text-sm">
-    <p><strong>{config.title}</strong> · {config.maximum_marks} marks · {config.scoring === "partial" ? "Partial" : "All or nothing"}</p>
+    <p><strong>{config.title}</strong> · {config.scoring === "partial" ? "Partial" : "All or nothing"}</p>
     <p>Checker: {c.kind}; {c.kind === "exact" ? (c.ignore_final_newline ? "ignore one final LF/CRLF" : "all bytes must match")
       : c.kind === "python" ? "Python helpers; explicit accept/reject" : `${c.ignore_case ? "ASCII case-insensitive" : "case-sensitive"}; absolute tolerance ${c.absolute_tolerance}; relative tolerance ${c.relative_tolerance}`}</p>
     <p>CPU {config.cpu_seconds}s · Wall {config.wall_seconds}s · Memory {config.memory_mib} MiB · Stack {config.stack_mib} MiB · Output {config.stdout_mib} MiB</p>
@@ -156,10 +156,10 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
       <button disabled={busy}>Create draft</button>
     </form>
     <div className="overflow-x-auto rounded border bg-white p-4">
-      <table className="w-full text-left text-sm"><thead><tr><th>Title</th><th>Draft version</th><th>Cases</th><th>Marks</th></tr></thead>
+      <table className="w-full text-left text-sm"><thead><tr><th>Title</th><th>Draft version</th><th>Cases</th></tr></thead>
         <tbody>{rows.map((row) => <tr className="border-t" key={row.id}>
           <td><Link to={`/admin/tasks/${row.id}`}>{row.config.title}</Link></td>
-          <td>{row.version}</td><td>{row.case_count}</td><td>{row.config.maximum_marks}</td>
+          <td>{row.version}</td><td>{row.case_count}</td>
         </tr>)}</tbody></table>
       <div className="mt-2 flex gap-2"><button disabled={busy || offset === 0} onClick={() => setOffset(offset - 100)}>Previous page</button>
         <button disabled={busy || rows.length < 100} onClick={() => setOffset(offset + 100)}>Next page</button></div>
@@ -187,7 +187,6 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
             value={config.statement} onChange={(e) => change("statement", e.target.value)} /></label>
           <Statement text={config.statement} />
           <div className="flex flex-wrap gap-3">
-            <label>Maximum marks <input type="number" min="0.01" max="10000" step="0.01" required value={config.maximum_marks} onChange={(e) => change("maximum_marks", e.target.value)} /></label>
             <label>Scoring <select value={config.scoring} onChange={(e) => change("scoring", e.target.value as Config["scoring"])}>
               <option value="partial">Partial</option><option value="all_or_nothing">All or nothing</option></select></label>
             <label>Checker <select value={config.checker.kind} onChange={(e) => checker({ kind: e.target.value as Checker["kind"],

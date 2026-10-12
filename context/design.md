@@ -59,7 +59,7 @@ Reuse the lab SSE connection for participants and admin SSE for admins. Acceptan
 ## Data Model
 
 - Account, revocable session, and per-lab browser binding.
-- Lab with versioned PDF attachments, public/private announcements, frozen/bound enrollment, and ordered pinned task revisions. Admin changes automatically announce their effect and supplied reason; individual actions address only the affected student.
+- Lab with versioned PDF attachments, public/private announcements, frozen/bound enrollment, and ordered pinned task revisions with lab-owned automatic maxima. Admin changes automatically announce their effect and supplied reason; individual actions address only the affected student.
 - Reusable task with optional Markdown statement, immutable revision, and test cases.
 - Submission with immutable source, acceptance time, and soft-delete metadata.
 - Submission network snapshot: client IP, optional trusted MAC, MAC source/observation time. Admin attempt review displays addresses, unavailable MACs, and possible PC-switch flags across the student's lab submissions.
@@ -67,7 +67,7 @@ Reuse the lab SSE connection for participants and admin SSE for admins. Acceptan
 - Rejudge batch, audit event, and export metadata.
 - Generation job, leased attempts, checkpointed cases, and retained source/seed/hash provenance.
 
-Submissions retain immutable evidence. `submission_reviews` holds deletion state and official-run pointers; `judge_jobs` holds current work while attempts/runs retain history. `correction_batches` and `correction_members` stage atomic replacements. First-release history, current reveal visibility, and explicit archiving remain separate states. `lab_exports` holds verified snapshot receipts; `lab_cleanup_files` retains cleanup work after permanent deletion.
+Official automatic marks recompute from retained pass counts, revision scoring rules, and the current lab-task maximum; runs retain their original score fraction. Archived legacy labs keep their original official scores and v1 archive receipts. Submissions retain immutable evidence. `submission_reviews` holds deletion state and official-run pointers; `judge_jobs` holds current work while attempts/runs retain history. `correction_batches` and `correction_members` stage atomic replacements. First-release history, current reveal visibility, and explicit archiving remain separate states. `lab_exports` holds verified snapshot receipts; `lab_cleanup_files` retains cleanup work after permanent deletion.
 
 ## Main Flows
 

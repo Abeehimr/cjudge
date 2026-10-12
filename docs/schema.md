@@ -1,6 +1,6 @@
 # Database Schema
 
-Current PostgreSQL schema through Alembic revision `20261010_cancellation`. `PK` marks primary-key columns; `FK` marks database-enforced foreign keys. Composite keys list every component. Case ZIPs, PDFs, submissions, authoring artifacts, and export ZIPs live in protected volumes; the database stores their identifiers and metadata.
+Current PostgreSQL schema through Alembic revision `20261011_lab_marks`. `PK` marks primary-key columns; `FK` marks database-enforced foreign keys. Composite keys list every component. Case ZIPs, PDFs, submissions, authoring artifacts, and export ZIPs live in protected volumes; the database stores their identifiers and metadata.
 
 ```mermaid
 erDiagram
@@ -28,11 +28,13 @@ erDiagram
     }
     labs {
         uuid id PK
+        boolean legacy_archived_marks
     }
     lab_tasks {
         uuid lab_id PK,FK
         int position PK
         uuid revision_id FK
+        decimal maximum_marks
     }
     lab_enrollments {
         uuid lab_id PK,FK
@@ -113,6 +115,7 @@ erDiagram
     lab_exports {
         uuid id PK
         uuid lab_id
+        smallint format_version
     }
     lab_cleanup_files {
         uuid lab_id PK
@@ -169,4 +172,4 @@ erDiagram
 
 Solid lines are enforced foreign keys; dotted lines are application references. `lab_exports` intentionally has no FK so verified receipts survive lab deletion. `lab_cleanup_files` retains artifact cleanup work after deletion. `judge_jobs.attempt_id`, `authoring_jobs.attempt_id`, and worker slot/generation fields are lease pointers without foreign keys. `alembic_version` is maintained by Alembic and has no application relationship. `login_attempts` is keyed by login identifier.
 
-`tasks` holds mutable drafts; `task_revisions` holds immutable published configurations and case-set keys. `lab_tasks` pins an ordered revision. `lab_enrollments` holds per-lab binding, freeze, and cancellation state. `submissions` retains accepted source metadata; `judge_attempts`, `judge_runs`, and `judge_case_results` retain execution evidence. `submission_reviews` selects the official run and stores soft deletion. `correction_batches`/`correction_members` publish full-task rejudges together. `authoring_jobs`/`authoring_attempts`/`authoring_cases` retain generated-test provenance. `lab_exports` tracks verified archive receipts.
+`tasks` holds mutable drafts; `task_revisions` holds immutable published configurations and case-set keys. `lab_tasks` pins an ordered revision and its automatic maximum marks. `lab_enrollments` holds per-lab binding, freeze, and cancellation state. `submissions` retains accepted source metadata; `judge_attempts`, `judge_runs`, and `judge_case_results` retain execution evidence. `submission_reviews` selects the official run and stores soft deletion. `correction_batches`/`correction_members` publish full-task rejudges together. `authoring_jobs`/`authoring_attempts`/`authoring_cases` retain generated-test provenance. `lab_exports` tracks verified archive receipts.

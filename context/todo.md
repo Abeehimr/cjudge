@@ -181,7 +181,7 @@ Integration when applicable: verify deactivation plus cancellation, credential r
 
 ## Improvements v2 — M17–M27
 
-M17 and M18 are complete; M19 code is complete pending physical network checks. M20–M27 remain planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
+M17, M18, and M20 are complete; M19 code is complete pending physical network checks. M21–M27 remain planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
 
 ## M17 — Architecture Documentation · independent
 
@@ -211,12 +211,12 @@ Evidence: 36 backend tests and 64 frontend tests pass; Docker web/API builds and
 
 ## M20 — Lab-Owned Marks · requires M6, M8, M10
 
-- [ ] Move automatic maxima to lab-task assignments; retain task scoring rules; require marks on assignment.
-- [ ] Backfill assignments; preserve historical runs/configuration, archived results, verified export receipts.
-- [ ] Calculate current official marks from retained outcomes and assignment maxima without executing code again.
-- [ ] Update assignment forms, submission displays, best-attempt selection, totals, scoreboard, CSV, archives.
-- [ ] Allow maximum changes until archive with reason/audit/announcement.
-- [ ] **Gate:** task reuse with different maxima, exact scoring/rounding/ties, corrections, historical evidence, archive protection.
+- [x] Move automatic maxima to lab-task assignments; retain task scoring rules; require marks on assignment.
+- [x] Backfill assignments; preserve historical runs/configuration, archived results, verified export receipts.
+- [x] Calculate current official marks from retained outcomes and assignment maxima without executing code again.
+- [x] Update assignment forms, submission displays, best-attempt selection, totals, scoreboard, CSV, archives.
+- [x] Allow maximum changes until archive with reason/audit/announcement.
+- [x] **Gate:** task reuse with different maxima, exact scoring/rounding/ties, corrections, historical evidence, archive protection.
 
 ## M21 — Whole-Task ZIP Transfer · requires M3, M7
 

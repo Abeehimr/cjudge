@@ -293,4 +293,6 @@ docker compose run --rm -e CJUDGE_ALLOWED_HOSTS=localhost,127.0.0.1 -v ./tests:/
 
 Admin → Lab → Students can cancel or reinstate one student's participation with a reason until archive. Cancellation keeps enrollment, submissions, and lab access, but closes new uploads and removes marks from rankings, first-solve awards, and final CSV. The student sees a private reason; the scoreboard shows an unranked, red-shaded row without scores. Reinstatement does not unfreeze the student or reopen the lab. Pending current-revision judging must finish before released results or final export count again.
 
-Apply migration `20261010_cancellation` before starting the updated API and worker images. Run `tests/marks_gate.py` and `tests/release_gate.py` in disposable databases to check cancellation, correction publication, release, and archive behavior.
+## M20 Lab-Owned Marks
+
+Apply migration `20261011_lab_marks` before starting the updated API and worker images. In Admin → Lab → Tasks, set automatic marks when assigning a published revision. Open a task to change its maximum with a reason until archive; official marks update from retained outcomes without a rejudge. Run `tests/marks_gate.py` and `tests/release_gate.py` in disposable databases to check scoring, correction publication, release, and archive behavior.

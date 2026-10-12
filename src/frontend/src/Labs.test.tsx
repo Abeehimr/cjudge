@@ -227,6 +227,30 @@ test('lab navigation blocks dirty settings; refresh preserves typed settings', a
   expect(await screen.findByRole('heading', { name: 'Enrollment (0)' })).toBeTruthy();
 });
 
+test('admin assigns a revision with explicit lab marks', async () => {
+  live();
+  const option: { position: number; revision_id: string; task_id: string; number: number; maximum_marks: string | null;
+    config: { title: string; statement: string; cpu_seconds: number; wall_seconds: number; memory_mib: number } } =
+    { position: 0, revision_id: 'revision', task_id: 'task', number: 1, maximum_marks: null,
+    config: { title: 'Addition', statement: '', cpu_seconds: 1, wall_seconds: 2, memory_mib: 64 } };
+  let lab = { ...summary, phase: 'Draft', starts_at: null, ends_at: null, version: 1, strict_ip: false,
+    first_released_at: null, archived_at: null, tasks: [] as typeof option[], pdfs: [], students: [], announcements: [] };
+  const fetchMock = vi.fn().mockImplementation((path: string, options: RequestInit) => {
+    if (path === '/api/admin/labs/lab/tasks' && options.method === 'PUT') lab = { ...lab, version: 2,
+      tasks: [{ ...option, maximum_marks: '5.00' }] };
+    return Promise.resolve({ ok: true, status: 200, json: async () =>
+      path.endsWith('/task-options?offset=0') ? [option] : path === '/api/admin/labs/lab' || path.endsWith('/lab/tasks') ? lab : [] });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/tasks');
+  fireEvent.change(await screen.findByLabelText('Published task revision'), { target: { value: 'revision' } });
+  fireEvent.change(screen.getByLabelText('Maximum marks'), { target: { value: '5.00' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add task' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save task order' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/tasks', expect.objectContaining({
+    method: 'PUT', body: JSON.stringify({ version: 1, assignments: [{ revision_id: 'revision', maximum_marks: '5.00' }] }) })));
+});
+
 test('a scheduled lab enables explicit entry when its start is reached', async () => {
   live(); let scheduled = true;
   const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({
