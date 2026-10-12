@@ -65,6 +65,9 @@ a[download] {
 .submission-status[data-status="Judging"] { @apply border-blue-200 bg-blue-50 text-blue-800; }
 .case-result[data-verdict="AC"] { @apply border-green-200 bg-green-50 text-green-900; }
 .case-result[data-verdict="WA"], .case-result[data-verdict="RE"] { @apply border-red-200 bg-red-50 text-red-900; }
+.case-result[data-verdict="Failed"], .case-result[data-verdict="CE"] { @apply border-red-200 bg-red-50 text-red-900; }
+.case-result[data-verdict="queued"], .case-result[data-verdict="testing"] { @apply border-blue-200 bg-blue-50 text-blue-900; }
+.case-result[data-verdict="Partial"] { @apply border-amber-200 bg-amber-50 text-amber-900; }
 .case-result[data-verdict="TLE"], .case-result[data-verdict="MLE"], .case-result[data-verdict="OLE"] { @apply border-amber-200 bg-amber-50 text-amber-900; }
 .notice-danger { @apply border-red-200 bg-red-50 text-red-800; }
 @media print {

@@ -3,6 +3,7 @@ import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, NavLink, 
 import { api } from "./api";
 import Accounts from "./Accounts";
 import TaskLibrary from "./TaskLibrary";
+import TaskTester from "./TaskTester";
 import { StudentLabs } from "./StudentLabs";
 import { AdminLabs } from "./AdminLabs";
 import Isolates from "./Isolates";
@@ -64,6 +65,7 @@ function Screen() {
           <Route path="/" element={<Navigate to={home} replace />} />
           <Route path="/login" element={<Navigate to={home} replace />} />
           <Route path="/admin/students" element={<Accounts csrf={session.csrf_token} />} />
+          <Route path="/admin/tasks/:taskId/tester/:batchId?/:sourceId?" element={<TaskTester csrf={session.csrf_token} />} />
           <Route path="/admin/tasks/*" element={<TaskLibrary csrf={session.csrf_token} />} />
           <Route path="/admin/labs/*" element={<AdminLabs csrf={session.csrf_token} />} />
           <Route path="/admin/isolates" element={<Isolates />} />
