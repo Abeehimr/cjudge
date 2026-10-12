@@ -46,7 +46,7 @@ def standings(assigned: list[dict], students: list[dict], rows: list[dict], acti
             total_cents += int(Decimal(marks or '0') * 100)
             if best and exact(best) > 0:
                 elapsed += time_us
-            solved = best is not None and exact(best) == Fraction(str(task['config']['maximum_marks']))
+            solved = best is not None and exact(best) == Fraction(task['maximum_marks'])
             state = 'solved' if solved else 'partial' if best and exact(best) > 0 else 'zero' if best else 'empty'
             cell = dict(task_id=task['task_id'], marks=marks, elapsed_us=time_us if best else None,
                 submission_id=best['id'] if best and (account_id is None or student['id'] == account_id) else None,
@@ -74,7 +74,7 @@ def standings(assigned: list[dict], students: list[dict], rows: list[dict], acti
             rank = index
         row['rank'], previous = rank, priority
     return dict(tasks=[dict(task_id=task['task_id'], title=task['config']['title'],
-        maximum_marks=str(task['config']['maximum_marks'])) for task in assigned], students=result)
+        maximum_marks=f"{task['maximum_marks']:.2f}") for task in assigned], students=result)
 
 
 def snapshot(conn: sa.Connection, lab: dict, account_id: UUID | None = None) -> dict:

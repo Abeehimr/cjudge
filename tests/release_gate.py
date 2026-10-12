@@ -73,7 +73,7 @@ def exercise(directory):
                                (scheduled, timestamp + timedelta(days=1), timestamp + timedelta(days=1, hours=1))):
             conn.execute(sa.insert(labs.labs).values(id=key, title='M8 gate' if key == lab_id else 'Reused tests',
                 version=1, starts_at=start, ends_at=end))
-            conn.execute(sa.insert(labs.assignments).values(lab_id=key, revision_id=revision, position=1))
+            conn.execute(sa.insert(labs.assignments).values(lab_id=key, revision_id=revision, position=1, maximum_marks='10'))
         for key in (student, other):
             conn.execute(sa.insert(labs.enrollments).values(lab_id=lab_id, account_id=key,
                 binding_hash=identity.token_digest(binding if key == student else other_binding)))
@@ -226,7 +226,7 @@ def exercise(directory):
             conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(
                 revision_id=retained_revision, score_numerator='0'))
         retained = call(private + f'/details?run_id={run}', student_view=True)[1]
-        assert retained['status'] == 'Failed' and retained['maximum_marks'] == '20.00'
+        assert retained['status'] == 'Failed' and retained['maximum_marks'] == '10.00' and retained['marks'] == '0.00'
         with identity.engine().begin() as conn:
             conn.execute(sa.update(store.runs).where(store.runs.c.id == run).values(
                 revision_id=revision, score_numerator='5'))
@@ -326,7 +326,7 @@ def exercise(directory):
         assert hashlib.sha256(zipped).hexdigest() == receipt['sha256']
         with zipfile.ZipFile(io.BytesIO(zipped)) as zipped_file:
             manifest = json.loads(zipped_file.read('manifest.json'))
-            assert manifest['version'] == 1
+            assert manifest['version'] == 2
             assert f'sources/{excluded}.c' in zipped_file.namelist()
             assert f'pdfs/{pdf}.pdf' in zipped_file.namelist()
             evidence = json.loads(zipped_file.read('snapshot.json'))

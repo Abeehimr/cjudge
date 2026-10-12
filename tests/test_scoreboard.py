@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from fractions import Fraction
+from decimal import Decimal
 from uuid import UUID
 
 from cjudge.labs.scoreboard import standings
 
 
 START = datetime(2026, 1, 1, tzinfo=timezone.utc)
-TASKS = [dict(task_id=UUID(int=i), config=dict(title=f'Task {i}', maximum_marks='10')) for i in (1, 2)]
+TASKS = [dict(task_id=UUID(int=i), maximum_marks=Decimal('10'), config=dict(title=f'Task {i}')) for i in (1, 2)]
 STUDENTS = [dict(id=UUID(int=i), name=f'Student {i}', roll_number=f'R{i}', cancelled=False) for i in (3, 4, 5)]
 
 

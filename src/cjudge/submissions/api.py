@@ -93,7 +93,11 @@ def query(lab_id: UUID):
     assigned = sa.select(labs.assignments.c.revision_id).join(assigned_revision,
         assigned_revision.c.id == labs.assignments.c.revision_id).where(labs.assignments.c.lab_id == lab_id,
         assigned_revision.c.task_id == tasks.revisions.c.task_id).correlate(tasks.revisions).scalar_subquery()
+    maximum = sa.select(labs.assignments.c.maximum_marks).join(assigned_revision,
+        assigned_revision.c.id == labs.assignments.c.revision_id).where(labs.assignments.c.lab_id == lab_id,
+        assigned_revision.c.task_id == tasks.revisions.c.task_id).correlate(tasks.revisions).scalar_subquery()
     return sa.select(store.submissions, assigned.label('current_revision_id'), tasks.revisions.c.task_id,
+        maximum.label('assignment_maximum'), labs.labs.c.legacy_archived_marks,
         store.reviews.c.run_id, store.reviews.c.deleted_at, store.reviews.c.delete_reason,
         store.jobs.c.kind, store.jobs.c.batch_id,
         store.runs.c.revision_id.label('result_revision_id'), result_revision.c.config.label('result_config'),
@@ -103,11 +107,18 @@ def query(lab_id: UUID):
         store.attempts.c.fault).select_from(store.submissions.join(store.jobs,
         store.jobs.c.submission_id == store.submissions.c.id).join(identity.accounts,
         identity.accounts.c.id == store.submissions.c.account_id).join(tasks.revisions,
-        tasks.revisions.c.id == store.submissions.c.revision_id).outerjoin(store.reviews,
+        tasks.revisions.c.id == store.submissions.c.revision_id).join(labs.labs,
+        labs.labs.c.id == store.submissions.c.lab_id).outerjoin(store.reviews,
         store.reviews.c.submission_id == store.submissions.c.id).outerjoin(store.runs,
         store.runs.c.id == store.reviews.c.run_id).outerjoin(result_revision,
         result_revision.c.id == store.runs.c.revision_id).outerjoin(store.attempts,
         store.attempts.c.id == store.jobs.c.attempt_id)).where(store.submissions.c.lab_id == lab_id)
+
+
+def run_maximum(row: dict) -> Decimal:
+    if row['legacy_archived_marks'] and 'maximum_marks' in row['result_config']:
+        return Decimal(row['result_config']['maximum_marks'])
+    return row['assignment_maximum']
 
 
 def output(row: dict, feedback: str, *, admin_view: bool = False, early_feedback_enabled: bool = False,
@@ -122,7 +133,7 @@ def output(row: dict, feedback: str, *, admin_view: bool = False, early_feedback
     if (early_feedback_enabled or results_visible) and row['run_id'] and row['result_config'].get('scoring', 'partial') == 'partial':
         result['early_feedback'] = {'passed': row['passed'], 'total': row['total'],
                                     'marks': review.displayed(review.exact(row)),
-                                    'maximum_marks': f"{Decimal(row['result_config']['maximum_marks']):.2f}",
+                                    'maximum_marks': f"{run_maximum(row):.2f}",
                                     'provisional': row['state'] != 'complete' or bool(row['batch_id'])}
     result['revision_id'] = row['current_revision_id'] or row['revision_id']
     if row['verdict'] == 'CE' and (admin_view or feedback != 'none'):
@@ -137,7 +148,7 @@ def output(row: dict, feedback: str, *, admin_view: bool = False, early_feedback
             'Staged' if row['batch_id'] and row['state'] == 'complete' else row['state'])
             if row['kind'] != 'initial' and (row['state'] != 'complete' or row['batch_id']) else None)
         result['marks'] = review.displayed(review.exact(row)) if row['run_id'] else None
-        result['maximum_marks'] = f"{Decimal(row['result_config']['maximum_marks']):.2f}" if row['run_id'] else None
+        result['maximum_marks'] = f"{run_maximum(row):.2f}" if row['run_id'] else None
     return result
 
 
@@ -353,7 +364,7 @@ def released_detail(lab_id: UUID, submission_id: UUID, request: Request, run_id:
         return output(row, 'full', results_visible=True) | dict(source=files.read(row).decode('utf-8', errors='replace'),
             official_run_id=official_run_id, official_marks=official_marks, run_id=row['run_id'],
             result_revision_id=row['result_revision_id'], marks=review.displayed(review.exact(row)) if row['run_id'] else None,
-            maximum_marks=f"{Decimal(row['result_config']['maximum_marks']):.2f}" if row['run_id'] else None,
+            maximum_marks=f"{run_maximum(row):.2f}" if row['run_id'] else None,
             passed=row['passed'], total=row['total'], grading_pending=row['state'] != 'complete' or bool(row['batch_id']),
             history=[dict(item) for item in conn.execute(sa.select(store.runs.c.id, store.runs.c.revision_id,
                 store.runs.c.verdict, store.runs.c.finished_at).where(store.runs.c.submission_id == submission_id)

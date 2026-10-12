@@ -37,10 +37,10 @@ def exercise(directory: str) -> None:
     revisions = [uuid4() for _ in range(3)]
     csrf, admin_token, student_token, binding = [secrets.token_urlsafe(32) for _ in range(4)]
     generation = uuid4()
-    def seed(conn, owner=student_id, score=Fraction(7, 3), seconds=0, ip='192.0.2.1', mac=None, pending=False):
+    def seed(conn, owner=student_id, score=Fraction(7, 3), seconds=0, ip='192.0.2.1', mac=None, pending=False, lab=lab_id):
         key, attempt = uuid4(), uuid4()
         digest = files.validate('main.c', GOOD); files.save(key, GOOD)
-        conn.execute(sa.insert(store.submissions).values(id=key, lab_id=lab_id, account_id=owner,
+        conn.execute(sa.insert(store.submissions).values(id=key, lab_id=lab, account_id=owner,
             revision_id=revisions[0], idempotency_key=uuid4(), filename='main.c', size=len(GOOD), sha256=digest,
             accepted_at=timestamp + timedelta(seconds=seconds), client_ip=ip, client_mac=mac))
         conn.execute(sa.insert(store.jobs).values(submission_id=key, revision_id=revisions[0],
@@ -76,7 +76,7 @@ def exercise(directory: str) -> None:
             pairs = [(f'{number} {i}\n'.encode(), f'{number + i}\n'.encode()) for i in range(3)]
             conn.execute(sa.insert(tasks.revisions).values(id=revision, task_id=task_id, number=number,
                 draft_version=number, config=config, case_count=3, cases_key=tasks.save_cases(pairs)))
-        conn.execute(sa.insert(labs.assignments).values(lab_id=lab_id, position=1, revision_id=revisions[0]))
+        conn.execute(sa.insert(labs.assignments).values(lab_id=lab_id, position=1, revision_id=revisions[0], maximum_marks='7'))
         first = seed(conn, seconds=1, mac='02:00:00:00:00:01')
         tie = seed(conn, seconds=2, ip='192.0.2.2', mac='02:00:00:00:00:02')
         zero = seed(conn, score=Fraction(0), seconds=3)
@@ -104,6 +104,17 @@ def exercise(directory: str) -> None:
         flags = review.network_flags(conn, lab_id)
         assert flags[student_id] == {'ip_changed': True, 'mac_changed': True}
         assert flags[other_id] == {'ip_changed': False, 'mac_changed': False}
+        savepoint = conn.begin_nested()
+        reused_lab = uuid4()
+        conn.execute(sa.insert(labs.labs).values(id=reused_lab, title='Reuse score gate', version=1))
+        conn.execute(sa.insert(labs.enrollments).values(lab_id=reused_lab, account_id=student_id))
+        conn.execute(sa.insert(labs.assignments).values(lab_id=reused_lab, position=1,
+            revision_id=revisions[0], maximum_marks='5'))
+        reused_submission = seed(conn, lab=reused_lab)
+        reused = review.marks(conn, reused_lab)[0]
+        assert reused['total'] == '1.67' and reused['tasks'][0]['best_submission_id'] == reused_submission
+        assert next(row for row in review.marks(conn, lab_id) if row['id'] == student_id)['total'] == '2.33'
+        savepoint.rollback()
     print('PASS: migration backfill, exact best/ties, later CE, half-up marks, deleted evidence and pending versus zero')
 
     def call(path, method='GET', body=None, student=False, csrf_value=csrf, authenticated=True, bound=True):
@@ -141,6 +152,24 @@ def exercise(directory: str) -> None:
         assert board['students'][0]['elapsed_us'] == 1_000_000
         assert board['students'][0]['tasks'][0]['submission_id'] == str(first)
         assert board['students'][1]['tasks'][0]['state'] == 'judging'
+        maximum_path = base + f'/tasks/{task_id}/maximum'
+        first_version = call(base)[1]['version']
+        change = {'version': first_version, 'maximum_marks': '10.00', 'reason': 'Increase task weight'}
+        assert call(maximum_path, 'PUT', change, student=True)[0] == 403
+        assert call(maximum_path, 'PUT', change, csrf_value='bad')[0] == 403
+        assert call(maximum_path, 'PUT', change | {'reason': ' '})[0] == 400
+        assert call(maximum_path, 'PUT', change)[0] == 200
+        assert call(board_path)[1]['students'][0]['total'] == '3.33'
+        assert call(detail)[1]['marks'] == '3.33'
+        with identity.engine().connect() as conn:
+            assert conn.execute(sa.select(store.runs.c.score_numerator).where(store.runs.c.id ==
+                conn.execute(sa.select(store.reviews.c.run_id).where(store.reviews.c.submission_id == first)).scalar_one())).scalar_one() == '7'
+            assert b'3.33' in exports.sheet(conn, labs.find(conn, lab_id, lock=False))
+        assert any('Increase task weight' in item['body'] for item in call(base)[1]['announcements'])
+        assert call(maximum_path, 'PUT', change)[0] == 409
+        assert call(maximum_path, 'PUT', {'version': call(base)[1]['version'],
+            'maximum_marks': '7.00', 'reason': 'Restore task weight'})[0] == 200
+        assert call(board_path)[1]['students'][0]['total'] == '2.33'
         assert not call(base)[1]['scoreboard_visible']
         assert call(board_path, authenticated=False)[0] == 401
         assert call(board_path, student=True)[0] == 403
@@ -403,6 +432,7 @@ def exercise(directory: str) -> None:
             conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab_id).values(archived_at=labs.now(conn)))
         version = call(base)[1]['version']
         assert call(visibility, 'PUT', {'version': version, 'visible': True})[0] == 409
+        assert call(maximum_path, 'PUT', {'version': version, 'maximum_marks': '8', 'reason': 'Too late'})[0] == 409
         assert call(board_path)[0] == 200
         print('PASS: correction races, concurrent arrivals, restoration membership, infrastructure blocking, atomic recovery, immutable source and post-release corrections')
     finally:

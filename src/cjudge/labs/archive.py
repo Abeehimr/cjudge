@@ -1,5 +1,6 @@
 """Versioned protected ZIP snapshots and separate, retryable permanent deletion."""
 import base64
+from decimal import Decimal
 import hashlib
 import json
 import os
@@ -27,6 +28,7 @@ exports = sa.Table('lab_exports', identity.metadata,
     sa.Column('id', sa.Uuid(), primary_key=True), sa.Column('lab_id', sa.Uuid(), nullable=False),
     sa.Column('version', sa.Integer(), nullable=False), sa.Column('snapshot_digest', sa.String(64), nullable=False),
     sa.Column('sha256', sa.String(64), nullable=False), sa.Column('size', sa.BigInteger(), nullable=False),
+    sa.Column('format_version', sa.SmallInteger(), nullable=False, server_default='1'),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()))
 cleanup_files = sa.Table('lab_cleanup_files', identity.metadata,
     sa.Column('lab_id', sa.Uuid(), primary_key=True), sa.Column('kind', sa.String(16), primary_key=True),
@@ -38,6 +40,8 @@ def root() -> Path:
 
 
 def encoded(value):
+    if isinstance(value, Decimal):
+        return str(value)
     if isinstance(value, bytes):
         return {'base64': base64.b64encode(value).decode('ascii')}
     if isinstance(value, UUID):
@@ -59,7 +63,7 @@ def rows(conn: sa.Connection, table, condition) -> list[dict]:
     return [dict(row) for row in conn.execute(sa.select(table).where(condition).order_by(*table.primary_key.columns)).mappings()]
 
 
-def snapshot(conn: sa.Connection, lab: dict) -> dict:
+def snapshot(conn: sa.Connection, lab: dict, format_version: int = 2) -> dict:
     lab_id = lab['id']
     submissions = rows(conn, store.submissions, store.submissions.c.lab_id == lab_id)
     ids = [row['id'] for row in submissions]
@@ -77,7 +81,13 @@ def snapshot(conn: sa.Connection, lab: dict) -> dict:
         ~identity.audit_events.c.action.in_(['lab_export_generated', 'lab_export_downloaded', 'lab_marks_exported']))
         .order_by(identity.audit_events.c.id)).mappings()]
     # ponytail: snapshot metadata loads retained history; paginate/spool if lab histories outgrow memory.
-    return dict(lab=lab, roster=roster, assignments=rows(conn, labs.assignments, labs.assignments.c.lab_id == lab_id),
+    lab_data = dict(lab)
+    assignments = rows(conn, labs.assignments, labs.assignments.c.lab_id == lab_id)
+    if format_version == 1:
+        lab_data.pop('legacy_archived_marks', None)
+        for assignment in assignments:
+            assignment.pop('maximum_marks', None)
+    return dict(lab=lab_data, roster=roster, assignments=assignments,
         pdfs=rows(conn, labs.pdfs, labs.pdfs.c.lab_id == lab_id),
         announcements=rows(conn, labs.announcements, labs.announcements.c.lab_id == lab_id),
         revisions=rows(conn, tasks.revisions, tasks.revisions.c.id.in_(revision_ids(conn, lab_id))),
@@ -96,7 +106,7 @@ def file_hash(path: Path) -> tuple[str, int]:
 
 def build(key: UUID, data: dict, csv_data: bytes) -> tuple[str, int]:
     path = root() / f'{key}.zip'
-    manifest = {'format': 'cjudge-lab', 'version': 1, 'lab_id': str(data['lab']['id']),
+    manifest = {'format': 'cjudge-lab', 'version': 2, 'lab_id': str(data['lab']['id']),
         'lab_version': data['lab']['version'], 'snapshot_digest': digest(data),
         'generated_at': identity.now().isoformat(), 'entries': []}
     def add(archive, name: str, content: bytes):
@@ -168,7 +178,7 @@ async def export_lab(lab_id: UUID, request: Request, actor: dict = Depends(admin
                 if digest(snapshot(conn, current)) != digest(data):
                     raise labs.LabError(409, 'Lab evidence changed during export; regenerate the archive')
                 conn.execute(sa.insert(exports).values(id=key, lab_id=lab_id, version=body.version,
-                    snapshot_digest=digest(data), sha256=checksum, size=size))
+                    snapshot_digest=digest(data), sha256=checksum, size=size, format_version=2))
                 identity.audit(conn, 'lab_export_generated', actor['id'], detail={'lab_id': str(lab_id),
                     'export_id': str(key), 'reason': body.reason.strip(), 'sha256': checksum})
             return {'id': key, 'sha256': checksum, 'size': size, 'version': body.version}
@@ -189,7 +199,7 @@ def download_export(lab_id: UUID, export_id: UUID, actor: dict = Depends(admin))
         if file_hash(path) != (row['sha256'], row['size']):
             raise HTTPException(503, 'Archive integrity check failed')
         identity.audit(conn, 'lab_export_downloaded', actor['id'], detail={'lab_id': str(lab_id), 'export_id': str(export_id)})
-    return FileResponse(path, media_type='application/zip', filename=f'{lab_id}-archive-v1.zip',
+    return FileResponse(path, media_type='application/zip', filename=f'{lab_id}-archive-v{row["format_version"]}.zip',
         headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
 
 
@@ -223,7 +233,7 @@ async def delete_lab(lab_id: UUID, request: Request, actor: dict = Depends(admin
                 raise labs.LabError(400, 'Deletion requires an archived lab, saved-copy acknowledgment, matching title and reason')
             receipt = conn.execute(sa.select(exports).where(exports.c.id == body.export_id,
                 exports.c.lab_id == lab_id)).mappings().first()
-            if not receipt or receipt['version'] != lab['version'] or receipt['snapshot_digest'] != digest(snapshot(conn, lab)):
+            if not receipt or receipt['version'] != lab['version'] or receipt['snapshot_digest'] != digest(snapshot(conn, lab, receipt['format_version'])):
                 raise labs.LabError(409, 'Generate a current archive before deletion')
             if file_hash(root() / f'{body.export_id}.zip') != (receipt['sha256'], receipt['size']):
                 raise labs.LabError(503, 'Archive integrity check failed')

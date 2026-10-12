@@ -1,4 +1,5 @@
 import threading
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,7 +11,8 @@ from cjudge.judging.worker import judge, pool_size, validate_capacity
 def test_judging_checks_all_full_outputs_and_keeps_exact_score():
     connection = MagicMock()
     connection.execute.return_value.mappings.return_value.one.return_value = {
-        'config': {'title': 'Gate', 'maximum_marks': '7'}, 'cases_key': 'key', 'case_count': 2}
+        'task_id': 'task', 'config': {'title': 'Gate'}, 'cases_key': 'key', 'case_count': 2}
+    connection.execute.return_value.scalar_one.return_value = Decimal('7')
     compiled = runner.Result('OK', b'', b'', 0, 0, 0, b'binary')
     tail = b'x' * 65536 + b'wrong'
     results = [runner.Result('OK', b'yes', b'', 0, 0, 0),
@@ -19,7 +21,7 @@ def test_judging_checks_all_full_outputs_and_keeps_exact_score():
             patch('cjudge.submissions.files.read', return_value=b'source'), patch('cjudge.runner.compile_c', return_value=compiled), \
             patch('cjudge.runner.execute', side_effect=results) as execute:
         engine.return_value.connect.return_value.__enter__.return_value = connection
-        result = judge({'revision_id': 'revision'}, threading.Event())
+        result = judge({'revision_id': 'revision', 'lab_id': 'lab'}, threading.Event())
         assert execute.call_count == 2
         assert result['passed'] == 1 and result['verdict'] == 'Failed'
         assert (result['score_numerator'], result['score_denominator']) == ('7', '2')

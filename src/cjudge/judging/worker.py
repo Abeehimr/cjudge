@@ -12,7 +12,7 @@ from uuid import uuid4
 import psycopg
 import sqlalchemy as sa
 
-from cjudge import authoring, identity, runner, tasks
+from cjudge import authoring, identity, labs, runner, tasks
 from cjudge.judging import queue
 from cjudge.submissions import files, review, batches
 from cjudge.tasks.authoring import check_python
@@ -41,6 +41,10 @@ def judge(submission: dict, lost: threading.Event) -> dict:
     with identity.engine().connect() as conn:
         revision = conn.execute(sa.select(tasks.revisions).where(
             tasks.revisions.c.id == submission['revision_id'])).mappings().one()
+        maximum = conn.execute(sa.select(labs.assignments.c.maximum_marks).join(tasks.revisions,
+            tasks.revisions.c.id == labs.assignments.c.revision_id).where(
+            labs.assignments.c.lab_id == submission['lab_id'],
+            tasks.revisions.c.task_id == revision['task_id'])).scalar_one()
     config = TaskConfig.model_validate(revision['config'])
     test_cases = tasks.load_cases(revision['cases_key'])
     if not test_cases or len(test_cases) != revision['case_count']:
@@ -68,7 +72,7 @@ def judge(submission: dict, lost: threading.Event) -> dict:
                 wall_seconds=execution.wall_seconds, memory_kib=execution.memory_kib,
                 stdout=execution.stdout_preview, stderr=execution.stderr,
                 stdout_truncated=execution.stdout_truncated, stderr_truncated=execution.stderr_truncated))
-    marks = score(config.maximum_marks, passed, len(test_cases), config.scoring)
+    marks = score(maximum, passed, len(test_cases), config.scoring)
     diagnostic = compiled.stderr.decode('utf-8', errors='replace')
     return dict(verdict='CE' if compiled.verdict == 'CE' else 'AC' if passed == len(test_cases) else 'Failed',
         passed=passed, total=len(test_cases), score_numerator=str(marks.numerator), score_denominator=str(marks.denominator),

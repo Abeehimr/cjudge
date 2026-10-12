@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
 from cjudge import identity, labs, tasks
+from cjudge.tasks.grading import score
 from cjudge.submissions import submissions, jobs, runs, reviews, batches, members, attempts
 
 
@@ -17,6 +18,9 @@ def displayed(value: Fraction) -> str:
 
 
 def exact(row: dict) -> Fraction:
+    if row.get('assignment_maximum') is not None and not row.get('legacy_archived_marks'):
+        return score(row['assignment_maximum'], row['passed'], row['total'],
+            row['result_config'].get('scoring', 'partial'))
     return Fraction(int(row['score_numerator']), int(row['score_denominator']))
 
 
@@ -26,11 +30,20 @@ def counted_submission(rows: list[dict]) -> dict | None:
 
 
 def official_query(lab_id: UUID):
+    result_revision = tasks.revisions.alias('result_revision')
+    assigned_revision = tasks.revisions.alias('assigned_revision')
     return sa.select(submissions, tasks.revisions.c.task_id, reviews.c.run_id, reviews.c.deleted_at,
         reviews.c.delete_reason, runs.c.score_numerator, runs.c.score_denominator, runs.c.passed, runs.c.total,
+        labs.assignments.c.maximum_marks.label('assignment_maximum'),
+        labs.labs.c.legacy_archived_marks, result_revision.c.config.label('result_config'),
         jobs.c.state, jobs.c.kind, jobs.c.batch_id).select_from(submissions.join(tasks.revisions,
         tasks.revisions.c.id == submissions.c.revision_id).outerjoin(reviews,
         reviews.c.submission_id == submissions.c.id).outerjoin(runs, runs.c.id == reviews.c.run_id)
+        .outerjoin(result_revision, result_revision.c.id == runs.c.revision_id)
+        .join(labs.labs, labs.labs.c.id == submissions.c.lab_id)
+        .join(labs.assignments, labs.assignments.c.lab_id == submissions.c.lab_id)
+        .join(assigned_revision, sa.and_(assigned_revision.c.id == labs.assignments.c.revision_id,
+            assigned_revision.c.task_id == tasks.revisions.c.task_id))
         .join(jobs, jobs.c.submission_id == submissions.c.id)).where(submissions.c.lab_id == lab_id)
 
 
