@@ -12,7 +12,7 @@ from cryptography.fernet import Fernet
 import sqlalchemy as sa
 
 from cjudge import identity, labs, tasks
-from cjudge.labs import ta_reviews
+from cjudge.labs import ta_reviews, archive
 from cjudge.labs.exports import sheet
 from cjudge.tasks.grading import TaskConfig
 
@@ -87,6 +87,10 @@ def main() -> None:
                 completed = ta_reviews.finalize(conn, labs.find(conn, lab_id), student_id,
                     transferred['version'], other_ta)
                 assert completed['finalized'] and not completed['needs_recheck']
+                current_archive = archive.snapshot(conn, labs.find(conn, lab_id))
+                legacy_archive = archive.snapshot(conn, labs.find(conn, lab_id), 2)
+                assert current_archive['ta_reviews'] and current_archive['ta_review_marks']
+                assert 'ta_reviews' not in legacy_archive and 'ta_maximum' not in legacy_archive['assignments'][0]
             print('M24 TA review gate passed')
     finally:
         identity.engine.cache_clear()

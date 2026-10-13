@@ -37,6 +37,7 @@ erDiagram
         int position PK
         uuid revision_id FK
         decimal maximum_marks
+        decimal ta_maximum
     }
     lab_enrollments {
         uuid lab_id PK,FK
@@ -47,6 +48,22 @@ erDiagram
     lab_tas {
         uuid lab_id PK,FK
         uuid ta_id PK,FK
+    }
+    ta_reviews {
+        uuid lab_id PK,FK
+        uuid student_id PK,FK
+        uuid owner_id FK
+        uuid reviewer_id FK
+        int version
+        boolean needs_recheck
+    }
+    ta_review_marks {
+        uuid lab_id PK,FK
+        uuid student_id PK,FK
+        uuid task_id PK,FK
+        bigint earned_numerator
+        bigint earned_denominator
+        boolean done
     }
     lab_pdfs {
         uuid id PK
@@ -159,6 +176,9 @@ erDiagram
     accounts ||--o{ lab_enrollments : frozen_by
     accounts ||--o{ lab_enrollments : cancelled_by
     accounts ||--o{ lab_tas : ta_id
+    accounts ||--o{ ta_reviews : student_id
+    accounts ||--o{ ta_reviews : owner_id
+    accounts ||--o{ ta_reviews : reviewer_id
     accounts ||--o{ lab_announcements : author_id
     accounts ||--o{ lab_announcements : recipient_id
     accounts ||--o{ submissions : account_id
@@ -168,6 +188,7 @@ erDiagram
     accounts ||--o{ authoring_jobs : actor_id
     accounts ||--o{ tester_batches : actor_id
     tasks ||--o{ task_revisions : task_id
+    tasks ||--o{ ta_review_marks : task_id
     tasks ||--o{ correction_batches : task_id
     tasks ||--o{ authoring_jobs : task_id
     tasks ||--o{ tester_batches : task_id
@@ -181,6 +202,8 @@ erDiagram
     labs ||--o{ lab_tasks : lab_id
     labs ||--o{ lab_enrollments : lab_id
     labs ||--o{ lab_tas : lab_id
+    labs ||--o{ ta_reviews : lab_id
+    ta_reviews ||--o{ ta_review_marks : student
     labs ||--o{ lab_pdfs : lab_id
     labs ||--o{ lab_announcements : lab_id
     labs ||--o{ submissions : lab_id
@@ -208,4 +231,4 @@ erDiagram
 
 Solid lines are enforced foreign keys; dotted lines are application references. `lab_exports` intentionally has no FK so verified receipts survive lab deletion. `lab_cleanup_files` retains artifact cleanup work after deletion. `judge_jobs.attempt_id`, `authoring_jobs.attempt_id`, and worker slot/generation fields are lease pointers without foreign keys. `alembic_version` is maintained by Alembic and has no application relationship. `login_attempts` is keyed by login identifier.
 
-`tasks` holds mutable drafts; `task_revisions` holds immutable published configurations and case-set keys. `lab_tasks` pins an ordered revision and its automatic maximum marks. `lab_tas` grants TA access to a lab; `lab_enrollments` holds student binding, freeze/cancellation state, and active penalty owners. `submissions` retains accepted source metadata; `judge_attempts`, `judge_runs`, and `judge_case_results` retain execution evidence. `submission_reviews` selects the official run and stores soft deletion. `correction_batches`/`correction_members` publish full-task rejudges together. `authoring_*` holds generated-test provenance; `tester_*` holds admin-only published revision tests. `lab_exports` tracks verified archive receipts.
+`tasks` holds mutable drafts; `task_revisions` holds immutable published configurations and case-set keys. `lab_tasks` pins an ordered revision and automatic/TA maxima. `ta_reviews` owns student claims and finalization; `ta_review_marks` stores exact earned fractions and Done flags. `lab_tas` grants TA access to a lab; `lab_enrollments` holds student binding, freeze/cancellation state, and active penalty owners. `submissions` retains accepted source metadata; `judge_attempts`, `judge_runs`, and `judge_case_results` retain execution evidence. `submission_reviews` selects the official run and stores soft deletion. `correction_batches`/`correction_members` publish full-task rejudges together. `authoring_*` holds generated-test provenance; `tester_*` holds admin-only published revision tests. `lab_exports` tracks verified archive receipts.
