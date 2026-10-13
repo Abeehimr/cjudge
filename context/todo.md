@@ -236,7 +236,7 @@ Evidence: 40 backend tests, 66 frontend tests and production build; disposable-d
 
 ## M23 — TA Accounts and Lab Operations · requires M2, M4, M15
 
-- [ ] Add TA accounts, unified login, admin lab assignment, and server-side permission checks.
+- [ ] Add TA accounts, unified login (I would like to change this), admin lab assignment, and server-side permission checks.
 - [ ] Add mobile-first lab selection/student lookup/compact status; released evidence access only.
 - [ ] Add freeze/cancellation/binding operations until archive; only acting TA/admin reverses freeze/cancellation; show actor.
 - [ ] Add explicit audited selected-student password reveal; no-store, no bulk export/cache/logging.
