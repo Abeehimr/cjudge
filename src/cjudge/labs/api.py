@@ -133,6 +133,10 @@ class MaximumInput(ReasonInput, VersionInput):
     maximum_marks: Decimal = Field(gt=0, le=10000, max_digits=7, decimal_places=2)
 
 
+class TAMaximumInput(ReasonInput, VersionInput):
+    ta_maximum: Decimal = Field(ge=0, le=10000, max_digits=7, decimal_places=2)
+
+
 class StopInput(ReasonInput, VersionInput):
     pass
 
@@ -178,6 +182,7 @@ class AssignedTask(StrictModel):
     task_id: UUID
     number: int
     maximum_marks: str | None = None
+    ta_maximum: str | None = None
     config: TaskConfig
 
 
@@ -310,6 +315,7 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
             students=[dict(row) for row in roster], tas=[dict(row) for row in tas], tasks=[{'position': row['position'], 'revision_id': row['id'],
                 'previous_revision_ids': previous.get(row['task_id'], []),
                 'task_id': row['task_id'], 'number': row['number'], 'maximum_marks': f"{row['maximum_marks']:.2f}",
+                'ta_maximum': f"{row['ta_maximum']:.2f}",
                 'config': row['config']} for row in assigned])
     else:
         public_tasks = []
@@ -419,6 +425,36 @@ async def task_maximum(lab_id: UUID, task_id: UUID, request: Request, actor: dic
     return await run_in_threadpool(change)
 
 
+@admin_router.put('/{lab_id}/tasks/{task_id}/ta-maximum', response_model=AdminLab)
+async def task_ta_maximum(lab_id: UUID, task_id: UUID, request: Request, actor: dict = Depends(admin_write)):
+    from cjudge.labs import ta_reviews
+    body = await json_input(request, TAMaximumInput)
+    def change():
+        with transaction() as conn:
+            lab = labs.find(conn, lab_id, body.version)
+            labs.editable(lab)
+            row = next((item for item in labs.task_rows(conn, lab_id) if item['task_id'] == task_id), None)
+            if row is None:
+                raise labs.LabError(404, 'Assigned task not found')
+            if row['ta_maximum'] == body.ta_maximum:
+                raise labs.LabError(409, 'TA maximum unchanged')
+            if lab['first_released_at'] and (not row['ta_maximum'] or not body.ta_maximum):
+                raise labs.LabError(409, 'Enabled TA tasks are fixed after release')
+            if not body.ta_maximum and conn.execute(sa.select(ta_reviews.marks.c.student_id).where(
+                ta_reviews.marks.c.lab_id == lab_id, ta_reviews.marks.c.task_id == task_id).limit(1)).first():
+                raise labs.LabError(409, 'Cannot disable a task with saved TA marks')
+            if not body.reason.strip():
+                raise labs.LabError(400, 'Reason required')
+            conn.execute(sa.update(labs.assignments).where(labs.assignments.c.lab_id == lab_id,
+                labs.assignments.c.position == row['position']).values(ta_maximum=body.ta_maximum))
+            identity.audit(conn, 'lab_task_ta_maximum_changed', actor['id'], detail={
+                'lab_id': str(lab_id), 'task_id': str(task_id), 'old': str(row['ta_maximum']),
+                'new': str(body.ta_maximum), 'reason': body.reason.strip()})
+            return snapshot(conn, labs.changed(conn, lab, actor['id'], 'lab_task_ta_maximum_changed',
+                message=f"TA maximum for {row['config']['title']} changed to {body.ta_maximum:.2f}. Reason: {body.reason.strip()}"))
+    return await run_in_threadpool(change)
+
+
 @admin_router.post('/{lab_id}/students', response_model=AdminLab)
 async def enroll_students(lab_id: UUID, request: Request, actor: dict = Depends(admin_write)):
     body = await json_input(request, EnrollmentInput)
@@ -520,6 +556,13 @@ def assign_tas(lab_id: UUID, body: TAAssignmentsInput, actor: dict = Depends(adm
         if old == new:
             raise labs.LabError(409, 'TA assignments already match')
         if old - new:
+            from cjudge.labs import ta_reviews
+            blocked = conn.execute(sa.select(ta_reviews.reviews.c.student_id).where(
+                ta_reviews.reviews.c.lab_id == lab_id,
+                ta_reviews.reviews.c.owner_id.in_(old - new),
+                ta_reviews.reviews.c.finalized_at.is_(None)).limit(1)).first()
+            if blocked:
+                raise labs.LabError(409, 'Release or transfer unfinished TA reviews first')
             conn.execute(sa.delete(labs.ta_assignments).where(labs.ta_assignments.c.lab_id == lab_id,
                 labs.ta_assignments.c.ta_id.in_(old - new)))
         if new - old:

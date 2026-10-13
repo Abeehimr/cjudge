@@ -12,9 +12,11 @@ from starlette.responses import StreamingResponse
 from cjudge import identity, labs, submissions as submission_store
 from cjudge.events import hub
 from cjudge.identity.api import COOKIE, StrictModel, current, no_store, same_origin, write_guard
-from cjudge.labs import binding
+from cjudge.labs import binding, ta_reviews
 from cjudge.labs.api import FreezeInput, ReasonInput, transaction, summary
 from cjudge.submissions import api as submission_api, review
+from decimal import Decimal
+from pydantic import Field
 
 router = APIRouter(prefix='/api/ta', dependencies=[Depends(no_store)])
 
@@ -223,6 +225,64 @@ def student_marks(lab_id: UUID, student_id: UUID, request: Request,
         access(conn, request, account, lab_id)
         labs.enrollment(conn, lab_id, student_id, lock=False)
         return review.marks(conn, lab_id, student_id)
+
+
+class ReviewVersion(StrictModel):
+    version: int = Field(ge=0)
+
+
+class ReviewSave(ReviewVersion):
+    marks: Decimal = Field(ge=0, le=10000, max_digits=7, decimal_places=2)
+    done: bool
+
+
+@router.get('/labs/{lab_id}/students/{student_id}/ta-review')
+def review_detail(lab_id: UUID, student_id: UUID, request: Request,
+                  account: dict = Depends(ta)) -> dict:
+    with transaction() as conn:
+        access(conn, request, account, lab_id)
+        return ta_reviews.detail(conn, lab_id, student_id)
+
+
+@router.post('/labs/{lab_id}/students/{student_id}/ta-review/claim')
+def claim_review(lab_id: UUID, student_id: UUID, body: ReviewVersion, request: Request,
+                 account: dict = Depends(ta_write)) -> dict:
+    with transaction() as conn:
+        lab = access(conn, request, account, lab_id, write=True)
+        return ta_reviews.claim(conn, lab, student_id, body.version, account['id'])
+
+
+@router.put('/labs/{lab_id}/students/{student_id}/ta-review/tasks/{task_id}')
+def save_review(lab_id: UUID, student_id: UUID, task_id: UUID, body: ReviewSave,
+                request: Request, account: dict = Depends(ta_write)) -> dict:
+    with transaction() as conn:
+        lab = access(conn, request, account, lab_id, write=True)
+        return ta_reviews.save(conn, lab, student_id, task_id, body.version,
+            account['id'], body.marks, body.done)
+
+
+@router.post('/labs/{lab_id}/students/{student_id}/ta-review/finalize')
+def finalize_review(lab_id: UUID, student_id: UUID, body: ReviewVersion, request: Request,
+                    account: dict = Depends(ta_write)) -> dict:
+    with transaction() as conn:
+        lab = access(conn, request, account, lab_id, write=True)
+        return ta_reviews.finalize(conn, lab, student_id, body.version, account['id'])
+
+
+@router.post('/labs/{lab_id}/students/{student_id}/ta-review/release')
+def release_review(lab_id: UUID, student_id: UUID, body: ReviewVersion, request: Request,
+                   account: dict = Depends(ta_write)) -> dict:
+    with transaction() as conn:
+        lab = access(conn, request, account, lab_id, write=True)
+        return ta_reviews.release(conn, lab, student_id, body.version, account['id'])
+
+
+@router.post('/labs/{lab_id}/students/{student_id}/ta-review/reopen')
+def reopen_review(lab_id: UUID, student_id: UUID, body: ReviewVersion, request: Request,
+                  account: dict = Depends(ta_write)) -> dict:
+    with transaction() as conn:
+        lab = access(conn, request, account, lab_id, write=True)
+        return ta_reviews.reopen(conn, lab, student_id, body.version, account['id'])
 
 
 @router.get('/labs/{lab_id}/students/{student_id}/submissions',

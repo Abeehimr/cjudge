@@ -63,7 +63,7 @@ def rows(conn: sa.Connection, table, condition) -> list[dict]:
     return [dict(row) for row in conn.execute(sa.select(table).where(condition).order_by(*table.primary_key.columns)).mappings()]
 
 
-def snapshot(conn: sa.Connection, lab: dict, format_version: int = 2) -> dict:
+def snapshot(conn: sa.Connection, lab: dict, format_version: int = 3) -> dict:
     lab_id = lab['id']
     submissions = rows(conn, store.submissions, store.submissions.c.lab_id == lab_id)
     ids = [row['id'] for row in submissions]
@@ -83,11 +83,14 @@ def snapshot(conn: sa.Connection, lab: dict, format_version: int = 2) -> dict:
     # ponytail: snapshot metadata loads retained history; paginate/spool if lab histories outgrow memory.
     lab_data = dict(lab)
     assignments = rows(conn, labs.assignments, labs.assignments.c.lab_id == lab_id)
+    if format_version < 3:
+        for assignment in assignments:
+            assignment.pop('ta_maximum', None)
     if format_version == 1:
         lab_data.pop('legacy_archived_marks', None)
         for assignment in assignments:
             assignment.pop('maximum_marks', None)
-    return dict(lab=lab_data, roster=roster, assignments=assignments,
+    result = dict(lab=lab_data, roster=roster, assignments=assignments,
         pdfs=rows(conn, labs.pdfs, labs.pdfs.c.lab_id == lab_id),
         announcements=rows(conn, labs.announcements, labs.announcements.c.lab_id == lab_id),
         revisions=rows(conn, tasks.revisions, tasks.revisions.c.id.in_(revision_ids(conn, lab_id))),
@@ -96,6 +99,11 @@ def snapshot(conn: sa.Connection, lab: dict, format_version: int = 2) -> dict:
         reviews=rows(conn, store.reviews, store.reviews.c.submission_id.in_(ids)), corrections=batches,
         correction_members=rows(conn, store.members, store.members.c.batch_id.in_([row['id'] for row in batches])),
         marks=review.marks(conn, lab_id), audits=audits)
+    if format_version >= 3:
+        from cjudge.labs import ta_reviews
+        result['ta_reviews'] = rows(conn, ta_reviews.reviews, ta_reviews.reviews.c.lab_id == lab_id)
+        result['ta_review_marks'] = rows(conn, ta_reviews.marks, ta_reviews.marks.c.lab_id == lab_id)
+    return result
 
 
 def file_hash(path: Path) -> tuple[str, int]:
@@ -106,7 +114,7 @@ def file_hash(path: Path) -> tuple[str, int]:
 
 def build(key: UUID, data: dict, csv_data: bytes) -> tuple[str, int]:
     path = root() / f'{key}.zip'
-    manifest = {'format': 'cjudge-lab', 'version': 2, 'lab_id': str(data['lab']['id']),
+    manifest = {'format': 'cjudge-lab', 'version': 3, 'lab_id': str(data['lab']['id']),
         'lab_version': data['lab']['version'], 'snapshot_digest': digest(data),
         'generated_at': identity.now().isoformat(), 'entries': []}
     def add(archive, name: str, content: bytes):
@@ -178,7 +186,7 @@ async def export_lab(lab_id: UUID, request: Request, actor: dict = Depends(admin
                 if digest(snapshot(conn, current)) != digest(data):
                     raise labs.LabError(409, 'Lab evidence changed during export; regenerate the archive')
                 conn.execute(sa.insert(exports).values(id=key, lab_id=lab_id, version=body.version,
-                    snapshot_digest=digest(data), sha256=checksum, size=size, format_version=2))
+                    snapshot_digest=digest(data), sha256=checksum, size=size, format_version=3))
                 identity.audit(conn, 'lab_export_generated', actor['id'], detail={'lab_id': str(lab_id),
                     'export_id': str(key), 'reason': body.reason.strip(), 'sha256': checksum})
             return {'id': key, 'sha256': checksum, 'size': size, 'version': body.version}
@@ -254,6 +262,9 @@ async def delete_lab(lab_id: UUID, request: Request, actor: dict = Depends(admin
             conn.execute(sa.delete(store.runs).where(store.runs.c.submission_id.in_(ids)))
             conn.execute(sa.delete(store.attempts).where(store.attempts.c.submission_id.in_(ids)))
             conn.execute(sa.delete(store.batches).where(store.batches.c.lab_id == lab_id))
+            from cjudge.labs import ta_reviews
+            conn.execute(sa.delete(ta_reviews.marks).where(ta_reviews.marks.c.lab_id == lab_id))
+            conn.execute(sa.delete(ta_reviews.reviews).where(ta_reviews.reviews.c.lab_id == lab_id))
             conn.execute(sa.select(sa.func.set_config('cjudge.delete_lab', str(lab_id), True)))
             conn.execute(sa.delete(store.submissions).where(store.submissions.c.lab_id == lab_id))
             for table in (labs.assignments, labs.enrollments, labs.pdfs, labs.announcements, exports):

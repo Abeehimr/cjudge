@@ -18,6 +18,7 @@ from cjudge.labs.scoreboard import router as scoreboard_router
 from cjudge.authoring.api import router as authoring_admin
 from cjudge.tester.api import router as tester_admin
 from cjudge.labs.ta_api import router as labs_ta
+from cjudge.labs.ta_review_api import router as ta_reviews_admin
 from cjudge.labs import exports, archive  # Register protected CSV routes before including the lab router.
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -30,6 +31,7 @@ app.include_router(tasks_router)
 app.include_router(labs_admin)
 app.include_router(labs_student)
 app.include_router(labs_ta)
+app.include_router(ta_reviews_admin)
 app.include_router(submissions_admin)
 app.include_router(submissions_student)
 app.include_router(judging_admin)
