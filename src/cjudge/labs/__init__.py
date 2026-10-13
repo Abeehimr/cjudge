@@ -22,7 +22,8 @@ labs = sa.Table('labs', metadata,
     sa.Column('first_released_at', sa.DateTime(timezone=True)), sa.Column('created_at', sa.DateTime(timezone=True)))
 assignments = sa.Table('lab_tasks', metadata,
     sa.Column('lab_id', sa.Uuid(), primary_key=True), sa.Column('position', sa.Integer(), primary_key=True),
-    sa.Column('revision_id', sa.Uuid()), sa.Column('maximum_marks', sa.Numeric(7, 2), nullable=False))
+    sa.Column('revision_id', sa.Uuid()), sa.Column('maximum_marks', sa.Numeric(7, 2), nullable=False),
+    sa.Column('ta_maximum', sa.Numeric(7, 2), nullable=False, server_default='0'))
 enrollments = sa.Table('lab_enrollments', metadata,
     sa.Column('lab_id', sa.Uuid(), primary_key=True), sa.Column('account_id', sa.Uuid(), primary_key=True),
     sa.Column('frozen', sa.Boolean()), sa.Column('freeze_reason', sa.String(500)),
@@ -145,7 +146,7 @@ def create(conn: sa.Connection, title: str, strict_ip: bool, actor: UUID) -> dic
 
 
 def task_rows(conn: sa.Connection, lab_id: UUID) -> list[dict]:
-    return [dict(row) for row in conn.execute(sa.select(assignments.c.position, assignments.c.maximum_marks, tasks.revisions.c.id,
+    return [dict(row) for row in conn.execute(sa.select(assignments.c.position, assignments.c.maximum_marks, assignments.c.ta_maximum, tasks.revisions.c.id,
         tasks.revisions.c.task_id, tasks.revisions.c.number, tasks.revisions.c.config)
         .join(tasks.revisions, assignments.c.revision_id == tasks.revisions.c.id)
         .where(assignments.c.lab_id == lab_id).order_by(assignments.c.position)).mappings()]
@@ -168,8 +169,8 @@ def set_tasks(conn: sa.Connection, lab: dict, selected: list[dict], actor: UUID)
     values = [Decimal(str(item['maximum_marks'])) for item in selected]
     if any(not value.is_finite() or value <= 0 or value > 10000 or value.as_tuple().exponent < -2 for value in values):
         raise LabError(400, 'Maximum marks must be 0.01–10000.00 with at most two decimals')
-    existing = {row['task_id']: row['maximum_marks'] for row in task_rows(conn, lab['id'])}
-    if any(revisions[key].task_id in existing and existing[revisions[key].task_id] != value
+    existing = {row['task_id']: row for row in task_rows(conn, lab['id'])}
+    if any(revisions[key].task_id in existing and existing[revisions[key].task_id]['maximum_marks'] != value
            for key, value in zip(ids, values)):
         raise LabError(409, 'Change existing maximum marks with a reason first')
     if lab['starts_at'] is not None:
@@ -182,7 +183,9 @@ def set_tasks(conn: sa.Connection, lab: dict, selected: list[dict], actor: UUID)
     conn.execute(sa.delete(assignments).where(assignments.c.lab_id == lab['id']))
     if ids:
         conn.execute(sa.insert(assignments), [{'lab_id': lab['id'], 'position': pos, 'revision_id': key,
-            'maximum_marks': value} for pos, (key, value) in enumerate(zip(ids, values), 1)])
+            'maximum_marks': value, 'ta_maximum': existing[revisions[key].task_id]['ta_maximum']
+            if revisions[key].task_id in existing else Decimal('0')}
+            for pos, (key, value) in enumerate(zip(ids, values), 1)])
     return changed(conn, lab, actor, 'lab_tasks_updated')
 
 
@@ -199,6 +202,8 @@ def change_maximum(conn: sa.Connection, lab: dict, task_id: UUID, maximum: Decim
         raise LabError(400, 'Maximum marks unchanged')
     conn.execute(sa.update(assignments).where(assignments.c.lab_id == lab['id'],
         assignments.c.position == row['position']).values(maximum_marks=maximum))
+    from cjudge.labs import ta_reviews
+    ta_reviews.flag(conn, lab['id'], task_id=task_id)
     identity.audit(conn, 'lab_task_maximum_changed', actor, detail={'lab_id': str(lab['id']),
         'task_id': str(task_id), 'old_maximum': str(row['maximum_marks']),
         'new_maximum': str(maximum), 'reason': reason})
