@@ -80,7 +80,9 @@ input[type="file"]::file-selector-button:hover { background: #dbeafe; border-col
 a:not([download]):not(.nav-link) { @apply text-blue-800 underline underline-offset-2; }
 
 tr[data-best="true"] { @apply bg-green-50; }
+li[data-best="true"] { @apply rounded bg-green-50 px-2; }
 
 tr[data-deleted="true"] { @apply bg-red-50; }
+li[data-deleted="true"] { @apply bg-red-50; }
 tr[data-frozen="true"] { @apply bg-amber-50; }
 tr[data-cancelled="true"] { @apply bg-red-50; }

@@ -5,7 +5,7 @@ import { useAdminEvents } from "./Isolates";
 import type { AdminLab, Task } from "./Lab";
 
 type Mark = { task_id: string; revision_id: string; title: string; marks: string | null; pending: boolean; best_submission_id: string | null };
-type StudentMarks = { id: string; roll_number: string; name: string; cancelled: boolean; tasks: Mark[]; total: string | null; pending: boolean; submission_count: number };
+export type StudentMarks = { id: string; roll_number: string; name: string; cancelled: boolean; tasks: Mark[]; total: string | null; pending: boolean; submission_count: number };
 type Batch = { id: string; task_id: string; state: string; revision_id: string; created_at: string; total: number; completed: number; delayed: number };
 
 export function Marks({ labId, accountId, taskId }: { labId: string; accountId?: string; taskId?: string }) {
@@ -25,16 +25,23 @@ export function Marks({ labId, accountId, taskId }: { labId: string; accountId?:
     <button onClick={() => { void refresh(); }}>Refresh marks</button>
     {!accountId && !taskId && <a download href={`/api/admin/labs/${labId}/marks.csv`}>Download final CSV</a>}
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
-    <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Student</th>
+    <MarksTable rows={selected} tasks={tasks} labId={labId} taskId={taskId} />
+  </section>;
+}
+
+export function MarksTable({ rows, tasks, labId, taskId, taStudentId }: {
+  rows: StudentMarks[]; tasks: Mark[]; labId: string; taskId?: string; taStudentId?: string;
+}) {
+  const studentPath = taStudentId ? `/ta/labs/${labId}/students/${taStudentId}` : `/admin/labs/${labId}/students`;
+  return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Student</th>
       {tasks.map((task) => <th key={task.task_id}>{task.title}</th>)}{!taskId && <><th>Total</th><th>Active submissions</th></>}</tr></thead>
-      <tbody>{selected.map((row) => <tr className="border-t" data-cancelled={row.cancelled || undefined} key={row.id}>
-        <td><Link to={`/admin/labs/${labId}/students/${row.id}`}>{row.roll_number} · {row.name}</Link>{row.cancelled && ' · Cancelled'}</td>
+      <tbody>{rows.map((row) => <tr className="border-t" data-cancelled={row.cancelled || undefined} key={row.id}>
+        <td>{taStudentId ? `${row.roll_number} · ${row.name}` : <Link to={`${studentPath}/${row.id}`}>{row.roll_number} · {row.name}</Link>}{row.cancelled && ' · Cancelled'}</td>
         {row.tasks.filter((task) => !taskId || task.task_id === taskId).map((task) => <td key={task.task_id}>
-          {row.cancelled ? '—' : task.best_submission_id ? <Link to={`/admin/labs/${labId}/submissions/${task.best_submission_id}`}>{task.marks}</Link> : task.marks || "Pending"}
+          {row.cancelled ? '—' : task.best_submission_id ? <Link to={taStudentId ? `${studentPath}/submissions/${task.best_submission_id}` : `/admin/labs/${labId}/submissions/${task.best_submission_id}`}>{task.marks}</Link> : task.marks || "Pending"}
           {task.pending && task.marks !== null && <span className="block text-amber-800">Provisional · judging pending</span>}</td>)}
         {!taskId && <><td>{row.cancelled ? '—' : row.total}{row.pending && " (provisional)"}</td><td>{row.submission_count}</td></>}
-      </tr>)}</tbody></table>{!selected.length && <p>No enrolled students.</p>}</div>
-  </section>;
+      </tr>)}</tbody></table>{!rows.length && <p>No enrolled students.</p>}</div>;
 }
 
 export function Corrections({ lab, task, csrf, refreshLab, onDirty }: { lab: AdminLab; task: Task; csrf: string;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useMatch, useNavigate, useSearchParams } from "react-router";
 import { api } from "./api";
 import SubmissionDetail from "./SubmissionDetail";
+import { MarksTable, type StudentMarks } from "./Marks";
 import { NotFound } from "./navigation";
 
 type Lab = { id: string; title: string; phase: string; starts_at: string | null; ends_at: string | null;
@@ -10,7 +11,8 @@ type Student = { id: string; roll_number: string; name: string; frozen: boolean;
   frozen_by_name: string | null; cancelled: boolean; cancel_reason: string | null; cancelled_by_name: string | null;
   bound: boolean; ip_changed: boolean; submission_count: number; last_submission_at: string | null };
 type Submission = { id: string; filename: string; accepted_at: string; status: string; best_for_review: boolean;
-  deleted_at: string | null; delete_reason: string | null; early_feedback?: { passed: number; total: number; marks: string; maximum_marks: string } | null };
+  deleted_at: string | null; delete_reason: string | null; marks: string | null; maximum_marks: string | null;
+  passed: number | null; total: number | null };
 
 export default function TALabs({ csrf }: { csrf: string }) {
   const route = useMatch("/ta/labs/:labId/*"), listRoute = useMatch("/ta/labs"), navigate = useNavigate();
@@ -20,12 +22,15 @@ export default function TALabs({ csrf }: { csrf: string }) {
   const [params, setParams] = useSearchParams(), search = params.get("search") || "";
   const [query, setQuery] = useState(search), [labs, setLabs] = useState<Lab[]>([]), [lab, setLab] = useState<Lab | null>(null);
   const [students, setStudents] = useState<Student[]>([]), [student, setStudent] = useState<Student | null>(null);
-  const [history, setHistory] = useState<Submission[]>([]), [offset, setOffset] = useState(0);
+  const [history, setHistory] = useState<Submission[]>([]), [marks, setMarks] = useState<StudentMarks[]>([]), [offset, setOffset] = useState(0);
   const [credential, setCredential] = useState<string | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
-    setCredential(null); setError(""); setLab(null); setStudent(null); setStudents([]); setHistory([]); setOffset(0);
-  }, [labId, studentId]);
+    setCredential(null); setError(""); setLab(null); setStudent(null); setStudents([]); setHistory([]); setMarks([]); setOffset(0);
+  }, [labId]);
+  useEffect(() => {
+    setCredential(null); setError(""); setStudent(null); setHistory([]); setMarks([]); setOffset(0);
+  }, [studentId]);
   useEffect(() => {
     const controller = new AbortController();
     void api<Lab[]>("/ta/labs", { signal: controller.signal }).then(setLabs).catch((e) => { if (!controller.signal.aborted) setError(e.message); });
@@ -57,12 +62,19 @@ export default function TALabs({ csrf }: { csrf: string }) {
     return () => controller.abort();
   }, [labId, studentId, refresh]);
   useEffect(() => {
-    if (!labId || !studentId || !lab?.results_visible) { setHistory([]); return; }
+    if (!labId || !studentId || submissionId) return;
     const controller = new AbortController();
     void api<Submission[]>(`/ta/labs/${labId}/students/${studentId}/submissions?offset=${offset}`,
       { signal: controller.signal }).then(setHistory).catch((e) => { if (!controller.signal.aborted) setError(e.message); });
     return () => controller.abort();
-  }, [labId, studentId, lab?.results_visible, offset, refresh]);
+  }, [labId, studentId, submissionId, offset, refresh]);
+  useEffect(() => {
+    if (!labId || !studentId || submissionId) return;
+    const controller = new AbortController();
+    void api<StudentMarks[]>(`/ta/labs/${labId}/students/${studentId}/marks`, { signal: controller.signal })
+      .then(setMarks).catch((e) => { if (!controller.signal.aborted) setError(e.message); });
+    return () => controller.abort();
+  }, [labId, studentId, submissionId, refresh]);
   useEffect(() => {
     const path = labId ? `/api/ta/labs/${labId}/events` : "/api/ta/events";
     const source = new EventSource(path);
@@ -104,7 +116,7 @@ export default function TALabs({ csrf }: { csrf: string }) {
         {search && <><p>{students.length} match{students.length === 1 ? "" : "es"}{students.length === 50 && " (first 50)"}</p>
           <ul className="divide-y">{students.map((item) => <li key={item.id} className="py-3"><Link to={`/ta/labs/${labId}/students/${item.id}`}>{item.roll_number} · {item.name}</Link>
             <span className="block text-sm">{item.submission_count} submissions · {item.bound ? "Browser bound" : "Browser unbound"}{item.cancelled ? " · Cancelled" : item.frozen ? " · Frozen" : ""}</span></li>)}</ul></>}</section>}
-      {studentId && student && <section className="space-y-3 rounded border bg-white p-4">
+      {studentId && !submissionId && student && <section className="space-y-3 rounded border bg-white p-4">
         <h2 className="font-semibold">{student.roll_number} · {student.name}</h2>
         <p>{student.bound ? "Browser bound" : "Browser unbound"}{student.ip_changed && " · IP changed"} · {student.submission_count} submissions
           {student.last_submission_at && ` · Latest ${new Date(student.last_submission_at).toLocaleString()}`}</p>
@@ -115,26 +127,28 @@ export default function TALabs({ csrf }: { csrf: string }) {
           <button disabled={busy} onClick={() => { const why = reason(student.cancelled ? "reinstate" : "cancel"); if (why) void act("cancellation", "PUT", { cancelled: !student.cancelled, reason: why }); }}>{student.cancelled ? "Reinstate" : "Cancel"}</button>
           <button disabled={busy || !student.bound} onClick={() => { if (!confirm(`Release ${student.roll_number}'s browser and reset their password?`)) return;
             const why = reason("release browser"); if (why) void act("release", "POST", { reason: why }, true); }}>Release browser</button>
-          <button disabled={busy} onClick={() => { if (confirm(`Show ${student.roll_number}'s current password? Keep it private.`)) void act("password", "POST", { confirm: true }, true); }}>Show password</button>
+          <button disabled={busy} onClick={() => { void act("password", "POST", {}, true); }}>Show password</button>
         </div>}
         {credential && <div className="notice notice-warning" aria-label="Selected student password">
           <p>Current password for {student.roll_number}: <strong className="font-mono">{credential}</strong></p>
           <button onClick={() => setCredential(null)}>Hide password</button></div>}
       </section>}
-      {studentId && lab?.results_visible && <section className="space-y-3 rounded border bg-white p-4">
-        <h2 className="font-semibold">Released submissions</h2>
+      {studentId && !submissionId && <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Marks</h2>
+        <MarksTable rows={marks} tasks={marks[0]?.tasks || []} labId={labId} taStudentId={studentId} /></section>}
+      {studentId && !submissionId && <section className="space-y-3 rounded border bg-white p-4">
+        <h2 className="font-semibold">Submissions</h2>
         <ul className="divide-y">{history.map((row) => <li key={row.id} className="py-3" data-best={row.best_for_review || undefined} data-deleted={!!row.deleted_at || undefined}>
           <Link to={`/ta/labs/${labId}/students/${studentId}/submissions/${row.id}`}>{row.filename}</Link> · {new Date(row.accepted_at).toLocaleString()}
           <span className="submission-status ml-2" data-status={row.status}>{row.status}</span>
-          {row.best_for_review && <span className="block text-green-800">Best for review</span>}
+          {row.best_for_review && !row.deleted_at && <span className="block text-green-800">Best for review</span>}
           {row.deleted_at && <span className="block text-red-800">Deleted · {row.delete_reason}</span>}
-          {row.early_feedback && <span className="block">{row.early_feedback.passed}/{row.early_feedback.total} cases · Marks {row.early_feedback.marks} <strong>/</strong> {row.early_feedback.maximum_marks}</span>}
+          {row.marks !== null && <span className="block">{row.passed}/{row.total} cases · Marks {row.marks} <strong>/</strong> {row.maximum_marks}</span>}
         </li>)}</ul>
         {!history.length && <p>No submissions.</p>}
         <div className="flex gap-2"><button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>Newer</button>
           <button disabled={history.length < 100} onClick={() => setOffset(offset + 100)}>Older</button></div>
       </section>}
-      {submissionId && lab && <SubmissionDetail labId={labId} submissionId={submissionId} visible={lab.results_visible}
+      {submissionId && lab && <SubmissionDetail labId={labId} submissionId={submissionId} visible
         refreshKey={lab.server_time} basePath={`/ta/labs/${labId}/students/${studentId}/submissions`} />}
     </>}
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
