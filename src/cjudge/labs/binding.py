@@ -76,6 +76,7 @@ def access(conn: sa.Connection, lab: dict, account_id: UUID, session_token: str 
 
 
 def release(conn: sa.Connection, lab: dict, account_id: UUID, reason: str, actor: UUID) -> dict:
+    labs.editable(lab)
     active = identity.checked_cipher(conn)
     student = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number,
         identity.accounts.c.name, identity.accounts.c.active).where(identity.accounts.c.id == account_id,

@@ -26,11 +26,15 @@ assignments = sa.Table('lab_tasks', metadata,
 enrollments = sa.Table('lab_enrollments', metadata,
     sa.Column('lab_id', sa.Uuid(), primary_key=True), sa.Column('account_id', sa.Uuid(), primary_key=True),
     sa.Column('frozen', sa.Boolean()), sa.Column('freeze_reason', sa.String(500)),
+    sa.Column('frozen_by', sa.Uuid()),
     sa.Column('cancelled', sa.Boolean(), nullable=False, server_default=sa.false()),
-    sa.Column('cancel_reason', sa.String(500)),
+    sa.Column('cancel_reason', sa.String(500)), sa.Column('cancelled_by', sa.Uuid()),
     sa.Column('binding_hash', sa.String(64)), sa.Column('bound_ip', sa.String(45)),
     sa.Column('last_ip', sa.String(45)), sa.Column('ip_changed', sa.Boolean()),
     sa.Column('bound_at', sa.DateTime(timezone=True)))
+ta_assignments = sa.Table('lab_tas', metadata,
+    sa.Column('lab_id', sa.Uuid(), primary_key=True), sa.Column('ta_id', sa.Uuid(), primary_key=True),
+    sa.Column('assigned_at', sa.DateTime(timezone=True)))
 pdfs = sa.Table('lab_pdfs', metadata,
     sa.Column('id', sa.Uuid(), primary_key=True), sa.Column('lab_id', sa.Uuid()), sa.Column('name', sa.String(160)),
     sa.Column('size', sa.Integer()), sa.Column('active', sa.Boolean()), sa.Column('replaces_id', sa.Uuid()),
@@ -318,9 +322,13 @@ def remove_student(conn: sa.Connection, lab: dict, account_id: UUID, actor: UUID
 
 def freeze(conn: sa.Connection, lab: dict, account_id: UUID, frozen: bool, reason: str, actor: UUID) -> None:
     editable(lab)
-    enrollment(conn, lab['id'], account_id)
+    row = enrollment(conn, lab['id'], account_id)
+    if row['frozen'] == frozen:
+        raise LabError(409, 'Freeze state already changed')
+    if not frozen:
+        _check_owner(conn, row['frozen_by'], actor)
     conn.execute(sa.update(enrollments).where(enrollments.c.lab_id == lab['id'], enrollments.c.account_id == account_id)
-                 .values(frozen=frozen, freeze_reason=reason if frozen else None))
+                 .values(frozen=frozen, freeze_reason=reason if frozen else None, frozen_by=actor if frozen else None))
     identity.audit(conn, 'lab_student_frozen' if frozen else 'lab_student_unfrozen', actor, account_id,
                    detail={'lab_id': str(lab['id']), 'reason': reason})
     announce(conn, lab['id'], f'Submissions {"paused" if frozen else "resumed"}. Reason: {reason}', actor, account_id)
@@ -334,9 +342,11 @@ def set_cancelled(conn: sa.Connection, lab: dict, account_id: UUID, cancelled: b
     row = enrollment(conn, lab['id'], account_id)
     if row['cancelled'] == cancelled:
         raise LabError(409, 'Participation state already changed')
+    if not cancelled:
+        _check_owner(conn, row['cancelled_by'], actor)
     conn.execute(sa.update(enrollments).where(enrollments.c.lab_id == lab['id'],
         enrollments.c.account_id == account_id).values(cancelled=cancelled,
-        cancel_reason=reason if cancelled else None))
+        cancel_reason=reason if cancelled else None, cancelled_by=actor if cancelled else None))
     conn.execute(sa.update(labs).where(labs.c.id == lab['id']).values(version=lab['version'] + 1))
     if cancelled:
         review.publish_ready(conn, lab['id'])
@@ -347,3 +357,9 @@ def set_cancelled(conn: sa.Connection, lab: dict, account_id: UUID, cancelled: b
         detail={'lab_id': str(lab['id']), 'reason': reason})
     announce(conn, lab['id'], f'Lab participation {"cancelled" if cancelled else "reinstated"}. Reason: {reason}', actor, account_id)
     queue.notify(conn, account_id, lab_id=lab['id'])
+
+
+def _check_owner(conn: sa.Connection, owner: UUID | None, actor: UUID) -> None:
+    role = conn.execute(sa.select(identity.accounts.c.role).where(identity.accounts.c.id == actor)).scalar_one()
+    if role != 'admin' and owner != actor:
+        raise LabError(403, 'Only the acting TA or admin can reverse this action')

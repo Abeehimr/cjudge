@@ -348,28 +348,33 @@ def released_row(conn: sa.Connection, lab_id: UUID, submission_id: UUID, request
 def released_detail(lab_id: UUID, submission_id: UUID, request: Request, run_id: UUID | None = None,
                     account: dict = Depends(student)):
     with transaction() as conn:
-        lab, row = released_row(conn, lab_id, submission_id, request, account)
-        official_run_id = row['run_id']
-        official_marks = review.displayed(review.exact(row)) if official_run_id else None
-        if run_id:
-            selected = conn.execute(sa.select(store.runs).where(store.runs.c.id == run_id,
-                store.runs.c.submission_id == submission_id)).mappings().first()
-            if not selected:
-                raise HTTPException(404, 'Judge run not found')
-            row.update({key: selected[key] for key in ('verdict', 'compiler_feedback', 'compiler_truncated',
-                'passed', 'total', 'score_numerator', 'score_denominator')})
-            row.update(run_id=run_id, result_revision_id=selected['revision_id'])
-            row['result_config'] = conn.execute(sa.select(tasks.revisions.c.config)
-                .where(tasks.revisions.c.id == selected['revision_id'])).scalar_one()
-        return output(row, 'full', results_visible=True) | dict(source=files.read(row).decode('utf-8', errors='replace'),
-            official_run_id=official_run_id, official_marks=official_marks, run_id=row['run_id'],
-            result_revision_id=row['result_revision_id'], marks=review.displayed(review.exact(row)) if row['run_id'] else None,
-            maximum_marks=f"{run_maximum(row):.2f}" if row['run_id'] else None,
-            passed=row['passed'], total=row['total'], grading_pending=row['state'] != 'complete' or bool(row['batch_id']),
-            history=[dict(item) for item in conn.execute(sa.select(store.runs.c.id, store.runs.c.revision_id,
-                store.runs.c.verdict, store.runs.c.finished_at).where(store.runs.c.submission_id == submission_id)
-                .order_by(store.runs.c.finished_at.desc())).mappings()],
-            cases=case_details(conn, row['run_id'], row['result_revision_id']))
+        _, row = released_row(conn, lab_id, submission_id, request, account)
+        return released_data(conn, row, submission_id, run_id)
+
+
+def released_data(conn: sa.Connection, row: dict, submission_id: UUID, run_id: UUID | None = None) -> dict:
+    row = dict(row)
+    official_run_id = row['run_id']
+    official_marks = review.displayed(review.exact(row)) if official_run_id else None
+    if run_id:
+        selected = conn.execute(sa.select(store.runs).where(store.runs.c.id == run_id,
+            store.runs.c.submission_id == submission_id)).mappings().first()
+        if not selected:
+            raise HTTPException(404, 'Judge run not found')
+        row.update({key: selected[key] for key in ('verdict', 'compiler_feedback', 'compiler_truncated',
+            'passed', 'total', 'score_numerator', 'score_denominator')})
+        row.update(run_id=run_id, result_revision_id=selected['revision_id'])
+        row['result_config'] = conn.execute(sa.select(tasks.revisions.c.config)
+            .where(tasks.revisions.c.id == selected['revision_id'])).scalar_one()
+    return output(row, 'full', results_visible=True) | dict(source=files.read(row).decode('utf-8', errors='replace'),
+        official_run_id=official_run_id, official_marks=official_marks, run_id=row['run_id'],
+        result_revision_id=row['result_revision_id'], marks=review.displayed(review.exact(row)) if row['run_id'] else None,
+        maximum_marks=f"{run_maximum(row):.2f}" if row['run_id'] else None,
+        passed=row['passed'], total=row['total'], grading_pending=row['state'] != 'complete' or bool(row['batch_id']),
+        history=[dict(item) for item in conn.execute(sa.select(store.runs.c.id, store.runs.c.revision_id,
+            store.runs.c.verdict, store.runs.c.finished_at).where(store.runs.c.submission_id == submission_id)
+            .order_by(store.runs.c.finished_at.desc())).mappings()],
+        cases=case_details(conn, row['run_id'], row['result_revision_id']))
 
 
 @student_router.get('/{submission_id}/source')

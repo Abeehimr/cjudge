@@ -14,7 +14,7 @@ from starlette.concurrency import run_in_threadpool
 
 from cjudge import identity, labs, tasks
 from cjudge.labs import binding as lab_binding, files as lab_files
-from cjudge.identity.api import CredentialOutput, StudentOutput, StrictModel, admin, admin_write, current, write_guard, COOKIE, no_store
+from cjudge.identity.api import CredentialOutput, StudentOutput, TAOutput, StrictModel, admin, admin_write, current, write_guard, COOKIE, no_store
 from cjudge.tasks.api import bounded_body, json_input
 from cjudge.tasks.grading import TaskConfig
 
@@ -67,6 +67,10 @@ class TaskInput(VersionInput):
 
 class EnrollmentInput(VersionInput):
     ids: list[UUID] = Field(min_length=1, max_length=1000)
+
+
+class TAAssignmentsInput(VersionInput):
+    ids: list[UUID] = Field(max_length=100)
 
 
 class StudentInput(VersionInput):
@@ -166,8 +170,12 @@ class RosterOutput(StrictModel):
     name: str
     frozen: bool
     freeze_reason: str | None
+    frozen_by: UUID | None
+    frozen_by_name: str | None
     cancelled: bool
     cancel_reason: str | None
+    cancelled_by: UUID | None
+    cancelled_by_name: str | None
     bound_ip: str | None
     last_ip: str | None
     ip_changed: bool
@@ -186,6 +194,7 @@ class AdminLab(LabSummary):
     tasks: list[AssignedTask]
     pdfs: list[AdminPdf]
     students: list[RosterOutput]
+    tas: list[TAOutput]
     announcements: list[AnnouncementOutput]
 
 
@@ -249,12 +258,20 @@ def snapshot(conn: sa.Connection, lab: dict, enrollment: dict | None = None) -> 
                                           for row in pdf_rows],
         'announcements': [{key: row[key] for key in AnnouncementOutput.model_fields} for row in messages]}
     if admin_view:
+        frozen_actor = identity.accounts.alias('frozen_actor')
+        cancelled_actor = identity.accounts.alias('cancelled_actor')
         roster = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number, identity.accounts.c.name,
-            *[labs.enrollments.c[key] for key in RosterOutput.model_fields if key not in ('id', 'roll_number', 'name')])
+            *[labs.enrollments.c[key] for key in RosterOutput.model_fields if key not in ('id', 'roll_number', 'name', 'frozen_by_name', 'cancelled_by_name')],
+            frozen_actor.c.name.label('frozen_by_name'), cancelled_actor.c.name.label('cancelled_by_name'))
             .join(labs.enrollments, identity.accounts.c.id == labs.enrollments.c.account_id)
+            .outerjoin(frozen_actor, frozen_actor.c.id == labs.enrollments.c.frozen_by)
+            .outerjoin(cancelled_actor, cancelled_actor.c.id == labs.enrollments.c.cancelled_by)
             .where(labs.enrollments.c.lab_id == lab['id']).order_by(identity.accounts.c.roll_number)).mappings()
+        tas = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.username, identity.accounts.c.name,
+            identity.accounts.c.active).join(labs.ta_assignments, identity.accounts.c.id == labs.ta_assignments.c.ta_id)
+            .where(labs.ta_assignments.c.lab_id == lab['id']).order_by(identity.accounts.c.username)).mappings()
         result.update(version=lab['version'], strict_ip=lab['strict_ip'], compiler_feedback=lab['compiler_feedback'], first_released_at=lab['first_released_at'], reveal_results=lab['reveal_results'], archived_at=lab['archived_at'],
-            students=[dict(row) for row in roster], tasks=[{'position': row['position'], 'revision_id': row['id'],
+            students=[dict(row) for row in roster], tas=[dict(row) for row in tas], tasks=[{'position': row['position'], 'revision_id': row['id'],
                 'previous_revision_ids': previous.get(row['task_id'], []),
                 'task_id': row['task_id'], 'number': row['number'], 'maximum_marks': f"{row['maximum_marks']:.2f}",
                 'config': row['config']} for row in assigned])
@@ -447,6 +464,36 @@ async def remove_students(lab_id: UUID, request: Request, actor: dict = Depends(
 def remove_student(lab_id: UUID, account_id: UUID, version: int = Query(ge=1), actor: dict = Depends(admin_write)):
     with transaction() as conn:
         return snapshot(conn, labs.remove_student(conn, labs.find(conn, lab_id, version), account_id, actor['id']))
+
+
+@admin_router.put('/{lab_id}/tas', response_model=AdminLab)
+def assign_tas(lab_id: UUID, body: TAAssignmentsInput, actor: dict = Depends(admin_write)) -> dict:
+    if len(body.ids) != len(set(body.ids)):
+        raise HTTPException(400, 'Duplicate TA selection')
+    with transaction() as conn:
+        lab = labs.find(conn, lab_id, body.version)
+        labs.editable(lab)
+        old = set(conn.execute(sa.select(labs.ta_assignments.c.ta_id).where(
+            labs.ta_assignments.c.lab_id == lab_id)).scalars())
+        new = set(body.ids)
+        adding = new - old
+        valid = conn.execute(sa.select(identity.accounts.c.id).where(identity.accounts.c.id.in_(adding),
+            identity.accounts.c.role == 'ta', identity.accounts.c.active)).scalars().all()
+        if len(valid) != len(adding):
+            raise labs.LabError(400, 'Select active TA accounts only')
+        if old == new:
+            raise labs.LabError(409, 'TA assignments already match')
+        if old - new:
+            conn.execute(sa.delete(labs.ta_assignments).where(labs.ta_assignments.c.lab_id == lab_id,
+                labs.ta_assignments.c.ta_id.in_(old - new)))
+        if new - old:
+            conn.execute(sa.insert(labs.ta_assignments), [{'lab_id': lab_id, 'ta_id': ta_id} for ta_id in new - old])
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab_id).values(version=lab['version'] + 1))
+        identity.audit(conn, 'lab_tas_assigned', actor['id'], detail={
+            'lab_id': str(lab_id), 'added': [str(id) for id in new - old], 'removed': [str(id) for id in old - new]})
+        for ta_id in old ^ new:
+            labs.notify(conn, account_id=ta_id)
+        return snapshot(conn, labs.find(conn, lab_id))
 
 
 @admin_router.post('/{lab_id}/students/{account_id}/freeze', status_code=204)
