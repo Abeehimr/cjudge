@@ -9,6 +9,7 @@ import { NotFound, useOffset, useUnsaved } from "./navigation";
 import Release from "./Release";
 import { Marks, Corrections } from "./Marks";
 import { AdminScoreboard } from "./Scoreboard";
+import TAAssignments from "./TAAssignments";
 
 export function AdminLabs({ csrf }: { csrf: string }) {
   const [rows, setRows] = useState<Summary[]>([]);
@@ -318,7 +319,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
           <tbody>{visibleRoster.map((member) => <tr className="border-t" data-frozen={member.frozen || undefined} data-cancelled={member.cancelled || undefined} key={member.id}>{selectableRoster && <td><input type="checkbox" aria-label={`Select ${member.roll_number}`} disabled={busy}
               checked={selectedRoster.includes(member.id)} onChange={() => selectRoster(member.id)} /></td>}<td><Link to={`/admin/labs/${lab.id}/students/${member.id}`}>{member.roll_number}</Link></td><td>{member.name}</td>
             <td>{member.bound_at ? `Bound · ${member.last_ip}` : "Not bound"}{member.ip_changed && <span className="block">IP changed (original {member.bound_ip})</span>}</td>
-            <td><span className={member.cancelled ? 'notice-danger rounded px-2 py-1' : member.frozen ? "notice-warning rounded px-2 py-1" : ""}>{member.cancelled ? `Cancelled · ${member.cancel_reason}` : member.frozen ? `Frozen · ${member.freeze_reason}` : "Enabled during lab"}</span></td><td><div className="flex flex-wrap gap-2">
+            <td><span className={member.cancelled ? 'notice-danger rounded px-2 py-1' : member.frozen ? "notice-warning rounded px-2 py-1" : ""}>{member.cancelled ? `Cancelled by ${member.cancelled_by_name || "admin"} · ${member.cancel_reason}` : member.frozen ? `Frozen by ${member.frozen_by_name || "admin"} · ${member.freeze_reason}` : "Enabled during lab"}</span></td><td><div className="flex flex-wrap gap-2">
               <button disabled={busy || !!lab?.archived_at} onClick={() => rosterAction(member, "freeze")}>{member.frozen ? "Unfreeze" : "Freeze"} {member.roll_number}</button>
               <button disabled={busy || !!lab?.archived_at} onClick={() => { void cancellation(member); }}>{member.cancelled ? 'Reinstate' : 'Cancel'} {member.roll_number}</button>
               <button disabled={busy || !member.bound_at} onClick={() => rosterAction(member, "release")}>Release browser {member.roll_number}</button>
@@ -327,6 +328,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       </section>
       </>}
       {section === "overview" && <>
+      <TAAssignments lab={lab} csrf={csrf} onSave={accept} />
       <form onSubmit={(e) => { e.preventDefault(); void perform(async () => { await mutate("/announcements", "POST", { body: announcement }); setAnnouncement(""); }); }} className="rounded border bg-white p-4">
         <label className="block">Message to lab<textarea required maxLength={4000} rows={3} value={announcement} onChange={(e) => setAnnouncement(e.target.value)} className="mt-1 block w-full" /></label>
         <button disabled={busy || !!lab?.archived_at}>Post announcement</button>

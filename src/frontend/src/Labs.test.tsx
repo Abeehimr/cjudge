@@ -98,8 +98,8 @@ test('frozen enrollment shades its row and keeps the reason visible', async () =
   vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
     json: async () => path === '/api/admin/labs/lab' ? lab : [] })));
   renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students');
-  expect((await screen.findByText('Frozen · Review required')).closest('tr')?.getAttribute('data-frozen')).toBe('true');
-  expect(screen.getByText('Frozen · Review required').className).toContain('notice-warning');
+  expect((await screen.findByText('Frozen by admin · Review required')).closest('tr')?.getAttribute('data-frozen')).toBe('true');
+  expect(screen.getByText('Frozen by admin · Review required').className).toContain('notice-warning');
 });
 
 test('admin cancellation sends a reason and lab version, then shows the cancelled row', async () => {
@@ -116,7 +116,7 @@ test('admin cancellation sends a reason and lab version, then shows the cancelle
   vi.stubGlobal('fetch', fetchMock); vi.stubGlobal('confirm', vi.fn(() => true)); vi.stubGlobal('prompt', vi.fn(() => 'Review'));
   renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students/student');
   fireEvent.click(await screen.findByRole('button', { name: 'Cancel 001A' }));
-  expect((await screen.findByText('Cancelled · Review')).closest('tr')?.getAttribute('data-cancelled')).toBe('true');
+  expect((await screen.findByText('Cancelled by admin · Review')).closest('tr')?.getAttribute('data-cancelled')).toBe('true');
   expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/students/student/cancellation', expect.objectContaining({
     method: 'PUT', body: JSON.stringify({ version: 3, cancelled: true, reason: 'Review' }),
     headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }),
@@ -162,13 +162,13 @@ test('browser release shows replacement password to admin', async () => {
   expect(screen.queryByText('abc123')).toBeNull();
 });
 
-test('admin overview does not load account options, task options, or submissions', async () => {
+test('admin overview loads TA assignment options but not student, task, or submission options', async () => {
   live(); const lab = { ...summary, version: 1, strict_ip: false, first_released_at: null, compiler_feedback: 'short', tasks: [], pdfs: [], students: [], announcements: [] };
-  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200, json: async () => path.endsWith('/marks') ? [] : lab }));
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200, json: async () => path.endsWith('/marks') || path === '/api/admin/tas' ? [] : lab }));
   vi.stubGlobal('fetch', fetchMock);
   renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab');
   expect(await screen.findByRole('button', { name: 'Save lab settings' })).toBeTruthy();
-  expect(fetchMock.mock.calls.every(([path]) => ['/api/admin/labs/lab', '/api/admin/labs/lab/marks'].includes(path))).toBe(true);
+  expect(fetchMock.mock.calls.every(([path]) => ['/api/admin/labs/lab', '/api/admin/labs/lab/marks', '/api/admin/tas'].includes(path))).toBe(true);
   expect(screen.queryByRole('heading', { name: 'Enrollment (0)' })).toBeNull();
 });
 

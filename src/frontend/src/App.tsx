@@ -7,9 +7,11 @@ import TaskTester from "./TaskTester";
 import { StudentLabs } from "./StudentLabs";
 import { AdminLabs } from "./AdminLabs";
 import Isolates from "./Isolates";
+import TAAccounts from "./TAAccounts";
+import TALabs from "./TALabs";
 import { NotFound } from "./navigation";
 
-type Session = { id: string; role: "admin" | "student"; roll_number: string | null; name: string; csrf_token: string };
+type Session = { id: string; role: "admin" | "student" | "ta"; username?: string; roll_number: string | null; name: string; csrf_token: string };
 
 function Screen() {
   const [session, setSession] = useState<Session | null>(null);
@@ -28,13 +30,15 @@ function Screen() {
   async function login(event: FormEvent) {
     event.preventDefault(); if (signingIn) return;
     setSigningIn(true); setError("");
-    const username = identifier.trim(), role = username.toLowerCase() === "admin" ? "admin" : "student";
+    const username = identifier.trim();
     try {
-      const account = await api<Session>(`/auth/${role}/login`, { method: "POST", body: JSON.stringify({ identifier: username, password }) });
+      const account = await api<Session>("/auth/login", { method: "POST", body: JSON.stringify({ identifier: username, password }) });
       setPassword(""); setIdentifier(""); setSession(account);
+      const home = account.role === "admin" ? "/admin/labs" : account.role === "ta" ? "/ta/labs" : "/labs";
       const permitted = account.role === "admin" ? location.pathname.startsWith("/admin/")
+        : account.role === "ta" ? location.pathname.startsWith("/ta/")
         : location.pathname === "/labs" || location.pathname.startsWith("/labs/");
-      if (!permitted) navigate(account.role === "admin" ? "/admin/labs" : "/labs", { replace: true });
+      if (!permitted) navigate(home, { replace: true });
     } catch (e) { setError((e as Error).message); }
     finally { setSigningIn(false); }
   }
@@ -43,8 +47,10 @@ function Screen() {
     try { await api("/auth/logout", { method: "POST" }, session.csrf_token); setSession(null); setError(""); navigate("/login", { replace: true }); }
     catch (e) { setError((e as Error).message); }
   }
-  const home = session?.role === "admin" ? "/admin/labs" : "/labs";
-  const wrongRole = session && (session.role === "student" ? location.pathname.startsWith("/admin/") : location.pathname === "/labs" || location.pathname.startsWith("/labs/"));
+  const home = session?.role === "admin" ? "/admin/labs" : session?.role === "ta" ? "/ta/labs" : "/labs";
+  const wrongRole = session && (session.role === "admin" ? location.pathname.startsWith("/ta/") || location.pathname.startsWith("/labs")
+    : session.role === "ta" ? location.pathname.startsWith("/admin/") || location.pathname.startsWith("/labs")
+    : location.pathname.startsWith("/admin/") || location.pathname.startsWith("/ta/"));
   return <div className="min-h-screen bg-slate-100 text-slate-900">
     <header className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-slate-300 bg-white px-6 py-3">
       <strong>cJudge</strong>{session && <div className="flex items-center gap-3"><span>{session.name}{session.roll_number && ` · Roll number: ${session.roll_number}`}</span>
@@ -57,19 +63,23 @@ function Screen() {
           <label>Password<input className="mt-1 w-full" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
           <button disabled={signingIn}>{signingIn ? "Signing in…" : "Sign in"}</button>
         </form></section> : <div key={session.id}>
-        <nav aria-label={session.role === "admin" ? "Admin navigation" : "Student navigation"} className="no-print mb-4 flex flex-wrap gap-2">
-          {session.role === "admin" ? <>{[["labs", "Labs"], ["students", "Students"], ["tasks", "Task Library"], ["isolates", "Isolates"]].map(([path, title]) =>
-            <NavLink key={path} className="nav-link" to={`/admin/${path}`}>{title}</NavLink>)}</> : <NavLink className="nav-link" to="/labs">Labs</NavLink>}
+        <nav aria-label={session.role === "admin" ? "Admin navigation" : session.role === "ta" ? "TA navigation" : "Student navigation"} className="no-print mb-4 flex flex-wrap gap-2">
+          {session.role === "admin" ? <>{[["labs", "Labs"], ["students", "Students"], ["tas", "TAs"], ["tasks", "Task Library"], ["isolates", "Isolates"]].map(([path, title]) =>
+            <NavLink key={path} className="nav-link" to={`/admin/${path}`}>{title}</NavLink>)}</> : session.role === "ta"
+            ? <NavLink className="nav-link" to="/ta/labs">Assigned labs</NavLink>
+            : <NavLink className="nav-link" to="/labs">Labs</NavLink>}
         </nav>
         {wrongRole ? <Navigate to={home} replace /> : <Routes>
           <Route path="/" element={<Navigate to={home} replace />} />
           <Route path="/login" element={<Navigate to={home} replace />} />
           <Route path="/admin/students" element={<Accounts csrf={session.csrf_token} />} />
+          <Route path="/admin/tas" element={<TAAccounts csrf={session.csrf_token} />} />
           <Route path="/admin/tasks/:taskId/tester/:batchId?/:sourceId?" element={<TaskTester csrf={session.csrf_token} />} />
           <Route path="/admin/tasks/*" element={<TaskLibrary csrf={session.csrf_token} />} />
           <Route path="/admin/labs/*" element={<AdminLabs csrf={session.csrf_token} />} />
           <Route path="/admin/isolates" element={<Isolates />} />
           <Route path="/labs/*" element={<StudentLabs csrf={session.csrf_token} />} />
+          <Route path="/ta/labs/*" element={<TALabs csrf={session.csrf_token} />} />
           <Route path="*" element={<NotFound />} />
         </Routes>}
       </div>}

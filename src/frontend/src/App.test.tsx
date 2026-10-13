@@ -55,7 +55,7 @@ test("admin reveals selected credentials only after an explicit action", async (
   expect(screen.queryByText("PRIVATE-PASS")).toBeNull();
 });
 
- test.each([["  AdMiN  ", "admin", "AdMiN"], [" 001a ", "student", "001a"]])("unified login routes %s and prevents duplicate submission", async (input, role, identifier) => {
+ test.each([["  AdMiN  ", "AdMiN"], [" 001a ", "001a"], ["  helper  ", "helper"]])("unified login routes %s and prevents duplicate submission", async (input, identifier) => {
   let complete!: (value: unknown) => void;
   const fetchMock = vi.fn().mockImplementation((path: string) => path.endsWith("/login")
     ? new Promise((resolve) => { complete = resolve; })
@@ -66,7 +66,7 @@ test("admin reveals selected credentials only after an explicit action", async (
   fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong" } });
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   expect((screen.getByRole("button", { name: "Signing in…" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(fetchMock).toHaveBeenCalledWith(`/api/auth/${role}/login`, expect.objectContaining({ body: JSON.stringify({ identifier, password: "wrong" }) }));
+  expect(fetchMock).toHaveBeenCalledWith("/api/auth/login", expect.objectContaining({ body: JSON.stringify({ identifier, password: "wrong" }) }));
   complete({ ok: false, status: 401, json: async () => ({ detail: "Invalid credentials" }) });
   expect((await screen.findByRole("alert")).className).toContain("notice-danger");
   expect(screen.getByText("Invalid credentials")).toBeTruthy();
