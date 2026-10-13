@@ -10,6 +10,7 @@ import Release from "./Release";
 import { Marks, Corrections } from "./Marks";
 import { AdminScoreboard } from "./Scoreboard";
 import TAAssignments, { AdminTADetail } from "./TAAssignments";
+import { AdminTAReviews } from "./TAReviews";
 
 export function AdminLabs({ csrf }: { csrf: string }) {
   const [rows, setRows] = useState<Summary[]>([]);
@@ -168,7 +169,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     section === 'tasks' && !revisionId && JSON.stringify(taskIds) !== JSON.stringify(lab.tasks.map((t) => t.revision_id)) ||
     section === 'students' && (!!roll || !!name)));
   useUnsaved(dirty);
-  if ((!route && !listRoute) || parts.length > 2 || !['overview', 'students', 'tasks', 'submissions', 'scoreboard', 'tas'].includes(section) ||
+  if ((!route && !listRoute) || parts.length > 2 || !['overview', 'students', 'tasks', 'submissions', 'scoreboard', 'tas', 'reviews'].includes(section) ||
       section === 'overview' && parts.length > 0 || section === 'scoreboard' && parts.length !== 1 || [404, 422].includes(failure) || lab && (studentId && !member || revisionId && !task)) return <NotFound />;
   return <div className="space-y-4">
     <h1 className="text-xl font-semibold">{labId ? lab?.title || "Lab" : "Labs"}</h1>
@@ -185,7 +186,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     {labId && !lab && !message && <p role="status">Loading lab…</p>}
     {lab && <>
       <nav aria-label="Lab breadcrumbs"><Link to="/admin/labs">Labs</Link> / <Link to={`/admin/labs/${lab.id}`}>{lab.title}</Link>{studentId && ` / ${member?.roll_number}`}{revisionId && ` / ${task?.config.title}`}{taId && ` / ${lab.tas?.find((ta) => ta.id === taId)?.username || 'TA'}`}</nav>
-      <nav aria-label="Lab navigation" className="flex flex-wrap gap-2">{[["", "Overview"], ["students", "Students"], ["tasks", "Tasks"], ["tas", "TAs"], ["submissions", "Submissions"], ["scoreboard", "Scoreboard"]].map(([path, title]) => <NavLink end={!path} className="nav-link" key={path} to={`/admin/labs/${lab.id}${path ? "/" + path : ""}`}>{title}</NavLink>)}</nav>
+      <nav aria-label="Lab navigation" className="flex flex-wrap gap-2">{[["", "Overview"], ["students", "Students"], ["tasks", "Tasks"], ["tas", "TAs"], ["reviews", "TA Reviews"], ["submissions", "Submissions"], ["scoreboard", "Scoreboard"]].map(([path, title]) => <NavLink end={!path} className="nav-link" key={path} to={`/admin/labs/${lab.id}${path ? "/" + path : ""}`}>{title}</NavLink>)}</nav>
       <section className="rounded border bg-white p-4"><div className="flex justify-between"><h2 className="font-semibold">{lab.title} · {lab.phase}</h2>
         <button disabled={busy} onClick={() => perform(() => reload())}>Refresh lab</button></div>
         <LabClock serverTime={lab.server_time} start={lab.starts_at} end={lab.ends_at} refresh={() => { void reload().catch((e) => showError(e.message)); }} />
@@ -336,11 +337,22 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       <Announcements messages={lab.announcements} />
       </>}
       {section === "tas" && (taId ? <AdminTADetail labId={lab.id} taId={taId} /> : <TAAssignments lab={lab} csrf={csrf} onSave={accept} />)}
+      {section === "reviews" && <AdminTAReviews labId={lab.id} csrf={csrf} archived={!!lab.archived_at} tas={lab.tas || []} />}
       {revisionId && task && <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">{task.config.title} · revision {task.number}</h2>
         <p>{task.maximum_marks} marks · CPU {task.config.cpu_seconds}s · Wall {task.config.wall_seconds}s · Memory {task.config.memory_mib} MiB</p>
         {!lab.archived_at && <form key={`${task.task_id}-${task.maximum_marks}`} onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const maximum_marks = (form.elements.namedItem('maximum_marks') as HTMLInputElement).value; const reason = (form.elements.namedItem('reason') as HTMLInputElement).value; void perform(() => mutate(`/tasks/${task.task_id}/maximum`, 'PUT', {version: lab.version, maximum_marks, reason})); }} className="flex flex-wrap gap-2">
           <label>Maximum marks <input name="maximum_marks" type="number" min="0.01" max="10000" step="0.01" defaultValue={task.maximum_marks || ''} required /></label>
           <label>Reason <input name="reason" maxLength={500} required /></label><button disabled={busy}>Change marks</button>
+        </form>}
+        <p>TA maximum: {task.ta_maximum || "0.00"}</p>
+        {!lab.archived_at && <form key={`${task.task_id}-${task.ta_maximum}`} onSubmit={(event) => { event.preventDefault();
+          const form = event.currentTarget; const ta_maximum = (form.elements.namedItem('ta_maximum') as HTMLInputElement).value;
+          const reason = (form.elements.namedItem('reason') as HTMLInputElement).value;
+          void perform(() => mutate(`/tasks/${task.task_id}/ta-maximum`, 'PUT', { version: lab.version, ta_maximum, reason }));
+        }} className="flex flex-wrap gap-2">
+          <label>TA maximum <input name="ta_maximum" type="number" min={lab.first_released_at ? "0.01" : "0"}
+            max="10000" step="0.01" defaultValue={task.ta_maximum || "0.00"} required /></label>
+          <label>Reason <input name="reason" maxLength={500} required /></label><button disabled={busy}>Change TA marks</button>
         </form>}
         <Statement text={task.config.statement} /><p><Link to={`/admin/tasks/${task.task_id}?revision=${task.revision_id}`}>View library revision and cases</Link></p>
       </section>}

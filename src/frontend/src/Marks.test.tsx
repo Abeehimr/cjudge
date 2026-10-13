@@ -28,7 +28,7 @@ const lab: AdminLab = { id: 'lab', title: 'Lab', phase: 'Ended', version: 3, str
   compiler_feedback: 'short', first_released_at: '2026-09-30T00:00:00Z', starts_at: null, ends_at: null,
   server_time: '2026-09-30T00:00:00Z', students: [], pdfs: [], announcements: [],
   tasks: [{ position: 1, revision_id: 'old', task_id: 'task', number: 1,
-    maximum_marks: '7', config: { title: 'Sum', statement: '', cpu_seconds: 2, wall_seconds: 6, memory_mib: 256 } }] };
+    maximum_marks: '7', ta_maximum: '0.00', config: { title: 'Sum', statement: '', cpu_seconds: 2, wall_seconds: 6, memory_mib: 256 } }] };
 
 test('correction warns after release and submits a reason with the current lab version', async () => {
   live(); const confirm = vi.fn().mockReturnValue(true); vi.stubGlobal('confirm', confirm);
