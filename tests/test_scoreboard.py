@@ -80,14 +80,31 @@ def test_cancelled_student_is_unranked_and_cannot_win_first_solve():
     assert cancelled['total'] is None and cancelled['tasks'][0]['submission_id'] is None
 
 
-def test_live_notifications_reach_lab_when_scoreboard_hidden():
+def test_live_notifications_reach_ta_when_scoreboard_hidden():
     from unittest.mock import Mock, patch
     from cjudge.judging.queue import notify, ADMIN_CHANNEL
     conn = Mock()
     account, lab = UUID(int=3), UUID(int=10)
-    with patch('cjudge.events.publish') as publish:
+    with patch('cjudge.events.publish') as publish, patch('cjudge.labs.ta_notify') as ta_notify:
+        conn.execute.return_value.scalar_one.return_value = False
         notify(conn, account, lab_id=lab)
-        assert publish.call_count == 3
+        assert publish.call_count == 2
         publish.assert_any_call(conn, lab_id=ADMIN_CHANNEL)
         publish.assert_any_call(conn, account_id=account)
+        ta_notify.assert_called_once_with(conn, lab)
+        publish.reset_mock()
+        conn.execute.return_value.scalar_one.return_value = True
+        notify(conn, account, lab_id=lab)
         publish.assert_any_call(conn, lab_id=lab, account_id=None)
+
+
+def test_ta_notification_is_account_scoped():
+    from unittest.mock import Mock, patch
+    from cjudge.labs import ta_notify
+    conn = Mock()
+    conn.execute.return_value.scalars.return_value = [UUID(int=5), UUID(int=6)]
+    with patch('cjudge.events.publish') as publish:
+        ta_notify(conn, UUID(int=10))
+        assert publish.call_count == 2
+        publish.assert_any_call(conn, account_id=UUID(int=5))
+        publish.assert_any_call(conn, account_id=UUID(int=6))

@@ -88,8 +88,15 @@ def notify(conn: sa.Connection, *, lab_id: UUID | None = None, account_id: UUID 
     events.publish(conn, lab_id=lab_id, account_id=account_id)
 
 
+def ta_notify(conn: sa.Connection, lab_id: UUID) -> None:
+    for ta_id in conn.execute(sa.select(ta_assignments.c.ta_id).where(ta_assignments.c.lab_id == lab_id)).scalars():
+        events.publish(conn, account_id=ta_id)
+
+
 def submission_notify(conn: sa.Connection, lab_id: UUID) -> None:
-    notify(conn, lab_id=lab_id)
+    if conn.execute(sa.select(labs.c.scoreboard_visible).where(labs.c.id == lab_id)).scalar_one():
+        notify(conn, lab_id=lab_id)
+    ta_notify(conn, lab_id)
 
 
 def announce(conn: sa.Connection, lab_id: UUID, body: str, actor: UUID, recipient_id: UUID | None = None) -> None:
@@ -103,6 +110,8 @@ def announce(conn: sa.Connection, lab_id: UUID, body: str, actor: UUID, recipien
     queue.notify(conn, recipient_id)
     if recipient_id is None:
         notify(conn, lab_id=lab_id)
+    else:
+        ta_notify(conn, lab_id)
 
 
 def editable(lab: dict) -> None:
