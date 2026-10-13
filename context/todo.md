@@ -241,9 +241,10 @@ Evidence: 40 backend tests, 66 frontend tests and production build; disposable-d
 - [x] Add freeze/cancellation/browser release until archive; only acting TA/admin reverses penalties; show actor.
 - [x] Add one-click audited selected-student password reveal with CSRF, no-store, and no browser persistence.
 - [x] Add admin lab/TA page with assignment status, current penalties, and lab activity.
+- [x] Show submission question names and inline action denials; keep TA assignments on their tab and use shaded admin TA tables.
 - [x] **Gate:** disposable-database API checks for role/scope, ownership, disclosure, password/session revocation, archive locks; backend/frontend tests and build.
 
-Evidence: 43 backend tests (including disposable PostgreSQL gate), 72 frontend tests, production build. Physical mobile/LAN acceptance remains.
+Evidence: 43 backend tests (including disposable PostgreSQL gate), 73 frontend tests, production build. Physical mobile/LAN acceptance remains.
 
 ## M24 — TA Review Marks · requires M20, M23
 
