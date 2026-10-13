@@ -162,13 +162,14 @@ test('browser release shows replacement password to admin', async () => {
   expect(screen.queryByText('abc123')).toBeNull();
 });
 
-test('admin overview loads TA assignment options but not student, task, or submission options', async () => {
+test('admin overview omits TA assignments and does not load their options', async () => {
   live(); const lab = { ...summary, version: 1, strict_ip: false, first_released_at: null, compiler_feedback: 'short', tasks: [], pdfs: [], students: [], announcements: [] };
   const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200, json: async () => path.endsWith('/marks') || path === '/api/admin/tas' ? [] : lab }));
   vi.stubGlobal('fetch', fetchMock);
   renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab');
   expect(await screen.findByRole('button', { name: 'Save lab settings' })).toBeTruthy();
-  expect(fetchMock.mock.calls.every(([path]) => ['/api/admin/labs/lab', '/api/admin/labs/lab/marks', '/api/admin/tas'].includes(path))).toBe(true);
+  expect(fetchMock.mock.calls.every(([path]) => ['/api/admin/labs/lab', '/api/admin/labs/lab/marks'].includes(path))).toBe(true);
+  expect(screen.queryByRole('heading', { name: 'Assigned TAs' })).toBeNull();
   expect(screen.queryByRole('heading', { name: 'Enrollment (0)' })).toBeNull();
 });
 

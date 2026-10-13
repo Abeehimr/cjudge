@@ -86,3 +86,4 @@ tr[data-deleted="true"] { @apply bg-red-50; }
 li[data-deleted="true"] { @apply bg-red-50; }
 tr[data-frozen="true"] { @apply bg-amber-50; }
 tr[data-cancelled="true"] { @apply bg-red-50; }
+tr[data-restored="true"] { @apply bg-green-50; }

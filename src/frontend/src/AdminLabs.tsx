@@ -329,7 +329,6 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       </section>
       </>}
       {section === "overview" && <>
-      <TAAssignments lab={lab} csrf={csrf} onSave={accept} />
       <form onSubmit={(e) => { e.preventDefault(); void perform(async () => { await mutate("/announcements", "POST", { body: announcement }); setAnnouncement(""); }); }} className="rounded border bg-white p-4">
         <label className="block">Message to lab<textarea required maxLength={4000} rows={3} value={announcement} onChange={(e) => setAnnouncement(e.target.value)} className="mt-1 block w-full" /></label>
         <button disabled={busy || !!lab?.archived_at}>Post announcement</button>

@@ -19,10 +19,13 @@ export default function TAAssignments({ lab, csrf, onSave }: { lab: AdminLab; cs
   }
   return <section className="space-y-3 rounded border bg-white p-4">
     <h2 className="font-semibold">Assigned TAs</h2>
-    {available.length ? <div className="flex flex-wrap gap-3">{available.map((ta) => <div key={ta.id} className="flex items-center gap-2">
-      <label><input aria-label={`Assign ${ta.username}`} type="checkbox" disabled={busy || !!lab.archived_at || !ta.active} checked={selected.includes(ta.id)} onChange={(e) => setSelected((ids) => e.target.checked ? [...ids, ta.id] : ids.filter((id) => id !== ta.id))} /></label>
-      <Link to={`/admin/labs/${lab.id}/tas/${ta.id}`}>{ta.username} · {ta.name}</Link>{!ta.active && " (inactive)"}
-    </div>)}</div> : <p>Create TA accounts before assigning them.</p>}
+    {available.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>
+      <th>Assigned</th><th>Username</th><th>Name</th><th>Account status</th><th>Details</th></tr></thead>
+      <tbody>{available.map((ta) => <tr key={ta.id} className="border-t">
+        <td><input aria-label={`Assign ${ta.username}`} type="checkbox" disabled={busy || !!lab.archived_at || !ta.active} checked={selected.includes(ta.id)} onChange={(e) => setSelected((ids) => e.target.checked ? [...ids, ta.id] : ids.filter((id) => id !== ta.id))} /></td>
+        <td>{ta.username}</td><td>{ta.name}</td><td>{ta.active ? "Active" : "Inactive"}</td>
+        <td>{lab.tas?.some((assigned) => assigned.id === ta.id) ? <Link to={`/admin/labs/${lab.id}/tas/${ta.id}`}>View TA</Link> : "—"}</td>
+      </tr>)}</tbody></table></div> : <p>Create TA accounts before assigning them.</p>}
     <button disabled={busy || !!lab.archived_at || !changed} onClick={() => { void save(); }}>Save assignments</button>
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
   </section>;
@@ -33,6 +36,13 @@ type TADetail = { ta: TA & { assigned_at: string }; penalties: {
   cancelled: boolean; cancel_reason: string | null }[]; activity: {
   action: string; detail: { reason?: string }; created_at: string; student_id: string | null;
   roll_number: string | null; name: string | null }[] };
+
+const actionNames: Record<string, string> = {
+  lab_student_frozen: "Frozen", lab_student_unfrozen: "Unfrozen",
+  lab_student_cancelled: "Cancelled", lab_student_reinstated: "Reinstated",
+  lab_binding_released: "Browser released", ta_student_password_accessed: "Password viewed",
+  lab_announcement_posted: "Announcement sent",
+};
 
 export function AdminTADetail({ labId, taId }: { labId: string; taId: string }) {
   const [detail, setDetail] = useState<TADetail | null>(null), [offset, setOffset] = useState(0), [error, setError] = useState("");
@@ -51,17 +61,26 @@ export function AdminTADetail({ labId, taId }: { labId: string; taId: string }) 
       <p>{detail.ta.active ? "Active" : "Inactive"} · Assigned {new Date(detail.ta.assigned_at).toLocaleString()}</p>
       <h3 className="font-semibold">Current penalties set by this TA</h3>
       {!detail.penalties.length && <p>None.</p>}
-      <ul className="divide-y">{detail.penalties.map((item) => <li key={item.id} className="py-2">
-        <Link to={`/admin/labs/${labId}/students/${item.id}`}>{item.roll_number} · {item.name}</Link>
-        {item.frozen && <> · Frozen: {item.freeze_reason}</>}{item.cancelled && <> · Cancelled: {item.cancel_reason}</>}
-      </li>)}</ul>
+      {!!detail.penalties.length && <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+        <thead><tr><th>Student</th><th>Penalty</th><th>Reason</th></tr></thead>
+        <tbody>{detail.penalties.flatMap((item) => (["frozen", "cancelled"] as const).filter((kind) => item[kind]).map((kind) =>
+          <tr key={`${item.id}-${kind}`} className="border-t" data-frozen={kind === "frozen" || undefined} data-cancelled={kind === "cancelled" || undefined}>
+            <td><Link to={`/admin/labs/${labId}/students/${item.id}`}>{item.roll_number} · {item.name}</Link></td>
+            <td>{kind === "frozen" ? "Frozen" : "Cancelled"}</td>
+            <td className="whitespace-normal break-words">{kind === "frozen" ? item.freeze_reason : item.cancel_reason}</td>
+          </tr>))}</tbody></table></div>}
       <h3 className="font-semibold">Lab activity</h3>
       {!detail.activity.length && <p>No activity on this page.</p>}
-      <ul className="divide-y">{detail.activity.map((item, index) => <li key={`${item.created_at}-${index}`} className="py-2">
-        {new Date(item.created_at).toLocaleString()} · {item.action.replaceAll("_", " ")}
-        {item.student_id && <> · <Link to={`/admin/labs/${labId}/students/${item.student_id}`}>{item.roll_number} · {item.name}</Link></>}
-        {item.detail.reason && <> · {item.detail.reason}</>}
-      </li>)}</ul>
+      {!!detail.activity.length && <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+        <thead><tr><th>Time</th><th>Student</th><th>Action</th><th>Reason</th></tr></thead>
+        <tbody>{detail.activity.map((item, index) => <tr key={`${item.created_at}-${index}`} className="border-t"
+          data-frozen={item.action === "lab_student_frozen" || undefined} data-cancelled={item.action === "lab_student_cancelled" || undefined}
+          data-restored={["lab_student_unfrozen", "lab_student_reinstated"].includes(item.action) || undefined}>
+          <td>{new Date(item.created_at).toLocaleString()}</td>
+          <td>{item.student_id ? <Link to={`/admin/labs/${labId}/students/${item.student_id}`}>{item.roll_number} · {item.name}</Link> : "—"}</td>
+          <td>{actionNames[item.action] || item.action.replaceAll("_", " ")}</td>
+          <td className="whitespace-normal break-words">{item.detail.reason || "—"}</td>
+        </tr>)}</tbody></table></div>}
       <div className="flex gap-2"><button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>Newer</button>
         <button disabled={detail.activity.length < 100} onClick={() => setOffset(offset + 100)}>Older</button></div>
     </>}
