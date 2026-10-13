@@ -24,12 +24,13 @@ export default function TALabs({ csrf }: { csrf: string }) {
   const [students, setStudents] = useState<Student[]>([]), [student, setStudent] = useState<Student | null>(null);
   const [history, setHistory] = useState<Submission[]>([]), [marks, setMarks] = useState<StudentMarks[]>([]), [offset, setOffset] = useState(0);
   const [credential, setCredential] = useState<string | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
-    setCredential(null); setError(""); setLab(null); setStudent(null); setStudents([]); setHistory([]); setMarks([]); setOffset(0);
+    setCredential(null); setError(""); setActionError(""); setLab(null); setStudent(null); setStudents([]); setHistory([]); setMarks([]); setOffset(0);
   }, [labId]);
   useEffect(() => {
-    setCredential(null); setError(""); setStudent(null); setHistory([]); setMarks([]); setOffset(0);
+    setCredential(null); setError(""); setActionError(""); setStudent(null); setHistory([]); setMarks([]); setOffset(0);
   }, [studentId]);
   useEffect(() => {
     const controller = new AbortController();
@@ -83,19 +84,21 @@ export default function TALabs({ csrf }: { csrf: string }) {
     source.addEventListener("denied", () => { setCredential(null); source.close(); window.dispatchEvent(new Event("cjudge-session-expired")); });
     return () => source.close();
   }, [labId, navigate]);
-  useEffect(() => { setCredential(null); }, [submissionId]);
+  useEffect(() => { setCredential(null); setActionError(""); }, [submissionId]);
   async function act(path: string, method: string, body: object, password = false) {
-    setBusy(true); setError(""); setCredential(null);
+    setBusy(true); setActionError(""); setCredential(null);
     try {
       const value = await api<{ password?: string }>(`/ta/labs/${labId}/students/${studentId}/${path}`,
         { method, body: JSON.stringify(body) }, csrf);
       if (password) setCredential(value.password || null);
       setRefresh((count) => count + 1);
-    } catch (e) { setError((e as Error).message); }
+    } catch (e) { setActionError((e as Error).message); }
     finally { setBusy(false); }
   }
   function reason(label: string): string | null {
+    setActionError("");
     const value = prompt(`Reason to ${label}`);
+    if (value !== null && !value.trim()) setActionError("Reason required.");
     return value?.trim() || null;
   }
   if ((!route && !listRoute) || parts.length && (parts[0] !== "students" || !studentId || parts.length !== 2 && !(parts.length === 4 && parts[2] === "submissions"))) return <NotFound />;
@@ -129,6 +132,7 @@ export default function TALabs({ csrf }: { csrf: string }) {
             const why = reason("release browser"); if (why) void act("release", "POST", { reason: why }, true); }}>Release browser</button>
           <button disabled={busy} onClick={() => { void act("password", "POST", {}, true); }}>Show password</button>
         </div>}
+        {actionError && <p role="alert" className="notice notice-danger">{actionError}</p>}
         {credential && <div className="notice notice-warning" aria-label="Selected student password">
           <p>Current password for {student.roll_number}: <strong className="font-mono">{credential}</strong></p>
           <button onClick={() => setCredential(null)}>Hide password</button></div>}

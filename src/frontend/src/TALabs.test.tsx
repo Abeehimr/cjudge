@@ -45,7 +45,7 @@ test("TA evidence links to a standalone student submission before release", asyn
   vi.stubGlobal("EventSource", class extends EventTarget { close = vi.fn(); });
   vi.stubGlobal("fetch", vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
     json: async () => path === "/api/ta/labs" ? [lab] : path === "/api/ta/labs/lab" ? lab
-      : path.endsWith("/submissions/sub") ? { id: "sub", filename: "answer.c", source: "int main(){}", status: "Passed",
+      : path.endsWith("/submissions/sub") ? { id: "sub", task_title: "Addition", filename: "answer.c", source: "int main(){}", status: "Passed",
         accepted_at: lab.server_time, marks: "5.00", maximum_marks: "5.00", official_marks: "5.00", passed: 2, total: 2,
         grading_pending: false, deleted_at: null, delete_reason: null, official_run_id: null, compiler_feedback: null,
         compiler_truncated: false, history: [], cases: [] }
@@ -61,6 +61,7 @@ test("TA evidence links to a standalone student submission before release", asyn
   await router.navigate("/ta/labs/lab/students/student/submissions/sub");
   await waitFor(() => expect(screen.queryByRole("button", { name: "Show password" })).toBeNull());
   expect(screen.queryByRole("heading", { name: "Submissions" })).toBeNull();
+  expect(await screen.findByRole("heading", { name: "Question: Addition" })).toBeTruthy();
 });
 
 test("search to student loads submissions without a refresh", async () => {
@@ -84,4 +85,37 @@ test("search to student loads submissions without a refresh", async () => {
   fireEvent.click(await screen.findByRole("link", { name: "001A · Ada" }));
   expect(await screen.findByRole("link", { name: "answer.c" })).toBeTruthy();
   expect(fetchMock.mock.calls.some(([path]) => String(path).includes("/students/student/marks"))).toBe(true);
+});
+
+test("denied reinstatement is visible beside controls and survives live refresh", async () => {
+  const lab = { id: "lab", title: "Lab 1", phase: "Running", server_time: "2026-10-13T00:00:00Z",
+    results_visible: false, archived: false };
+  const student = { id: "student", roll_number: "001A", name: "Ada", frozen: false,
+    cancelled: true, cancel_reason: "Exam rule", cancelled_by_name: "Administrator", submission_count: 0 };
+  let events: EventTarget;
+  vi.stubGlobal("EventSource", class extends EventTarget { constructor() { super(); events = this; } close = vi.fn(); });
+  vi.stubGlobal("prompt", vi.fn(() => "Resolved"));
+  const denial = "Only the TA who applied this penalty or an admin can reverse it.";
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({
+    ok: !path.endsWith("/cancellation"), status: path.endsWith("/cancellation") ? 403 : 200,
+    json: async () => path.endsWith("/cancellation") ? { detail: denial }
+      : path === "/api/ta/labs" ? [lab] : path === "/api/ta/labs/lab" ? lab
+      : path.includes("/submissions?") || path.endsWith("/marks") ? [] : student,
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+  const { router } = renderRoute(<TALabs csrf="csrf" />, "/ta/labs/lab/students/student");
+  fireEvent.click(await screen.findByRole("button", { name: "Reinstate" }));
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toBe(denial);
+  expect(alert.closest("section")?.querySelector("button")?.textContent).toBe("Freeze");
+  events!.dispatchEvent(new Event("refresh"));
+  await waitFor(() => expect(fetchMock.mock.calls.filter(([path]) => path === "/api/ta/labs/lab").length).toBeGreaterThan(1));
+  expect(screen.getByRole("alert").textContent).toBe(denial);
+  expect(screen.getByRole("button", { name: "Reinstate" })).toBeTruthy();
+  vi.stubGlobal("prompt", vi.fn(() => " "));
+  fireEvent.click(screen.getByRole("button", { name: "Reinstate" }));
+  expect(screen.getByRole("alert").textContent).toBe("Reason required.");
+  expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/cancellation"))).toHaveLength(1);
+  await router.navigate("/ta/labs");
+  await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
 });
