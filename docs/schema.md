@@ -1,11 +1,13 @@
 # Database Schema
 
-Current PostgreSQL schema through Alembic revision `20261011_lab_marks`. `PK` marks primary-key columns; `FK` marks database-enforced foreign keys. Composite keys list every component. Case ZIPs, PDFs, submissions, authoring artifacts, and export ZIPs live in protected volumes; the database stores their identifiers and metadata.
+Current PostgreSQL schema through Alembic revision `20261013_ta_labs`. `PK` marks primary-key columns; `FK` marks database-enforced foreign keys. Composite keys list every component. Case ZIPs, PDFs, submissions, authoring artifacts, and export ZIPs live in protected volumes; the database stores their identifiers and metadata.
 
 ```mermaid
 erDiagram
     accounts {
         uuid id PK
+        string username UK
+        string role
     }
     sessions {
         string token_hash PK
@@ -39,6 +41,12 @@ erDiagram
     lab_enrollments {
         uuid lab_id PK,FK
         uuid account_id PK,FK
+        uuid frozen_by FK
+        uuid cancelled_by FK
+    }
+    lab_tas {
+        uuid lab_id PK,FK
+        uuid ta_id PK,FK
     }
     lab_pdfs {
         uuid id PK
@@ -112,6 +120,24 @@ erDiagram
         uuid job_id PK,FK
         int number PK
     }
+    tester_batches {
+        uuid id PK
+        uuid task_id FK
+        uuid revision_id FK
+        uuid actor_id FK
+    }
+    tester_sources {
+        uuid id PK
+        uuid batch_id FK
+    }
+    tester_attempts {
+        uuid id PK
+        uuid source_id FK
+    }
+    tester_cases {
+        uuid source_id PK,FK
+        int number PK
+    }
     lab_exports {
         uuid id PK
         uuid lab_id
@@ -130,6 +156,9 @@ erDiagram
     accounts ||--o{ audit_events : actor_id
     accounts ||--o{ audit_events : subject_id
     accounts ||--o{ lab_enrollments : account_id
+    accounts ||--o{ lab_enrollments : frozen_by
+    accounts ||--o{ lab_enrollments : cancelled_by
+    accounts ||--o{ lab_tas : ta_id
     accounts ||--o{ lab_announcements : author_id
     accounts ||--o{ lab_announcements : recipient_id
     accounts ||--o{ submissions : account_id
@@ -137,17 +166,21 @@ erDiagram
     accounts ||--o{ submission_reviews : deleted_by
     accounts ||--o{ correction_batches : actor_id
     accounts ||--o{ authoring_jobs : actor_id
+    accounts ||--o{ tester_batches : actor_id
     tasks ||--o{ task_revisions : task_id
     tasks ||--o{ correction_batches : task_id
     tasks ||--o{ authoring_jobs : task_id
+    tasks ||--o{ tester_batches : task_id
     task_revisions ||--o{ lab_tasks : revision_id
     task_revisions ||--o{ submissions : revision_id
     task_revisions ||--o{ judge_jobs : revision_id
     task_revisions ||--o{ judge_runs : revision_id
     task_revisions ||--o{ correction_batches : base_revision_id
     task_revisions ||--o{ correction_batches : revision_id
+    task_revisions ||--o{ tester_batches : revision_id
     labs ||--o{ lab_tasks : lab_id
     labs ||--o{ lab_enrollments : lab_id
+    labs ||--o{ lab_tas : lab_id
     labs ||--o{ lab_pdfs : lab_id
     labs ||--o{ lab_announcements : lab_id
     labs ||--o{ submissions : lab_id
@@ -168,8 +201,11 @@ erDiagram
     correction_batches ||--o{ judge_jobs : batch_id
     authoring_jobs ||--o{ authoring_attempts : job_id
     authoring_jobs ||--o{ authoring_cases : job_id
+    tester_batches ||--o{ tester_sources : batch_id
+    tester_sources ||--o{ tester_attempts : source_id
+    tester_sources ||--o{ tester_cases : source_id
 ```
 
 Solid lines are enforced foreign keys; dotted lines are application references. `lab_exports` intentionally has no FK so verified receipts survive lab deletion. `lab_cleanup_files` retains artifact cleanup work after deletion. `judge_jobs.attempt_id`, `authoring_jobs.attempt_id`, and worker slot/generation fields are lease pointers without foreign keys. `alembic_version` is maintained by Alembic and has no application relationship. `login_attempts` is keyed by login identifier.
 
-`tasks` holds mutable drafts; `task_revisions` holds immutable published configurations and case-set keys. `lab_tasks` pins an ordered revision and its automatic maximum marks. `lab_enrollments` holds per-lab binding, freeze, and cancellation state. `submissions` retains accepted source metadata; `judge_attempts`, `judge_runs`, and `judge_case_results` retain execution evidence. `submission_reviews` selects the official run and stores soft deletion. `correction_batches`/`correction_members` publish full-task rejudges together. `authoring_jobs`/`authoring_attempts`/`authoring_cases` retain generated-test provenance. `lab_exports` tracks verified archive receipts.
+`tasks` holds mutable drafts; `task_revisions` holds immutable published configurations and case-set keys. `lab_tasks` pins an ordered revision and its automatic maximum marks. `lab_tas` grants TA access to a lab; `lab_enrollments` holds student binding, freeze/cancellation state, and active penalty owners. `submissions` retains accepted source metadata; `judge_attempts`, `judge_runs`, and `judge_case_results` retain execution evidence. `submission_reviews` selects the official run and stores soft deletion. `correction_batches`/`correction_members` publish full-task rejudges together. `authoring_*` holds generated-test provenance; `tester_*` holds admin-only published revision tests. `lab_exports` tracks verified archive receipts.

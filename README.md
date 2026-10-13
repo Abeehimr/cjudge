@@ -296,3 +296,13 @@ Admin → Lab → Students can cancel or reinstate one student's participation w
 ## M20 Lab-Owned Marks
 
 Apply migration `20261011_lab_marks` before starting the updated API and worker images. In Admin → Lab → Tasks, set automatic marks when assigning a published revision. Open a task to change its maximum with a reason until archive; official marks update from retained outcomes without a rejudge. Run `tests/marks_gate.py` and `tests/release_gate.py` in disposable databases to check scoring, correction publication, release, and archive behavior.
+
+## M23 TA Accounts and Lab Operations
+
+Admin → TAs creates named TA accounts with admin-set passwords. Assign active TAs from a lab's Overview page. TAs use the same login form, then search assigned labs by student roll or name. Live status shows binding, penalties, and submission count; source, marks, and failed-case streams appear only after result release. Archived labs remain readable but actions are locked. Freezing/cancellation can be reversed by the acting TA or an admin. Browser release rotates the student's global password and ends their sessions. Password reveal requires selecting one student and is audited.
+
+Apply migrations `20261013_ta_accounts` and `20261013_ta_labs` before starting the updated API. The M23 gate creates and drops its own database on a disposable PostgreSQL server:
+
+```sh
+CJUDGE_TA_GATE_URL='postgresql+psycopg://USER:PASSWORD@HOST:PORT/postgres' uv run pytest -q tests/test_ta_gate.py
+```

@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15, M17 and M18 are implemented; M19 code is complete pending physical network checks. M16 and M20–M27 remain planned. Physical LAN/offline acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15, M17–M18, and M20–M23 are implemented; M19 code is complete pending physical network checks. M16 and M24–M27 remain planned. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -9,6 +9,8 @@ Current architecture: [database schema](../docs/schema.md), [Docker deployment](
 Docker Compose separates `web`, `api`, `db`, and runtime `worker`; standalone `judge` runs isolation gates without networking. The worker container holds an environment-configured process pool, with independent isolate boxes/cgroups/UIDs. PostgreSQL distributes fair leased jobs. The API owns authentication, lab policy, and admission; release/export are implemented with shared grading and lab policies. Only web ports are public. Protected volumes hold artifacts; workers mount source/test data read-only. API and workers share writable `authoring_files` for protected staged generation and cached binaries. Student isolate processes cannot access this volume.
 
 Admin Isolates uses worker registration, startup sandbox checks, and heartbeat freshness rather than periodic probes. Admin SSE carries invalidations; stale workers become Offline locally even if updates disconnect. Student SSE refreshes admission/history without exposing hidden grading data.
+
+M23 adds TA accounts in the same identity database and `lab_tas` assignment rows. TA routes recheck active account, session, lab assignment, and archive state inside each transaction. Admin assignment edits and TA actions hold an exclusive lab lock; TA reads hold a shared lock, so removal cannot pass an in-flight authorization check. TA SSE carries scoped invalidations and rechecks access on every event and keepalive.
 
 Suggested backend boundaries: identity, tasks, labs, submissions, judging, results, and exports. Keep scoring and timing policy separate from HTTP handlers; keep sandbox management in worker-only code.
 
@@ -24,7 +26,7 @@ Use a DOMjudge-inspired layout for both student and admin interfaces: compact na
 | Submission status and released details | Submission filters, best-to-worst attempts, deleted runs, judging faults |
 | Own retained grading runs | Corrections, release, marks, archive export |
 
-Use one login form with username/roll number and password. Detect `admin` automatically, case-insensitively; reserve that identifier from student roll numbers.
+Use one login form with username/roll number and password. The server resolves admin, TA, or student from a globally unique case-insensitive username; `ADMIN` is reserved.
 
 Keep the student path short: read, upload, check status. Explain disabled uploads with the actual reason: closed lab, cooldown, or pending limit. Server checks remain authoritative. Show infrastructure faults separately from student failures.
 
@@ -38,10 +40,11 @@ Confirm destructive or grading-changing admin actions and show their effects. Co
 
 Navigation uses browser URLs, breadcrumbs, and lab sections. Refresh and Back/Forward retain the selected page; pagination, filters, and published revision selections use query parameters.
 
-- Admin: global Labs, Students, Task Library, and Isolates. Each lab has Overview (settings, schedule, PDFs, announcements, compiler feedback), Students (enrollment), Tasks (assignments), Submissions (newest first), and Scoreboard (ranked marks/times and participant visibility toggle).
+- Admin: global Labs, Students, TAs, Task Library, and Isolates. Each lab has Overview (settings, schedule, PDFs, announcements, compiler feedback, TA assignment), Students (enrollment), Tasks (assignments), Submissions (newest first), and Scoreboard (ranked marks/times and participant visibility toggle).
 - Admin student detail: identity, binding/IP, freeze/release controls, and that student's lab submissions. Admin task detail: assigned revision statement/limits and task submissions; editing stays in the task library.
 - Admin submission detail: `/admin/labs/:labId/submissions/:submissionId`, inline escaped source, download, current status/score, compiler feedback, case verdicts/resources/input/output previews, and IP/MAC. Inputs come from the pinned immutable revision. Available before release. Student `/labs/:labId/submissions/:submissionId` shows own source and retained grading runs after release with reveal enabled; failed-case previews enforce server authorization and size limits.
 - Student: assigned labs, lab overview with PDFs/announcements/task links, task statement/limits/upload/task history together, own lab submission history, and Scoreboard when enabled. Submissions stay per lab; no global submission page.
+- TA: assigned labs including released archives, bounded roll/name search, compact student status/actions, and released student submission details. Pre-release status omits verdicts, marks, source, and cases. Archived labs are read-only.
 - Existing browser bindings resume through authorized reads. Creating a binding still requires explicit entry. Dirty forms warn before navigation; unconfirmed upload files/keys survive within the lab session. Reload requires file reselection and warns before discarding it. Credentials and sources are never stored in browser storage.
 
 ### Scoreboard
@@ -58,7 +61,7 @@ Reuse the lab SSE connection for participants and admin SSE for admins. Acceptan
 
 ## Data Model
 
-- Account, revocable session, and per-lab browser binding.
+- Globally named admin/student/TA account, revocable session, per-lab TA assignment, and student browser binding. Enrollment retains the acting account for active freeze/cancellation flags.
 - Lab with versioned PDF attachments, public/private announcements, frozen/bound enrollment, and ordered pinned task revisions with lab-owned automatic maxima. Admin changes automatically announce their effect and supplied reason; individual actions address only the affected student.
 - Reusable task with optional Markdown statement, immutable revision, and test cases.
 - Submission with immutable source, acceptance time, and soft-delete metadata.
@@ -97,7 +100,7 @@ Follow [todo.md](todo.md) for module dependencies, milestones, and per-module te
 
 Agreed decisions: [improvements_v2.md](improvements_v2.md); implementation gates: [todo.md](todo.md#m17--architecture-documentation--independent). The system diagram above describes current architecture.
 
-Reuse existing web/API/PostgreSQL/artifact storage and isolate workers. M17 adds linked schema, Docker and network documents under `docs/`; M19 supports validated localhost/multiple LAN addresses. M20 moves current automatic maxima into lab assignments while preserving historical evidence. M21 transfers task assets and M22 adds separate admin tester jobs/history through the existing pool. M23–M24 add assigned-lab TA authorization, mobile student lookup, operation ownership and review claims/marks. TA marks remain absent from student responses and scoreboard. M25–M26 extend immutable task policy and sandbox language profiles. M18/M27 extend access and existing interface flows.
+Reuse existing web/API/PostgreSQL/artifact storage and isolate workers. M17 adds linked schema, Docker and network documents under `docs/`; M19 supports validated localhost/multiple LAN addresses. M20 moves current automatic maxima into lab assignments while preserving historical evidence. M21 transfers task assets and M22 adds separate admin tester jobs/history through the existing pool. M23 adds assigned-lab TA authorization, mobile student lookup, and operation ownership. M24 plans review claims/marks; TA marks remain absent from student responses and scoreboard. M25–M26 extend immutable task policy and sandbox language profiles. M18/M27 extend access and existing interface flows.
 
 No new runtime services, polling, or student-program host execution. Refresh diagrams as modules land; planned features must not appear as deployed components.
 

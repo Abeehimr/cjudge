@@ -236,11 +236,13 @@ Evidence: 40 backend tests, 66 frontend tests and production build; disposable-d
 
 ## M23 — TA Accounts and Lab Operations · requires M2, M4, M15
 
-- [ ] Add TA accounts, unified login (I would like to change this), admin lab assignment, and server-side permission checks.
-- [ ] Add mobile-first lab selection/student lookup/compact status; released evidence access only.
-- [ ] Add freeze/cancellation/binding operations until archive; only acting TA/admin reverses freeze/cancellation; show actor.
-- [ ] Add explicit audited selected-student password reveal; no-store, no bulk export/cache/logging.
-- [ ] **Gate:** assigned-lab boundaries, ownership/races, reasons/private notices, credential secrecy, session revocation, archive write locks.
+- [x] Add TA accounts, role-detected unified login, versioned admin lab assignments, and scoped server checks.
+- [x] Add compact TA lab/student lookup; show source, marks, and failed-case evidence only after release.
+- [x] Add freeze/cancellation/browser release until archive; only acting TA/admin reverses penalties; show actor.
+- [x] Add audited selected-student password reveal with CSRF, no-store, and no browser persistence.
+- [x] **Gate:** disposable-database API checks for role/scope, ownership, disclosure, password/session revocation, archive locks; backend/frontend tests and build.
+
+Evidence: 42 backend tests (including disposable PostgreSQL gate), 70 frontend tests, production build. Physical mobile/LAN acceptance remains.
 
 ## M24 — TA Review Marks · requires M20, M23
 
