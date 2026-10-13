@@ -299,7 +299,7 @@ Apply migration `20261011_lab_marks` before starting the updated API and worker 
 
 ## M23 TA Accounts and Lab Operations
 
-Admin → TAs creates named TA accounts with admin-set passwords. Assign active TAs from a lab's Overview page. TAs use the same login form, then search assigned labs by student roll or name. Live status shows binding, penalties, and submission count; source, marks, and failed-case streams appear only after result release. Archived labs remain readable but actions are locked. Freezing/cancellation can be reversed by the acting TA or an admin. Browser release rotates the student's global password and ends their sessions. Password reveal requires selecting one student and is audited.
+Admin → TAs creates named TA accounts with admin-set passwords. Assign active TAs from a lab's Overview or TAs page. Admins can open each lab/TA page for account status, current penalties and recent activity. TAs use the same login form, then search assigned labs by student roll or name. Student pages show binding, penalties, automatic marks and submissions before release; each submission opens a separate detail page. Accepted-case streams stay hidden. Archived labs remain readable but actions are locked. Freezing/cancellation can be reversed by the acting TA or an admin. Browser release rotates the student's global password and ends their sessions. Password reveal opens on one click for the selected student and is audited. Student result visibility is unchanged.
 
 Apply migrations `20261013_ta_accounts` and `20261013_ta_labs` before starting the updated API. The M23 gate creates and drops its own database on a disposable PostgreSQL server:
 

@@ -10,7 +10,7 @@ Docker Compose separates `web`, `api`, `db`, and runtime `worker`; standalone `j
 
 Admin Isolates uses worker registration, startup sandbox checks, and heartbeat freshness rather than periodic probes. Admin SSE carries invalidations; stale workers become Offline locally even if updates disconnect. Student SSE refreshes admission/history without exposing hidden grading data.
 
-M23 adds TA accounts in the same identity database and `lab_tas` assignment rows. TA routes recheck active account, session, lab assignment, and archive state inside each transaction. Admin assignment edits and TA actions hold an exclusive lab lock; TA reads hold a shared lock, so removal cannot pass an in-flight authorization check. TA SSE carries scoped invalidations and rechecks access on every event and keepalive.
+M23 adds TA accounts in the same identity database and `lab_tas` assignment rows. TA routes recheck active account, session, lab assignment, and archive state inside each transaction. Admin assignment edits and TA actions hold an exclusive lab lock; TA reads hold a shared lock, so removal cannot pass an in-flight authorization check. TA SSE carries scoped invalidations and rechecks access on every event and keepalive, including judging changes when the scoreboard is hidden. Assigned TAs see one student's automatic marks and submissions before release through scoped endpoints; accepted-case streams remain hidden. Admin lab/TA pages read assignment status, current penalties, and lab-scoped audit activity.
 
 Suggested backend boundaries: identity, tasks, labs, submissions, judging, results, and exports. Keep scoring and timing policy separate from HTTP handlers; keep sandbox management in worker-only code.
 
