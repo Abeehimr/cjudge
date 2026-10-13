@@ -9,6 +9,7 @@ import pytest
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 import sqlalchemy as sa
+from sqlalchemy.exc import IntegrityError
 
 from cjudge import identity, labs
 from cjudge.api import app
@@ -76,6 +77,9 @@ def test_ta_accounts_lab_scope_ownership_and_archive(ta_database, tmp_path, monk
                 'password': 'M23-ta-password'}, csrf)
             assert response.status_code == 201, response.text
             created.append(response.json()['id'])
+        with pytest.raises(IntegrityError), identity.engine().begin() as conn:
+            conn.execute(sa.insert(identity.accounts).values(id=uuid4(), role='ta',
+                username='helper1', name='Collision', password_hash='unused'))
         assert write(admin, '/api/admin/students', {'roll_number': 'HELPER1', 'name': 'Collision'}, csrf).status_code == 409
         assert ta_one.post('/api/auth/student/login', json={'identifier': 'helper1',
             'password': 'M23-ta-password'}, headers={'Origin': ORIGIN}).status_code == 401

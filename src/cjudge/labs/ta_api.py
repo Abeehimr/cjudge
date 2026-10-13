@@ -44,7 +44,7 @@ def access(conn: sa.Connection, request: Request, account: dict, lab_id: UUID | 
         raise HTTPException(401, 'Login required')
     if lab_id is None:
         return None
-    lab = labs.find(conn, lab_id, shared=True)
+    lab = labs.find(conn, lab_id, shared=not write)
     assigned = conn.execute(sa.select(labs.ta_assignments.c.ta_id).where(
         labs.ta_assignments.c.lab_id == lab_id, labs.ta_assignments.c.ta_id == account['id'])
         .with_for_update(read=True)).first()
