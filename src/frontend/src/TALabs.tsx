@@ -10,7 +10,7 @@ type Lab = { id: string; title: string; phase: string; starts_at: string | null;
 type Student = { id: string; roll_number: string; name: string; frozen: boolean; freeze_reason: string | null;
   frozen_by_name: string | null; cancelled: boolean; cancel_reason: string | null; cancelled_by_name: string | null;
   bound: boolean; ip_changed: boolean; submission_count: number; last_submission_at: string | null };
-type Submission = { id: string; filename: string; accepted_at: string; status: string; best_for_review: boolean;
+type Submission = { id: string; task_title: string; filename: string; accepted_at: string; status: string; best_for_review: boolean;
   deleted_at: string | null; delete_reason: string | null; marks: string | null; maximum_marks: string | null;
   passed: number | null; total: number | null };
 
@@ -143,6 +143,7 @@ export default function TALabs({ csrf }: { csrf: string }) {
         <h2 className="font-semibold">Submissions</h2>
         <ul className="divide-y">{history.map((row) => <li key={row.id} className="py-3" data-best={row.best_for_review || undefined} data-deleted={!!row.deleted_at || undefined}>
           <Link to={`/ta/labs/${labId}/students/${studentId}/submissions/${row.id}`}>{row.filename}</Link> · {new Date(row.accepted_at).toLocaleString()}
+          <span className="block">Question: {row.task_title}</span>
           <span className="submission-status ml-2" data-status={row.status}>{row.status}</span>
           {row.best_for_review && !row.deleted_at && <span className="block text-green-800">Best for review</span>}
           {row.deleted_at && <span className="block text-red-800">Deleted · {row.delete_reason}</span>}

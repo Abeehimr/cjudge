@@ -159,6 +159,8 @@ def test_ta_accounts_lab_scope_ownership_and_archive(ta_database, tmp_path, monk
         evidence = ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}/submissions/{submission_id}')
         assert evidence.status_code == 200, evidence.text
         assert evidence.json()['task_title'] == 'Accepted question' and evidence.json()['source'] == source.decode()
+        history = ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}/submissions')
+        assert history.status_code == 200 and history.json()[0]['task_title'] == 'Accepted question'
         assert write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/password',
             {}, 'wrong').status_code == 403
         password = write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/password',

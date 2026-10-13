@@ -49,14 +49,18 @@ test("TA evidence links to a standalone student submission before release", asyn
         accepted_at: lab.server_time, marks: "5.00", maximum_marks: "5.00", official_marks: "5.00", passed: 2, total: 2,
         grading_pending: false, deleted_at: null, delete_reason: null, official_run_id: null, compiler_feedback: null,
         compiler_truncated: false, history: [], cases: [] }
-      : path.endsWith("/submissions?offset=0") ? [{ id: "sub", filename: "answer.c", accepted_at: lab.server_time,
-          status: "Passed", best_for_review: true, deleted_at: null, delete_reason: null, marks: "5.00", maximum_marks: "5.00", passed: 2, total: 2 }]
+      : path.endsWith("/submissions?offset=0") ? [{ id: "sub", task_title: "Addition", filename: "answer.c", accepted_at: lab.server_time,
+          status: "Passed", best_for_review: true, deleted_at: null, delete_reason: null, marks: "5.00", maximum_marks: "5.00", passed: 2, total: 2 },
+          { id: "other", task_title: "Multiplication", filename: "wrong.c", accepted_at: lab.server_time,
+          status: "Queued", best_for_review: false, deleted_at: lab.server_time, delete_reason: "Duplicate", marks: null, maximum_marks: null, passed: null, total: null }]
       : path.endsWith("/marks") ? [{ id: "student", roll_number: "001A", name: "Ada", cancelled: false,
         tasks: [], total: "5.00", pending: false, submission_count: 1 }] : student,
   })));
   const { router } = renderRoute(<TALabs csrf="csrf" />, "/ta/labs/lab/students/student");
   expect((await screen.findByRole("link", { name: "answer.c" })).getAttribute("href")).toBe("/ta/labs/lab/students/student/submissions/sub");
   expect(screen.getByText("Best for review")).toBeTruthy();
+  expect(screen.getByText("Question: Addition")).toBeTruthy();
+  expect(screen.getByText("Question: Multiplication")).toBeTruthy();
   expect(screen.getByText(/Marks 5.00/)).toBeTruthy();
   await router.navigate("/ta/labs/lab/students/student/submissions/sub");
   await waitFor(() => expect(screen.queryByRole("button", { name: "Show password" })).toBeNull());

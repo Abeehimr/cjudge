@@ -209,6 +209,7 @@ def reveal_password(lab_id: UUID, student_id: UUID, request: Request,
 
 
 class TASubmission(submission_api.SubmissionOutput):
+    task_title: str
     marks: str | None
     maximum_marks: str | None
     passed: int | None
@@ -237,7 +238,8 @@ def released_history(lab_id: UUID, student_id: UUID, request: Request,
             .offset(offset).limit(100)).mappings()
         best = review.best_for_review(conn, lab_id, student_id)
         return [dict(submission_api.output(row, 'full', results_visible=True),
-            best_for_review=row['id'] in best, marks=review.displayed(review.exact(row)) if row['run_id'] else None,
+            task_title=row['task_title'], best_for_review=row['id'] in best,
+            marks=review.displayed(review.exact(row)) if row['run_id'] else None,
             maximum_marks=f"{submission_api.run_maximum(row):.2f}" if row['run_id'] else None,
             passed=row['passed'], total=row['total']) for row in rows]
 
