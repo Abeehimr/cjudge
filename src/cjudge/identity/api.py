@@ -32,6 +32,7 @@ class LoginInput(StrictModel):
 class SessionOutput(StrictModel):
     id: UUID
     role: str
+    username: str
     roll_number: str | None
     name: str
     csrf_token: str
@@ -44,6 +45,27 @@ class StudentInput(StrictModel):
 
 class NameInput(StrictModel):
     name: str
+
+
+class TAInput(StrictModel):
+    username: str
+    name: str
+    password: str = Field(min_length=12, max_length=128)
+
+
+class TAPasswordInput(StrictModel):
+    password: str = Field(min_length=12, max_length=128)
+
+
+class TAStateInput(StrictModel):
+    active: bool
+
+
+class TAOutput(StrictModel):
+    id: UUID
+    username: str
+    name: str
+    active: bool
 
 
 class StudentOutput(StrictModel):
@@ -127,8 +149,7 @@ def student_row(conn: sa.Connection, account_id: UUID, *, lock: bool = False) ->
     return dict(found)
 
 
-@router.post("/auth/{role}/login", response_model=SessionOutput)
-def login(role: Literal["admin", "student"], body: LoginInput, request: Request, response: Response) -> dict:
+def _login(role: str | None, body: LoginInput, request: Request, response: Response) -> dict:
     same_origin(request)
     if request.headers.get("content-type", "").split(";")[0] != "application/json":
         raise HTTPException(415, "JSON required")
@@ -143,6 +164,94 @@ def login(role: Literal["admin", "student"], body: LoginInput, request: Request,
                         samesite="lax", path="/")
     no_store(response)
     return account
+
+
+@router.post("/auth/login", response_model=SessionOutput)
+def unified_login(body: LoginInput, request: Request, response: Response) -> dict:
+    return _login(None, body, request, response)
+
+
+@router.post("/auth/{role}/login", response_model=SessionOutput)
+def login(role: Literal["admin", "student"], body: LoginInput, request: Request, response: Response) -> dict:
+    return _login(role, body, request, response)
+
+
+def ta_row(conn: sa.Connection, account_id: UUID, *, lock: bool = False) -> dict:
+    query = sa.select(store.accounts.c.id, store.accounts.c.username, store.accounts.c.name,
+                      store.accounts.c.active).where(store.accounts.c.id == account_id,
+                                                     store.accounts.c.role == "ta")
+    row = conn.execute(query.with_for_update() if lock else query).mappings().first()
+    if not row:
+        raise HTTPException(404, "TA not found")
+    return dict(row)
+
+
+@router.get("/admin/tas", response_model=list[TAOutput])
+def list_tas(response: Response, account: dict = Depends(admin)) -> list[dict]:
+    with store.engine().connect() as conn:
+        no_store(response)
+        return [dict(row) for row in conn.execute(sa.select(
+            store.accounts.c.id, store.accounts.c.username, store.accounts.c.name, store.accounts.c.active
+        ).where(store.accounts.c.role == "ta").order_by(store.accounts.c.username).limit(500)).mappings()]
+
+
+@router.post("/admin/tas", response_model=TAOutput, status_code=201)
+def create_ta(body: TAInput, account: dict = Depends(admin_write)) -> dict:
+    try:
+        username = store.normalize_username(body.username)
+        if username == "ADMIN":
+            raise ValueError("ADMIN is reserved")
+        name = store.normalize_name(body.name)
+        with store.engine().begin() as conn:
+            from uuid import uuid4
+            ta_id = uuid4()
+            conn.execute(sa.insert(store.accounts).values(id=ta_id, role="ta", username=username,
+                name=name, password_hash=store.hash_password(body.password)))
+            store.audit(conn, "ta_created", account["id"], ta_id)
+            return ta_row(conn, ta_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except IntegrityError as exc:
+        raise HTTPException(409, "Username already exists") from exc
+
+
+@router.patch("/admin/tas/{ta_id}", response_model=TAOutput)
+def rename_ta(ta_id: UUID, body: NameInput, account: dict = Depends(admin_write)) -> dict:
+    try:
+        name = store.normalize_name(body.name)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    with store.engine().begin() as conn:
+        ta_row(conn, ta_id, lock=True)
+        conn.execute(sa.update(store.accounts).where(store.accounts.c.id == ta_id).values(name=name))
+        store.audit(conn, "ta_renamed", account["id"], ta_id)
+        publish(conn, account_id=ta_id)
+        return ta_row(conn, ta_id)
+
+
+@router.post("/admin/tas/{ta_id}/password", response_model=TAOutput)
+def reset_ta_password(ta_id: UUID, body: TAPasswordInput, account: dict = Depends(admin_write)) -> dict:
+    with store.engine().begin() as conn:
+        ta_row(conn, ta_id, lock=True)
+        conn.execute(sa.update(store.accounts).where(store.accounts.c.id == ta_id)
+                     .values(password_hash=store.hash_password(body.password)))
+        conn.execute(sa.delete(store.sessions).where(store.sessions.c.account_id == ta_id))
+        store.audit(conn, "ta_password_reset", account["id"], ta_id)
+        publish(conn, account_id=ta_id)
+        return ta_row(conn, ta_id)
+
+
+@router.put("/admin/tas/{ta_id}/state", response_model=TAOutput)
+def set_ta_state(ta_id: UUID, body: TAStateInput, account: dict = Depends(admin_write)) -> dict:
+    with store.engine().begin() as conn:
+        row = ta_row(conn, ta_id, lock=True)
+        if row["active"] == body.active:
+            raise HTTPException(409, "TA already has this state")
+        conn.execute(sa.update(store.accounts).where(store.accounts.c.id == ta_id).values(active=body.active))
+        conn.execute(sa.delete(store.sessions).where(store.sessions.c.account_id == ta_id))
+        store.audit(conn, "ta_reactivated" if body.active else "ta_deactivated", account["id"], ta_id)
+        publish(conn, account_id=ta_id)
+        return ta_row(conn, ta_id)
 
 
 @router.get("/auth/session", response_model=SessionOutput)

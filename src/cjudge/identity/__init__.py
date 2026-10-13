@@ -31,10 +31,18 @@ PASSWORD_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
 _hasher = PasswordHasher()
 _hash_slots = BoundedSemaphore(4)
 metadata = sa.MetaData()
+
+
+def _default_username(context: sa.DefaultExecutionContext) -> str:
+    values = context.get_current_parameters()
+    return "ADMIN" if values.get("role") == "admin" else values["roll_number"]
+
+
 accounts = sa.Table(
     "accounts", metadata,
     sa.Column("id", sa.Uuid(), primary_key=True),
     sa.Column("role", sa.String(7)),
+    sa.Column("username", sa.String(64), default=_default_username),
     sa.Column("roll_number", sa.String(64)),
     sa.Column("name", sa.String(120)),
     sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.true()),
@@ -104,10 +112,15 @@ def init_key() -> None:
     print("Credential key created. Back up the named Docker volume securely.")
 
 
-def normalize_roll(value: str) -> str:
+def normalize_username(value: str) -> str:
     roll = value.strip().upper()
     if not re.fullmatch(r"[A-Z0-9][A-Z0-9._/-]{0,63}", roll):
-        raise ValueError("Roll number must use 1–64 letters, digits, '.', '_', '/' or '-'")
+        raise ValueError("Username must use 1–64 letters, digits, '.', '_', '/' or '-'")
+    return roll
+
+
+def normalize_roll(value: str) -> str:
+    roll = normalize_username(value)
     if roll == "ADMIN":
         raise ValueError("ADMIN is reserved for the administrator")
     return roll
@@ -162,7 +175,7 @@ def create_admin(password: str) -> None:
         raise ValueError("Admin password must contain 12–128 characters")
     with engine().begin() as conn:
         account_id = uuid4()
-        conn.execute(sa.insert(accounts).values(id=account_id, role="admin", name="Administrator",
+        conn.execute(sa.insert(accounts).values(id=account_id, role="admin", username="ADMIN", name="Administrator",
                                                 password_hash=hash_password(password)))
         audit(conn, "admin_created", subject_id=account_id)
 
@@ -182,7 +195,7 @@ def add_student(conn: sa.Connection, roll: str, name: str) -> UUID:
     student_id = uuid4()
     password = generate_password()
     active = checked_cipher(conn)
-    conn.execute(sa.insert(accounts).values(id=student_id, role="student", roll_number=roll,
+    conn.execute(sa.insert(accounts).values(id=student_id, role="student", username=roll, roll_number=roll,
                                             name=name, password_hash=hash_password(password),
                                             encrypted_password=active.encrypt(password.encode())))
     return student_id
@@ -219,9 +232,11 @@ def import_student_rows(conn: sa.Connection, rows: list[tuple[str, str]]) -> dic
     mismatched: list[str] = []
     active = checked_cipher(conn)
     for roll, name in rows:
-        present = conn.execute(sa.select(accounts.c.id, accounts.c.name, accounts.c.active)
-                               .where(accounts.c.roll_number == roll).with_for_update(read=True)).first()
+        present = conn.execute(sa.select(accounts.c.id, accounts.c.role, accounts.c.name, accounts.c.active)
+                               .where(accounts.c.username == roll).with_for_update(read=True)).first()
         if present:
+            if present.role != "student":
+                raise ValueError(f"Username already exists: {roll}")
             if not present.active:
                 raise ValueError(f'Student {roll} is inactive; reactivate the account first')
             existing.append(roll)
@@ -230,17 +245,19 @@ def import_student_rows(conn: sa.Connection, rows: list[tuple[str, str]]) -> dic
         else:
             # RETURNING distinguishes a new row from a concurrent conflict.
             inserted = conn.execute(pg_insert(accounts).values(
-                id=uuid4(), role="student", roll_number=roll, name=name,
+                id=uuid4(), role="student", username=roll, roll_number=roll, name=name,
                 password_hash=hash_password(password := generate_password()),
                 encrypted_password=active.encrypt(password.encode()),
-            ).on_conflict_do_nothing(index_elements=[accounts.c.roll_number])
+            ).on_conflict_do_nothing()
               .returning(accounts.c.id)).scalar_one_or_none()
             if inserted:
                 created.append(roll)
             else:
                 existing.append(roll)
-                present = conn.execute(sa.select(accounts.c.name, accounts.c.active)
-                    .where(accounts.c.roll_number == roll).with_for_update(read=True)).one()
+                present = conn.execute(sa.select(accounts.c.role, accounts.c.name, accounts.c.active)
+                    .where(accounts.c.username == roll).with_for_update(read=True)).one()
+                if present.role != "student":
+                    raise ValueError(f"Username already exists: {roll}")
                 if not present.active:
                     raise ValueError(f'Student {roll} is inactive; reactivate the account first')
                 if present.name != name:
@@ -259,9 +276,9 @@ def token_digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def authenticate(role: str, identifier: str, password: str) -> tuple[dict, str] | None:
-    normalized = "ADMIN" if role == "admin" else normalize_roll(identifier)
-    throttle_key = f"{role}:{normalized}"
+def authenticate(role: str | None, identifier: str, password: str) -> tuple[dict, str] | None:
+    normalized = normalize_username(identifier)
+    throttle_key = normalized
     with engine().begin() as conn:
         conn.execute(pg_insert(login_attempts).values(identifier=throttle_key, window_start=now(), failures=0)
                      .on_conflict_do_nothing(index_elements=[login_attempts.c.identifier]))
@@ -277,11 +294,9 @@ def authenticate(role: str, identifier: str, password: str) -> tuple[dict, str] 
         if failures >= 5:
             audit(conn, "login_throttled", detail={"identifier": throttle_key})
             return None
-        query = sa.select(accounts).where(accounts.c.role == role, accounts.c.active)
-        if role == "student":
-            query = query.where(accounts.c.roll_number == normalized)
-        elif identifier.strip().lower() != "admin":
-            query = query.where(accounts.c.name == "")
+        query = sa.select(accounts).where(accounts.c.username == normalized, accounts.c.active)
+        if role is not None:
+            query = query.where(accounts.c.role == role)
         account = conn.execute(query.with_for_update(read=True)).mappings().first()
         if not verify_password(account["password_hash"] if account else dummy_hash(), password):
             conn.execute(sa.update(login_attempts).where(login_attempts.c.identifier == throttle_key)
@@ -295,7 +310,8 @@ def authenticate(role: str, identifier: str, password: str) -> tuple[dict, str] 
         conn.execute(sa.insert(sessions).values(token_hash=token_digest(token), account_id=account["id"],
                                                 csrf_token=csrf, expires_at=start + SESSION_LIFETIME))
         audit(conn, "login_succeeded", subject_id=account["id"])
-        return {"id": account["id"], "role": role, "roll_number": account["roll_number"],
+        return {"id": account["id"], "role": account["role"], "roll_number": account["roll_number"],
+                "username": account["username"],
                 "name": account["name"], "csrf_token": csrf}, token
 
 
@@ -303,7 +319,7 @@ def current_session(token: str | None) -> dict | None:
     if not token or len(token) > 128:
         return None
     with engine().connect() as conn:
-        row = conn.execute(sa.select(accounts.c.id, accounts.c.role, accounts.c.roll_number, accounts.c.name,
+        row = conn.execute(sa.select(accounts.c.id, accounts.c.role, accounts.c.username, accounts.c.roll_number, accounts.c.name,
                                      sessions.c.csrf_token).join(sessions, accounts.c.id == sessions.c.account_id)
                            .where(sessions.c.token_hash == token_digest(token), sessions.c.expires_at > now(),
                                   accounts.c.active))
