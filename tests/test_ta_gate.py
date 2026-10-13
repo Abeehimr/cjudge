@@ -11,7 +11,9 @@ from fastapi.testclient import TestClient
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
-from cjudge import identity, labs
+from cjudge import identity, labs, tasks, submissions
+from cjudge.submissions import files
+from cjudge.tasks.grading import TaskConfig
 from cjudge.api import app
 
 
@@ -113,6 +115,18 @@ def test_ta_accounts_lab_scope_ownership_and_archive(ta_database, tmp_path, monk
             {'frozen': True, 'reason': 'Exam rule'}, one['csrf_token']).status_code == 204
         assert write(ta_two, f'/api/ta/labs/{lab_id}/students/{student_id}/freeze',
             {'frozen': False, 'reason': 'Attempt'}, two['csrf_token']).status_code == 403
+        version = admin.get(f'/api/admin/labs/{lab_id}').json()['version']
+        assert write(admin, f'/api/admin/labs/{lab_id}/students/{student_id}/cancellation',
+            {'version': version, 'cancelled': True, 'reason': 'Admin penalty'}, csrf, 'put').status_code == 204
+        denied = write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/cancellation',
+            {'cancelled': False, 'reason': 'Attempt'}, one['csrf_token'], 'put')
+        assert denied.status_code == 403 and 'Only the TA who applied this penalty' in denied.json()['detail']
+        assert ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}').json()['cancelled'] is True
+        penalty = admin.get(f'/api/admin/labs/{lab_id}/tas/{created[0]}').json()['penalties'][0]
+        assert penalty['frozen'] is True and penalty['cancelled'] is False
+        version = admin.get(f'/api/admin/labs/{lab_id}').json()['version']
+        assert write(admin, f'/api/admin/labs/{lab_id}/students/{student_id}/cancellation',
+            {'version': version, 'cancelled': False, 'reason': 'Resolved'}, csrf, 'put').status_code == 204
         assert write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/freeze',
             {'frozen': False, 'reason': 'Resolved'}, one['csrf_token']).status_code == 204
         assert write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/cancellation',
@@ -125,6 +139,26 @@ def test_ta_accounts_lab_scope_ownership_and_archive(ta_database, tmp_path, monk
         assert any(item['action'] == 'lab_student_frozen' and item['student_id'] == str(student_id)
                    and item['detail']['reason'] == 'Exam rule' for item in activity['activity'])
         assert activity['penalties'] == []
+        # A pre-release detail carries the accepted revision's title and source.
+        monkeypatch.setenv('CJUDGE_SUBMISSION_FILES', str(tmp_path))
+        task_id, revision_id, submission_id = uuid4(), uuid4(), uuid4()
+        config = TaskConfig(title='Accepted question').model_dump(mode='json')
+        source = b'int main(void){return 0;}\n'
+        digest = files.validate('answer.c', source)
+        files.save(submission_id, source)
+        with identity.engine().begin() as conn:
+            conn.execute(sa.insert(tasks.tasks).values(id=task_id, version=1, config=config, case_count=1))
+            conn.execute(sa.insert(tasks.revisions).values(id=revision_id, task_id=task_id, number=1,
+                draft_version=1, config=config, cases_key=uuid4(), case_count=1))
+            conn.execute(sa.insert(labs.assignments).values(lab_id=lab_id, revision_id=revision_id, position=1, maximum_marks=5))
+            conn.execute(sa.insert(submissions.submissions).values(id=submission_id, lab_id=lab_id,
+                account_id=student_id, revision_id=revision_id, idempotency_key=uuid4(), filename='answer.c',
+                sha256=digest, size=len(source), accepted_at=datetime.now(timezone.utc), client_ip='192.0.2.1'))
+            conn.execute(sa.insert(submissions.jobs).values(submission_id=submission_id, revision_id=revision_id))
+            conn.execute(sa.insert(submissions.reviews).values(submission_id=submission_id))
+        evidence = ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}/submissions/{submission_id}')
+        assert evidence.status_code == 200, evidence.text
+        assert evidence.json()['task_title'] == 'Accepted question' and evidence.json()['source'] == source.decode()
         assert write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/password',
             {}, 'wrong').status_code == 403
         password = write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/password',
@@ -148,7 +182,7 @@ def test_ta_accounts_lab_scope_ownership_and_archive(ta_database, tmp_path, monk
         with identity.engine().begin() as conn:
             conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab_id).values(
                 first_released_at=datetime.now(timezone.utc), reveal_results=True))
-        assert ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}/submissions').json() == []
+        assert ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}/submissions').json()[0]['id'] == str(submission_id)
         with identity.engine().begin() as conn:
             conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab_id).values(
                 archived_at=datetime.now(timezone.utc)))

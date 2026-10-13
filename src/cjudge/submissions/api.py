@@ -97,6 +97,7 @@ def query(lab_id: UUID):
         assigned_revision.c.id == labs.assignments.c.revision_id).where(labs.assignments.c.lab_id == lab_id,
         assigned_revision.c.task_id == tasks.revisions.c.task_id).correlate(tasks.revisions).scalar_subquery()
     return sa.select(store.submissions, assigned.label('current_revision_id'), tasks.revisions.c.task_id,
+        tasks.revisions.c.config['title'].as_string().label('task_title'),
         maximum.label('assignment_maximum'), labs.labs.c.legacy_archived_marks,
         store.reviews.c.run_id, store.reviews.c.deleted_at, store.reviews.c.delete_reason,
         store.jobs.c.kind, store.jobs.c.batch_id,
@@ -319,6 +320,7 @@ class ReleasedRun(StrictModel):
 
 
 class ReleasedSubmission(SubmissionOutput):
+    task_title: str
     source: str
     official_run_id: UUID | None
     run_id: UUID | None
@@ -366,7 +368,7 @@ def released_data(conn: sa.Connection, row: dict, submission_id: UUID, run_id: U
         row.update(run_id=run_id, result_revision_id=selected['revision_id'])
         row['result_config'] = conn.execute(sa.select(tasks.revisions.c.config)
             .where(tasks.revisions.c.id == selected['revision_id'])).scalar_one()
-    return output(row, 'full', results_visible=True) | dict(source=files.read(row).decode('utf-8', errors='replace'),
+    return output(row, 'full', results_visible=True) | dict(task_title=row['task_title'], source=files.read(row).decode('utf-8', errors='replace'),
         official_run_id=official_run_id, official_marks=official_marks, run_id=row['run_id'],
         result_revision_id=row['result_revision_id'], marks=review.displayed(review.exact(row)) if row['run_id'] else None,
         maximum_marks=f"{run_maximum(row):.2f}" if row['run_id'] else None,

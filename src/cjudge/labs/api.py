@@ -51,8 +51,11 @@ def ta_detail(lab_id: UUID, ta_id: UUID, offset: int = Query(default=0, ge=0)) -
         if not ta:
             raise HTTPException(404, 'TA assignment not found')
         penalties = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number,
-            identity.accounts.c.name, labs.enrollments.c.frozen, labs.enrollments.c.freeze_reason,
-            labs.enrollments.c.cancelled, labs.enrollments.c.cancel_reason)
+            identity.accounts.c.name,
+            sa.and_(labs.enrollments.c.frozen.is_(True), labs.enrollments.c.frozen_by == ta_id).label('frozen'),
+            labs.enrollments.c.freeze_reason,
+            sa.and_(labs.enrollments.c.cancelled.is_(True), labs.enrollments.c.cancelled_by == ta_id).label('cancelled'),
+            labs.enrollments.c.cancel_reason)
             .join(labs.enrollments, labs.enrollments.c.account_id == identity.accounts.c.id)
             .where(labs.enrollments.c.lab_id == lab_id, sa.or_(
                 sa.and_(labs.enrollments.c.frozen.is_(True), labs.enrollments.c.frozen_by == ta_id),

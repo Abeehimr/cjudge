@@ -370,4 +370,4 @@ def set_cancelled(conn: sa.Connection, lab: dict, account_id: UUID, cancelled: b
 def _check_owner(conn: sa.Connection, owner: UUID | None, actor: UUID) -> None:
     role = conn.execute(sa.select(identity.accounts.c.role).where(identity.accounts.c.id == actor)).scalar_one()
     if role != 'admin' and owner != actor:
-        raise LabError(403, 'Only the acting TA or admin can reverse this action')
+        raise LabError(403, 'Only the TA who applied this penalty or an admin can reverse it.')
