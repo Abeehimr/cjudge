@@ -39,6 +39,39 @@ admin_router = APIRouter(prefix='/api/admin/labs', dependencies=[Depends(admin),
 student_router = APIRouter(prefix='/api/labs', dependencies=[Depends(student), Depends(private)])
 
 
+@admin_router.get('/{lab_id}/tas/{ta_id}')
+def ta_detail(lab_id: UUID, ta_id: UUID, offset: int = Query(default=0, ge=0)) -> dict:
+    with transaction() as conn:
+        labs.find(conn, lab_id, shared=True)
+        ta = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.username,
+            identity.accounts.c.name, identity.accounts.c.active, labs.ta_assignments.c.assigned_at)
+            .join(labs.ta_assignments, labs.ta_assignments.c.ta_id == identity.accounts.c.id)
+            .where(labs.ta_assignments.c.lab_id == lab_id, identity.accounts.c.id == ta_id,
+                identity.accounts.c.role == 'ta')).mappings().first()
+        if not ta:
+            raise HTTPException(404, 'TA assignment not found')
+        penalties = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number,
+            identity.accounts.c.name, labs.enrollments.c.frozen, labs.enrollments.c.freeze_reason,
+            labs.enrollments.c.cancelled, labs.enrollments.c.cancel_reason)
+            .join(labs.enrollments, labs.enrollments.c.account_id == identity.accounts.c.id)
+            .where(labs.enrollments.c.lab_id == lab_id, sa.or_(
+                sa.and_(labs.enrollments.c.frozen.is_(True), labs.enrollments.c.frozen_by == ta_id),
+                sa.and_(labs.enrollments.c.cancelled.is_(True), labs.enrollments.c.cancelled_by == ta_id)))
+            .order_by(identity.accounts.c.roll_number)).mappings().all()
+        subject = identity.accounts.alias('subject')
+        activity = conn.execute(sa.select(identity.audit_events.c.action, identity.audit_events.c.detail,
+            identity.audit_events.c.created_at, subject.c.id.label('student_id'),
+            subject.c.roll_number, subject.c.name)
+            .outerjoin(subject, sa.and_(subject.c.id == identity.audit_events.c.subject_id,
+                subject.c.role == 'student'))
+            .where(identity.audit_events.c.actor_id == ta_id,
+                identity.audit_events.c.detail['lab_id'].as_string() == str(lab_id))
+            .order_by(identity.audit_events.c.created_at.desc(), identity.audit_events.c.id.desc())
+            .offset(offset).limit(100)).mappings().all()
+        return {'ta': dict(ta), 'penalties': [dict(row) for row in penalties],
+            'activity': [dict(row) for row in activity]}
+
+
 class TitleInput(StrictModel):
     title: str = Field(min_length=1, max_length=160, pattern=r'^[^\x00-\x1f]+$')
     strict_ip: bool = False

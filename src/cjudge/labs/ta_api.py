@@ -15,7 +15,6 @@ from cjudge.identity.api import COOKIE, StrictModel, current, no_store, same_ori
 from cjudge.labs import binding
 from cjudge.labs.api import FreezeInput, ReasonInput, transaction, summary
 from cjudge.submissions import api as submission_api, review
-from cjudge.labs.release import visible
 
 router = APIRouter(prefix='/api/ta', dependencies=[Depends(no_store)])
 
@@ -184,15 +183,9 @@ def release(lab_id: UUID, student_id: UUID, body: ReasonInput, request: Request,
         return result
 
 
-class RevealInput(StrictModel):
-    confirm: bool
-
-
 @router.post('/labs/{lab_id}/students/{student_id}/password')
-def reveal_password(lab_id: UUID, student_id: UUID, body: RevealInput, request: Request,
+def reveal_password(lab_id: UUID, student_id: UUID, request: Request,
                     account: dict = Depends(ta_write)) -> dict:
-    if not body.confirm:
-        raise HTTPException(400, 'Confirm selected student')
     with transaction() as conn:
         access(conn, request, account, lab_id, write=True)
         cipher = identity.checked_cipher(conn)
@@ -215,21 +208,38 @@ def reveal_password(lab_id: UUID, student_id: UUID, body: RevealInput, request: 
             'password': password}
 
 
+class TASubmission(submission_api.SubmissionOutput):
+    marks: str | None
+    maximum_marks: str | None
+    passed: int | None
+    total: int | None
+
+
+@router.get('/labs/{lab_id}/students/{student_id}/marks', response_model=list[dict])
+def student_marks(lab_id: UUID, student_id: UUID, request: Request,
+                  account: dict = Depends(ta)) -> list[dict]:
+    with transaction() as conn:
+        access(conn, request, account, lab_id)
+        labs.enrollment(conn, lab_id, student_id, lock=False)
+        return review.marks(conn, lab_id, student_id)
+
+
 @router.get('/labs/{lab_id}/students/{student_id}/submissions',
-            response_model=list[submission_api.SubmissionOutput])
+            response_model=list[TASubmission])
 def released_history(lab_id: UUID, student_id: UUID, request: Request,
                      offset: int = Query(default=0, ge=0), account: dict = Depends(ta)) -> list[dict]:
     with transaction() as conn:
-        lab = access(conn, request, account, lab_id)
+        access(conn, request, account, lab_id)
         labs.enrollment(conn, lab_id, student_id, lock=False)
-        visible(lab)
         rows = conn.execute(submission_api.query(lab_id).where(
             submission_store.submissions.c.account_id == student_id).order_by(
             submission_store.submissions.c.accepted_at.desc(), submission_store.submissions.c.id)
             .offset(offset).limit(100)).mappings()
         best = review.best_for_review(conn, lab_id, student_id)
         return [dict(submission_api.output(row, 'full', results_visible=True),
-            best_for_review=row['id'] in best) for row in rows]
+            best_for_review=row['id'] in best, marks=review.displayed(review.exact(row)) if row['run_id'] else None,
+            maximum_marks=f"{submission_api.run_maximum(row):.2f}" if row['run_id'] else None,
+            passed=row['passed'], total=row['total']) for row in rows]
 
 
 @router.get('/labs/{lab_id}/students/{student_id}/submissions/{submission_id}',
@@ -237,9 +247,8 @@ def released_history(lab_id: UUID, student_id: UUID, request: Request,
 def released_submission(lab_id: UUID, student_id: UUID, submission_id: UUID, request: Request,
                         run_id: UUID | None = None, account: dict = Depends(ta)) -> dict:
     with transaction() as conn:
-        lab = access(conn, request, account, lab_id)
+        access(conn, request, account, lab_id)
         labs.enrollment(conn, lab_id, student_id, lock=False)
-        visible(lab)
         row = conn.execute(submission_api.query(lab_id).where(
             submission_store.submissions.c.id == submission_id,
             submission_store.submissions.c.account_id == student_id)).mappings().first()

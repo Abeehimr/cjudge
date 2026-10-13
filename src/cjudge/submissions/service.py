@@ -76,5 +76,5 @@ def accept(conn: sa.Connection, lab: dict, enrollment: dict, revision_id: UUID, 
     conn.execute(insert(turns).values(account_id=enrollment['account_id']).on_conflict_do_nothing())
     conn.execute(sa.select(sa.func.pg_notify('cjudge_jobs', '')))
     events.publish(conn, account_id=enrollment['account_id'])
-    labs.scoreboard_notify(conn, lab['id'])
+    labs.submission_notify(conn, lab['id'])
     return row, True

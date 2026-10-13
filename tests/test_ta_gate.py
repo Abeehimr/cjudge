@@ -59,11 +59,13 @@ def test_ta_accounts_lab_scope_ownership_and_archive(ta_database, tmp_path, monk
     identity.create_admin(admin_password)
     with identity.engine().begin() as conn:
         student_id = identity.add_student(conn, 'M23-001', 'Ada Student')
+        other_student_id = identity.add_student(conn, 'M23-002', 'Other Student')
         lab_id, other_lab = uuid4(), uuid4()
         for id, title in ((lab_id, 'TA gate lab'), (other_lab, 'Other lab')):
             conn.execute(sa.insert(labs.labs).values(id=id, title=title, version=1,
                 strict_ip=False, compiler_feedback='short', starts_at=None, ends_at=None))
         conn.execute(sa.insert(labs.enrollments).values(lab_id=lab_id, account_id=student_id))
+        conn.execute(sa.insert(labs.enrollments).values(lab_id=lab_id, account_id=other_student_id))
         old_student_password = identity.cipher().decrypt(conn.execute(sa.select(
             identity.accounts.c.encrypted_password).where(identity.accounts.c.id == student_id)).scalar_one()).decode()
     with TestClient(app, base_url=ORIGIN) as admin, TestClient(app, base_url=ORIGIN) as ta_one, TestClient(app, base_url=ORIGIN) as ta_two, TestClient(app, base_url=ORIGIN) as student_client:
@@ -100,7 +102,13 @@ def test_ta_accounts_lab_scope_ownership_and_archive(ta_database, tmp_path, monk
         assert found.status_code == 200 and len(found.json()) == 1
         student = ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}').json()
         assert student['submission_count'] == 0 and 'password' not in student and 'marks' not in student
-        assert ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}/submissions').status_code == 403
+        assert ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}/submissions').json() == []
+        marks = ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}/marks')
+        assert marks.status_code == 200 and len(marks.json()) == 1 and marks.json()[0]['id'] == str(student_id)
+        assert ta_one.get(f'/api/ta/labs/{other_lab}/students/{student_id}/marks').status_code == 403
+        detail = admin.get(f'/api/admin/labs/{lab_id}/tas/{created[0]}')
+        assert detail.status_code == 200 and detail.json()['ta']['username'] == 'HELPER1'
+        assert ta_one.get(f'/api/admin/labs/{lab_id}/tas/{created[0]}').status_code == 403
         assert write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/freeze',
             {'frozen': True, 'reason': 'Exam rule'}, one['csrf_token']).status_code == 204
         assert write(ta_two, f'/api/ta/labs/{lab_id}/students/{student_id}/freeze',
@@ -113,12 +121,14 @@ def test_ta_accounts_lab_scope_ownership_and_archive(ta_database, tmp_path, monk
             {'cancelled': False, 'reason': 'Attempt'}, two['csrf_token'], 'put').status_code == 403
         assert write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/cancellation',
             {'cancelled': False, 'reason': 'Resolved'}, one['csrf_token'], 'put').status_code == 204
+        activity = admin.get(f'/api/admin/labs/{lab_id}/tas/{created[0]}').json()
+        assert any(item['action'] == 'lab_student_frozen' and item['student_id'] == str(student_id)
+                   and item['detail']['reason'] == 'Exam rule' for item in activity['activity'])
+        assert activity['penalties'] == []
         assert write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/password',
-            {'confirm': False}, one['csrf_token']).status_code == 400
-        assert write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/password',
-            {'confirm': True}, 'wrong').status_code == 403
+            {}, 'wrong').status_code == 403
         password = write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/password',
-            {'confirm': True}, one['csrf_token'])
+            {}, one['csrf_token'])
         assert password.status_code == 200 and password.headers['cache-control'] == 'no-store'
         assert len(password.json()['password']) == 6
         with identity.engine().begin() as conn:
@@ -144,7 +154,7 @@ def test_ta_accounts_lab_scope_ownership_and_archive(ta_database, tmp_path, monk
                 archived_at=datetime.now(timezone.utc)))
         assert ta_one.get(f'/api/ta/labs/{lab_id}/students/{student_id}/submissions').status_code == 200
         assert write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/password',
-            {'confirm': True}, one['csrf_token']).status_code == 409
+            {}, one['csrf_token']).status_code == 409
         assert write(ta_one, f'/api/ta/labs/{lab_id}/students/{student_id}/freeze',
             {'frozen': True, 'reason': 'Too late'}, one['csrf_token']).status_code == 409
         # Removal is versioned and revokes all assigned-lab reads immediately.

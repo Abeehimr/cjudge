@@ -80,19 +80,14 @@ def test_cancelled_student_is_unranked_and_cannot_win_first_solve():
     assert cancelled['total'] is None and cancelled['tasks'][0]['submission_id'] is None
 
 
-def test_live_notifications_broadcast_only_when_enabled():
+def test_live_notifications_reach_lab_when_scoreboard_hidden():
     from unittest.mock import Mock, patch
     from cjudge.judging.queue import notify, ADMIN_CHANNEL
     conn = Mock()
     account, lab = UUID(int=3), UUID(int=10)
     with patch('cjudge.events.publish') as publish:
-        conn.execute.return_value.scalar_one.return_value = False
-        notify(conn, account, lab_id=lab)
-        assert publish.call_count == 2
-        publish.assert_any_call(conn, lab_id=ADMIN_CHANNEL)
-        publish.assert_any_call(conn, account_id=account)
-        publish.reset_mock()
-        conn.execute.return_value.scalar_one.return_value = True
         notify(conn, account, lab_id=lab)
         assert publish.call_count == 3
+        publish.assert_any_call(conn, lab_id=ADMIN_CHANNEL)
+        publish.assert_any_call(conn, account_id=account)
         publish.assert_any_call(conn, lab_id=lab, account_id=None)

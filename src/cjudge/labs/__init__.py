@@ -88,9 +88,8 @@ def notify(conn: sa.Connection, *, lab_id: UUID | None = None, account_id: UUID 
     events.publish(conn, lab_id=lab_id, account_id=account_id)
 
 
-def scoreboard_notify(conn: sa.Connection, lab_id: UUID) -> None:
-    if conn.execute(sa.select(labs.c.scoreboard_visible).where(labs.c.id == lab_id)).scalar_one():
-        notify(conn, lab_id=lab_id)
+def submission_notify(conn: sa.Connection, lab_id: UUID) -> None:
+    notify(conn, lab_id=lab_id)
 
 
 def announce(conn: sa.Connection, lab_id: UUID, body: str, actor: UUID, recipient_id: UUID | None = None) -> None:

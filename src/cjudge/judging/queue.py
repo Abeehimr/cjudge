@@ -23,7 +23,7 @@ def notify(conn: sa.Connection, account_id: UUID | None = None, *, lab_id: UUID 
     if account_id:
         events.publish(conn, account_id=account_id)
     if lab_id:
-        labs.scoreboard_notify(conn, lab_id)
+        labs.submission_notify(conn, lab_id)
 
 
 def register(conn: sa.Connection, slot: int, generation: UUID) -> None:

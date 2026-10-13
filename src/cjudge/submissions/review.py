@@ -47,19 +47,25 @@ def official_query(lab_id: UUID):
         .join(jobs, jobs.c.submission_id == submissions.c.id)).where(submissions.c.lab_id == lab_id)
 
 
-def marks(conn: sa.Connection, lab_id: UUID) -> list[dict]:
+def marks(conn: sa.Connection, lab_id: UUID, account_id: UUID | None = None) -> list[dict]:
     assigned = labs.task_rows(conn, lab_id)
     task_ids = {row['task_id'] for row in assigned}
-    all_rows = conn.execute(official_query(lab_id).where(reviews.c.deleted_at.is_(None))).mappings().all()
+    selection = official_query(lab_id).where(reviews.c.deleted_at.is_(None))
+    if account_id:
+        selection = selection.where(submissions.c.account_id == account_id)
+    all_rows = conn.execute(selection).mappings().all()
     grouped = {}
     for row in all_rows:
         grouped.setdefault((row['account_id'], row['task_id']), []).append(row)
     active_batches = set(conn.execute(sa.select(batches.c.task_id).where(
         batches.c.lab_id == lab_id, batches.c.state == 'judging')).scalars())
-    students = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number, identity.accounts.c.name,
+    students_query = (sa.select(identity.accounts.c.id, identity.accounts.c.roll_number, identity.accounts.c.name,
         labs.enrollments.c.cancelled)
         .join(labs.enrollments, labs.enrollments.c.account_id == identity.accounts.c.id)
-        .where(labs.enrollments.c.lab_id == lab_id).order_by(identity.accounts.c.roll_number)).mappings()
+        .where(labs.enrollments.c.lab_id == lab_id).order_by(identity.accounts.c.roll_number))
+    if account_id:
+        students_query = students_query.where(identity.accounts.c.id == account_id)
+    students = conn.execute(students_query).mappings()
     result = []
     for student in students:
         if student['cancelled']:
