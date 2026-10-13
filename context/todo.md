@@ -243,7 +243,7 @@ Evidence: 40 backend tests, 66 frontend tests and production build; disposable-d
 - [x] Add admin lab/TA page with assignment status, current penalties, and lab activity.
 - [x] **Gate:** disposable-database API checks for role/scope, ownership, disclosure, password/session revocation, archive locks; backend/frontend tests and build.
 
-Evidence: 42 backend tests (including disposable PostgreSQL gate), 72 frontend tests, production build. Physical mobile/LAN acceptance remains.
+Evidence: 43 backend tests (including disposable PostgreSQL gate), 72 frontend tests, production build. Physical mobile/LAN acceptance remains.
 
 ## M24 — TA Review Marks · requires M20, M23
 
