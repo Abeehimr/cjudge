@@ -32,8 +32,10 @@ def ta_database(monkeypatch):
     monkeypatch.setenv('DATABASE_URL', url)
     identity.engine.cache_clear()
     try:
-        subprocess.run([sys.executable, '-m', 'alembic', 'upgrade', 'head'], check=True,
+        migrated = subprocess.run([sys.executable, '-m', 'alembic', 'upgrade', 'head'],
             env={**os.environ, 'DATABASE_URL': url}, capture_output=True)
+        if migrated.returncode:
+            raise AssertionError(migrated.stderr.decode(errors='replace').replace(url, '<DATABASE_URL>'))
         yield
     finally:
         identity.engine.cache_clear()

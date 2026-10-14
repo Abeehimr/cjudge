@@ -67,6 +67,7 @@ runs = sa.Table('judge_runs', metadata,
     sa.Column('score_numerator', sa.Text(), nullable=False), sa.Column('score_denominator', sa.Text(), nullable=False),
     sa.Column('compiler_feedback', sa.Text(), nullable=False),
     sa.Column('compiler_truncated', sa.Boolean(), nullable=False),
+    sa.Column('restriction', sa.JSON()),
     sa.Column('finished_at', sa.DateTime(timezone=True), nullable=False))
 
 cases = sa.Table('judge_case_results', metadata,

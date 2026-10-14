@@ -31,6 +31,11 @@ class EarlyFeedback(StrictModel):
     provisional: bool
 
 
+class RestrictionMatch(StrictModel):
+    identifier: str
+    line: int
+
+
 class SubmissionOutput(StrictModel):
     id: UUID
     revision_id: UUID
@@ -40,6 +45,7 @@ class SubmissionOutput(StrictModel):
     status: str
     compiler_feedback: str | None = None
     compiler_truncated: bool = False
+    restriction: RestrictionMatch | None = None
     best_for_review: bool = False
     deleted_at: datetime | None = None
     delete_reason: str | None = None
@@ -104,6 +110,7 @@ def query(lab_id: UUID):
         store.runs.c.revision_id.label('result_revision_id'), result_revision.c.config.label('result_config'),
         identity.accounts.c.roll_number, identity.accounts.c.name, store.jobs.c.state, store.jobs.c.attempt_count,
         store.runs.c.verdict, store.runs.c.compiler_feedback, store.runs.c.compiler_truncated,
+        store.runs.c.restriction,
         store.runs.c.passed, store.runs.c.total, store.runs.c.score_numerator, store.runs.c.score_denominator,
         store.attempts.c.fault).select_from(store.submissions.join(store.jobs,
         store.jobs.c.submission_id == store.submissions.c.id).join(identity.accounts,
@@ -124,13 +131,14 @@ def run_maximum(row: dict) -> Decimal:
 
 def output(row: dict, feedback: str, *, admin_view: bool = False, early_feedback_enabled: bool = False,
            results_visible: bool = False) -> dict:
-    status = ('Passed' if row['verdict'] == 'AC' else 'Compile error' if row['verdict'] == 'CE' else 'Failed') if row['run_id'] else {
+    status = ('Passed' if row['verdict'] == 'AC' else 'Compile error' if row['verdict'] == 'CE' else
+        'Restricted source' if row['verdict'] == 'Restricted' else 'Failed') if row['run_id'] else {
         'queued': 'Queued', 'judging': 'Judging', 'delayed': 'Judging delayed', 'complete': 'Judging'}[row['state']]
     if (row['run_id'] and row['verdict'] == 'Failed' and row['result_config'].get('scoring', 'partial') == 'partial'
             and 0 < row['passed'] < row['total'] and (admin_view or early_feedback_enabled or results_visible)):
         status = 'Partial pass'
-    result = {key: row[key] for key in SubmissionOutput.model_fields if key not in ('status', 'compiler_feedback', 'compiler_truncated', 'best_for_review', 'early_feedback')}
-    result.update(status=status, compiler_feedback=None, compiler_truncated=False, best_for_review=False)
+    result = {key: row[key] for key in SubmissionOutput.model_fields if key not in ('status', 'compiler_feedback', 'compiler_truncated', 'restriction', 'best_for_review', 'early_feedback')}
+    result.update(status=status, compiler_feedback=None, compiler_truncated=False, restriction=row.get('restriction'), best_for_review=False)
     if (early_feedback_enabled or results_visible) and row['run_id'] and row['result_config'].get('scoring', 'partial') == 'partial':
         result['early_feedback'] = {'passed': row['passed'], 'total': row['total'],
                                     'marks': review.displayed(review.exact(row)),
@@ -253,7 +261,7 @@ def admin_detail(lab_id: UUID, submission_id: UUID, run_id: UUID | None = None):
                 store.runs.c.submission_id == submission_id)).mappings().first()
             if not selected:
                 raise HTTPException(404, 'Judge run not found')
-            row = dict(row) | {key: selected[key] for key in ('verdict', 'compiler_feedback', 'compiler_truncated',
+            row = dict(row) | {key: selected[key] for key in ('verdict', 'compiler_feedback', 'compiler_truncated', 'restriction',
                 'passed', 'total', 'score_numerator', 'score_denominator')}
             row.update(run_id=run_id, result_revision_id=selected['revision_id'])
             row['result_config'] = conn.execute(sa.select(tasks.revisions.c.config)
@@ -363,7 +371,7 @@ def released_data(conn: sa.Connection, row: dict, submission_id: UUID, run_id: U
             store.runs.c.submission_id == submission_id)).mappings().first()
         if not selected:
             raise HTTPException(404, 'Judge run not found')
-        row.update({key: selected[key] for key in ('verdict', 'compiler_feedback', 'compiler_truncated',
+        row.update({key: selected[key] for key in ('verdict', 'compiler_feedback', 'compiler_truncated', 'restriction',
             'passed', 'total', 'score_numerator', 'score_denominator')})
         row.update(run_id=run_id, result_revision_id=selected['revision_id'])
         row['result_config'] = conn.execute(sa.select(tasks.revisions.c.config)

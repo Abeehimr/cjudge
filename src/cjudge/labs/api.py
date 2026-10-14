@@ -169,6 +169,7 @@ class PublicTask(StrictModel):
     previous_revision_ids: list[UUID] = []
     title: str
     statement: str
+    banned_identifiers: list[str] = []
     maximum_marks: str
     cpu_seconds: float
     wall_seconds: float

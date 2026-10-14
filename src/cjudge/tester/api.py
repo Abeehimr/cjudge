@@ -27,12 +27,13 @@ def find(conn: sa.Connection, task_id: UUID, batch_id: UUID, *, lock: bool = Fal
 
 def source_view(row: dict, total: int) -> dict:
     state = row['state']
-    verdict = ('CE' if state == 'complete' and row['progress'] == 0 else
+    verdict = ('Restricted source' if state == 'complete' and row['restriction'] else
+        'CE' if state == 'complete' and row['progress'] == 0 else
         'AC' if state == 'complete' and row['passed'] == total else
         'Partial' if state == 'complete' and row['passed'] else
         'Failed' if state == 'complete' else state)
     return {key: row[key] for key in ('id', 'filename', 'state', 'progress', 'passed',
-        'compiler_feedback', 'compiler_truncated', 'diagnostic')} | {'total': total, 'verdict': verdict,
+        'compiler_feedback', 'compiler_truncated', 'diagnostic', 'restriction')} | {'total': total, 'verdict': verdict,
         'percentage': round(row['passed'] * 100 / total, 2) if state == 'complete' else None}
 
 

@@ -15,6 +15,7 @@ import sqlalchemy as sa
 from cjudge import identity, labs, runner, tasks
 from cjudge.submissions.files import SOURCE_BYTES, validate
 from cjudge.tasks.grading import TaskConfig, compare_output
+from cjudge.tasks.restrictions import first_banned
 from cjudge.tasks.authoring import check_python
 
 BATCH_LIMIT = 20
@@ -47,6 +48,7 @@ sources = sa.Table('tester_sources', identity.metadata,
     sa.Column('last_claimed_at', sa.DateTime(timezone=True)),
     sa.Column('compiler_feedback', sa.Text(), nullable=False, server_default=''),
     sa.Column('compiler_truncated', sa.Boolean(), nullable=False, server_default=sa.false()),
+    sa.Column('restriction', sa.JSON()),
     sa.Column('diagnostic', sa.Text(), nullable=False, server_default=''),
     sa.CheckConstraint("state IN ('queued','testing','complete','failed')", name='tester_state'))
 attempts = sa.Table('tester_attempts', identity.metadata,
@@ -227,7 +229,12 @@ def run_case(job: dict) -> dict:
     if not pairs or len(pairs) != revision['case_count']:
         raise runner.SandboxError('Invalid test artifacts')
     if job['progress'] == 0:
-        compiled = runner.compile_c(read(job, 'c'))
+        source = read(job, 'c')
+        restriction = first_banned(source, config.banned_identifiers)
+        if restriction:
+            return dict(kind='compile', verdict='Restricted', compiler_feedback='',
+                compiler_truncated=False, restriction={'identifier': restriction[0], 'line': restriction[1]})
+        compiled = runner.compile_c(source)
         result = dict(kind='compile', verdict=compiled.verdict,
             compiler_feedback=compiled.stderr.decode('utf-8', errors='replace')[:65536],
             compiler_truncated=compiled.stderr_truncated)
@@ -263,10 +270,11 @@ def checkpoint(conn: sa.Connection, key: UUID, result: dict) -> bool:
         batches.c.revision_id == tasks.revisions.c.id).where(batches.c.id == row['batch_id'])).scalar_one()
     timestamp = labs.now(conn)
     if result['kind'] == 'compile' and row['progress'] == 0:
-        finished = result['verdict'] == 'CE'
+        finished = result['verdict'] in ('CE', 'Restricted')
         conn.execute(sa.update(sources).where(sources.c.id == row['id']).values(
             progress=0 if finished else 1, state='complete' if finished else 'queued',
-            compiler_feedback=result['compiler_feedback'], compiler_truncated=result['compiler_truncated'], diagnostic=''))
+            compiler_feedback=result['compiler_feedback'], compiler_truncated=result['compiler_truncated'],
+            restriction=result.get('restriction'), diagnostic=''))
     elif result['kind'] == 'case' and result['number'] == row['progress']:
         conn.execute(sa.insert(cases).values(source_id=row['id'], **{k: v for k, v in result.items() if k != 'kind'}))
         conn.execute(sa.update(sources).where(sources.c.id == row['id']).values(

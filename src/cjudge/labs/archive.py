@@ -63,12 +63,15 @@ def rows(conn: sa.Connection, table, condition) -> list[dict]:
     return [dict(row) for row in conn.execute(sa.select(table).where(condition).order_by(*table.primary_key.columns)).mappings()]
 
 
-def snapshot(conn: sa.Connection, lab: dict, format_version: int = 3) -> dict:
+def snapshot(conn: sa.Connection, lab: dict, format_version: int = 4) -> dict:
     lab_id = lab['id']
     submissions = rows(conn, store.submissions, store.submissions.c.lab_id == lab_id)
     ids = [row['id'] for row in submissions]
     attempts = rows(conn, store.attempts, store.attempts.c.submission_id.in_(ids))
     runs = rows(conn, store.runs, store.runs.c.submission_id.in_(ids))
+    if format_version < 4:
+        for run in runs:
+            run.pop('restriction', None)
     batches = rows(conn, store.batches, store.batches.c.lab_id == lab_id)
     roster = [dict(row) for row in conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number,
         identity.accounts.c.name, labs.enrollments.c.frozen, labs.enrollments.c.freeze_reason,
@@ -114,7 +117,7 @@ def file_hash(path: Path) -> tuple[str, int]:
 
 def build(key: UUID, data: dict, csv_data: bytes) -> tuple[str, int]:
     path = root() / f'{key}.zip'
-    manifest = {'format': 'cjudge-lab', 'version': 3, 'lab_id': str(data['lab']['id']),
+    manifest = {'format': 'cjudge-lab', 'version': 4, 'lab_id': str(data['lab']['id']),
         'lab_version': data['lab']['version'], 'snapshot_digest': digest(data),
         'generated_at': identity.now().isoformat(), 'entries': []}
     def add(archive, name: str, content: bytes):
@@ -186,7 +189,7 @@ async def export_lab(lab_id: UUID, request: Request, actor: dict = Depends(admin
                 if digest(snapshot(conn, current)) != digest(data):
                     raise labs.LabError(409, 'Lab evidence changed during export; regenerate the archive')
                 conn.execute(sa.insert(exports).values(id=key, lab_id=lab_id, version=body.version,
-                    snapshot_digest=digest(data), sha256=checksum, size=size, format_version=3))
+                    snapshot_digest=digest(data), sha256=checksum, size=size, format_version=4))
                 identity.audit(conn, 'lab_export_generated', actor['id'], detail={'lab_id': str(lab_id),
                     'export_id': str(key), 'reason': body.reason.strip(), 'sha256': checksum})
             return {'id': key, 'sha256': checksum, 'size': size, 'version': body.version}

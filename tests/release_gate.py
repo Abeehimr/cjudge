@@ -327,7 +327,7 @@ def exercise(directory):
         assert hashlib.sha256(zipped).hexdigest() == receipt['sha256']
         with zipfile.ZipFile(io.BytesIO(zipped)) as zipped_file:
             manifest = json.loads(zipped_file.read('manifest.json'))
-            assert manifest['version'] == 3
+            assert manifest['version'] == 4
             assert f'sources/{excluded}.c' in zipped_file.namelist()
             assert f'pdfs/{pdf}.pdf' in zipped_file.namelist()
             evidence = json.loads(zipped_file.read('snapshot.json'))

@@ -17,6 +17,7 @@ from cjudge.judging import queue
 from cjudge.submissions import files, review, batches
 from cjudge.tasks.authoring import check_python
 from cjudge.tasks.grading import TaskConfig, compare_output, score
+from cjudge.tasks.restrictions import first_banned
 
 LOG = logging.getLogger(__name__)
 
@@ -46,10 +47,17 @@ def judge(submission: dict, lost: threading.Event) -> dict:
             labs.assignments.c.lab_id == submission['lab_id'],
             tasks.revisions.c.task_id == revision['task_id'])).scalar_one()
     config = TaskConfig.model_validate(revision['config'])
+    source = files.read(submission)
+    restriction = first_banned(source, config.banned_identifiers)
+    if restriction:
+        identifier, line = restriction
+        return dict(verdict='Restricted', passed=0, total=revision['case_count'],
+            score_numerator='0', score_denominator='1', compiler_feedback='',
+            compiler_truncated=False, restriction={'identifier': identifier, 'line': line}, cases=[])
     test_cases = tasks.load_cases(revision['cases_key'])
     if not test_cases or len(test_cases) != revision['case_count']:
         raise runner.SandboxError('Invalid test artifacts')
-    compiled = runner.compile_c(files.read(submission))
+    compiled = runner.compile_c(source)
     if lost.is_set():
         raise runner.SandboxError('Lease lost')
     case_results = []
