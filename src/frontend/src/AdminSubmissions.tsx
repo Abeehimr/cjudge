@@ -4,8 +4,9 @@ import { api } from "./api";
 import { useAdminEvents } from "./Isolates";
 import { useOffset, useUnsaved } from "./navigation";
 import RestrictionNotice, { type Restriction } from "./RestrictionNotice";
+import { languageName, type Language } from "./languages";
 
-type Submission = { id: string; revision_id: string; filename: string; accepted_at: string; status: string;
+type Submission = { id: string; revision_id: string; filename: string; language?: Language; accepted_at: string; status: string;
   compiler_feedback: string | null; compiler_truncated: boolean; restriction?: Restriction; best_for_review?: boolean };
 type AdminSubmission = Submission & { account_id: string; roll_number: string; name: string; attempt_count: number; fault: string | null;
   client_ip: string; client_mac: string | null; passed: number | null; total: number | null; marks: string | null; maximum_marks: string | null;
@@ -137,6 +138,7 @@ export function AdminSubmissionDetail({ labId, submissionId, csrf, released, arc
       <details><summary>Judging attempts</summary><ul>{(row.attempts || []).map((item) => <li key={item.id}>{new Date(item.started_at).toLocaleString()} · {item.outcome || 'Judging'}{item.fault && ` · ${item.fault}`}</li>)}</ul></details>
       {row.fault && <p className="notice notice-danger">{row.fault}</p>}
       <h3 className="font-semibold">Source: {row.filename} ({row.size} bytes)</h3>
+      <p>Language: {languageName(row.language)}</p>
       <a download href={`/api/admin/labs/${labId}/submissions/${row.id}/source`}>Download original source</a>
       <pre className="overflow-x-auto rounded border bg-slate-50 p-3"><code>{row.source}</code></pre>
       <RestrictionNotice restriction={row.restriction} />{row.compiler_feedback && <><h3 className="font-semibold">Compiler feedback</h3><pre className="overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></>}

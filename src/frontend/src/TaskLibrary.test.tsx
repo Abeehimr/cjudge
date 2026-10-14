@@ -92,10 +92,12 @@ test("optional banned identifiers save on draft and appear in review", async () 
   renderRoute(<TaskLibrary csrf="csrf" />, "/admin/tasks/task");
   fireEvent.change(await screen.findByLabelText("Banned identifiers (optional, one per line)"),
     { target: { value: "printf\nscanf\n" } });
+  fireEvent.change(screen.getByLabelText("Permitted languages"), { target: { value: "cpp17" } });
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
   expect(await screen.findByText("Draft saved.")).toBeTruthy();
   expect(fetchMock.mock.calls.some(([path, options]) => path === "/api/admin/tasks/task" && options?.method === "PUT" &&
     JSON.parse(String(options.body)).config.banned_identifiers.join(",") === "printf,scanf")).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Review draft" }));
   expect((await screen.findByText("printf, scanf")).className).toContain("text-red-900");
+  expect(await screen.findByText("Languages: C++17")).toBeTruthy();
 });

@@ -66,6 +66,23 @@ test("pending limit disables new uploads with its reason", async () => {
   expect(screen.getByText(/Three submissions are pending/)).toBeTruthy();
 });
 
+test("C++ task accepts cpp uploads and rejects C before upload", async () => {
+  const fetchMock = vi.fn(async (_path: string, options: RequestInit) => ({ ok: true, status: 200,
+    json: async () => options.method === "POST" ? { id: "accepted", filename: "main.cpp", accepted_at: admission.server_time } : [] }));
+  vi.stubGlobal("fetch", fetchMock);
+  renderRoute(<Upload labId="lab" tasks={[{ ...tasks[0], languages: ["cpp17"] }]} admission={admission}
+    csrf="csrf" refresh={vi.fn().mockResolvedValue(undefined)} />, "/labs/lab/tasks/revision");
+  const input = screen.getByLabelText(/\.cpp file/);
+  expect(input.getAttribute("accept")).toBe(".cpp");
+  fireEvent.change(input, { target: { files: [new File(["int main(){}"], "main.c")] } });
+  fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(fetchMock.mock.calls.filter(([, options]) => options.method === "POST")).toHaveLength(0);
+  fireEvent.change(input, { target: { files: [new File(["int main(){}"], "main.cpp")] } });
+  fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+  expect(await screen.findByText(/Accepted main.cpp/)).toBeTruthy();
+});
+
 test("early feedback shows official counts, provisional runs, and pending work without details", async () => {
   const rows = [
     { id: 'one', revision_id: 'revision', filename: 'one.c', accepted_at: admission.server_time, status: 'Partial pass',

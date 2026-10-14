@@ -3,8 +3,9 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api } from "./api";
 import { useAdminEvents } from "./Isolates";
 import RestrictionNotice, { type Restriction } from "./RestrictionNotice";
+import { languageName, type Language } from "./languages";
 
-type Source = { id: string; filename: string; state: string; progress: number; passed: number;
+type Source = { id: string; filename: string; language?: Language; state: string; progress: number; passed: number;
   total: number; verdict: string; percentage: number | null; restriction?: Restriction; compiler_feedback: string;
   compiler_truncated: boolean; diagnostic: string };
 type Batch = { id: string; revision_id: string; created_at: string; sources: Source[] };
@@ -54,7 +55,7 @@ export default function TaskTester({ csrf }: { csrf: string }) {
     setBusy(true); setError(""); setMessage("");
     try {
       const archive = file.name.toLowerCase().endsWith(".zip");
-      if (!archive && !file.name.endsWith(".c")) throw new Error("Choose a .c source or .zip archive.");
+      if (!archive && !/\.(c|cpp)$/.test(file.name)) throw new Error("Choose a .c or .cpp source, or .zip archive.");
       const uploaded = await api<Batch>(`${base}?revision_id=${revision}`, {
         method: "POST", body: file,
         headers: { "Content-Type": archive ? "application/zip" : "application/octet-stream",
@@ -94,8 +95,8 @@ export default function TaskTester({ csrf }: { csrf: string }) {
     {message && <p role="status" className="notice notice-success">{message}</p>}
     {revision && <section className="rounded border bg-white p-4">
       <h2 className="font-semibold">New test batch</h2>
-      <p className="text-sm">One .c file or a flat ZIP of up to 20 .c files; each source at most 64 KiB.</p>
-      <input aria-label="C source or ZIP" type="file" accept=".c,.zip" onChange={(event) => setFile(event.target.files?.[0] || null)} />
+      <p className="text-sm">One .c/.cpp file or a flat ZIP of up to 20 sources in this revision's permitted languages; each source at most 64 KiB.</p>
+      <input aria-label="C/C++ source or ZIP" type="file" accept=".c,.cpp,.zip" onChange={(event) => setFile(event.target.files?.[0] || null)} />
       <button disabled={busy || !file} onClick={() => { void upload(); }}>Test sources</button>
     </section>}
     {!revision && <p>Select a published revision from the task page to start a test.</p>}
@@ -119,6 +120,7 @@ export default function TaskTester({ csrf }: { csrf: string }) {
         {detail.source.percentage !== null && ` · ${detail.source.percentage}%`}</p>
       <RestrictionNotice restriction={detail.source.restriction} />
       {detail.source.diagnostic && <p role="alert" className="notice notice-danger">{detail.source.diagnostic}</p>}
+      <p>Language: {languageName(detail.source.language)}</p>
       <details><summary>Source code</summary><pre className="max-h-96 overflow-auto whitespace-pre-wrap break-all text-sm">{detail.code}</pre></details>
       {(detail.source.compiler_feedback || detail.source.compiler_truncated) && <details><summary>Compiler feedback{detail.source.compiler_truncated ? " (truncated)" : ""}</summary>
         <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all text-sm">{detail.source.compiler_feedback}</pre></details>}

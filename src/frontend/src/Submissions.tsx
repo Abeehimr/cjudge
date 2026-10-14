@@ -3,12 +3,13 @@ import { Link, useSearchParams } from "react-router";
 import { api } from "./api";
 import { useOffset } from "./navigation";
 import RestrictionNotice, { type Restriction } from "./RestrictionNotice";
+import { sourceExtensions, type Language } from "./languages";
 
 type Submission = { id: string; revision_id: string; filename: string; accepted_at: string; status: string;
   compiler_feedback: string | null; compiler_truncated: boolean; restriction?: Restriction; best_for_review?: boolean; deleted_at?: string | null; delete_reason?: string | null;
   early_feedback?: { passed: number; total: number; marks: string; maximum_marks: string; provisional: boolean } | null };
 type Admission = { allowed: boolean; reason: string; code: string; pending: number; retry_at: string | null; server_time: string };
-type Task = { revision_id: string; title: string };
+type Task = { revision_id: string; title: string; languages?: Language[] };
 export type UploadDraft = { file: File | null; pending: { file: File; revision: string; key: string } | null };
 
 function History({ rows, tasks, labId, visible, earlyFeedback }: { rows: Submission[]; tasks: Task[]; labId: string; visible?: boolean; earlyFeedback?: boolean }) {
@@ -28,6 +29,8 @@ export function StudentSubmissions({ labId, tasks, admission, csrf, refresh, rev
   const [rows, setRows] = useState<Submission[]>([]), [offset, setOffset] = useOffset();
   const [params, setParams] = useSearchParams();
   const revision = revisionId || params.get("task") || "";
+  const extensions = sourceExtensions(tasks.find((task) => task.revision_id === revisionId)?.languages);
+  const sourceLabel = extensions.join(", ");
   const { file, pending } = draft;
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [message, setMessage] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -49,8 +52,9 @@ export function StudentSubmissions({ labId, tasks, admission, csrf, refresh, rev
   async function submit(event?: FormEvent) {
     event?.preventDefault(); if (busy || !pending && !file || !revisionId) return;
     const upload = pending || { file: file!, revision: revisionId, key: crypto.randomUUID() };
-    if (!pending && (!/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,157}\.c$/.test(upload.file.name) || !upload.file.size || upload.file.size > 65536)) {
-      setError("Select a nonempty .c file up to 64 KiB with a plain filename."); return;
+    if (!pending && (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*\.(c|cpp)$/.test(upload.file.name) || upload.file.name.length > 160 ||
+        !extensions.some((extension) => upload.file.name.endsWith(extension)) || !upload.file.size || upload.file.size > 65536)) {
+      setError(`Select a nonempty ${sourceLabel} file up to 64 KiB with a plain filename.`); return;
     }
     setDraft({ file, pending: upload }); setBusy(true); setError(""); setMessage("");
     try {
@@ -65,9 +69,9 @@ export function StudentSubmissions({ labId, tasks, admission, csrf, refresh, rev
     } finally { setBusy(false); }
   }
   return <section className="space-y-3 rounded border bg-white p-4">
-    {revisionId && <><h2 className="font-semibold">Submit C source</h2>
+    {revisionId && <><h2 className="font-semibold">Submit {sourceLabel === ".c" ? "C" : sourceLabel === ".cpp" ? "C++17" : "C/C++17"} source</h2>
       <form onSubmit={submit}><fieldset disabled={busy || !!pending} className="flex flex-wrap items-center gap-3">
-        <label>C file (64 KiB maximum)<input ref={input} type="file" accept=".c" onChange={(e) => setDraft({ file: e.target.files?.[0] || null, pending: null })} /></label>
+        <label>{sourceLabel === ".c" ? "C file" : `${sourceLabel} file`} (64 KiB maximum)<input ref={input} type="file" accept={extensions.join(",")} onChange={(e) => setDraft({ file: e.target.files?.[0] || null, pending: null })} /></label>
         {file && <span>Selected: {file.name}</span>}<button disabled={!admission?.allowed || !file}>Submit</button>
       </fieldset></form>
       {admission && <p>{admission.pending} pending · {admission.allowed ? "Uploads enabled" : admission.reason}{admission.retry_at && ` · Retry at ${new Date(admission.retry_at).toLocaleTimeString()}`}</p>}

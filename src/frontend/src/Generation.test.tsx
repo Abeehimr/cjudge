@@ -20,12 +20,13 @@ test("generation preserves exact seeds, requires review confirmation, and escape
   vi.stubGlobal("fetch", fetchMock);
   renderRoute(<Generation taskId="task" version={1} csrf="csrf" disabled={false} applied={applied} onDirty={vi.fn()} />, "/admin/tasks/task");
   fireEvent.change(screen.getByLabelText("Generator source"), { target: { value: "print(1)" } });
-  fireEvent.change(screen.getByLabelText("Reference C source"), { target: { value: "int main(){}" } });
+  fireEvent.change(screen.getByLabelText("Reference language"), { target: { value: "cpp" } });
+  fireEvent.change(screen.getByLabelText("Reference C++17 source"), { target: { value: "int main(){}" } });
   fireEvent.change(screen.getByLabelText("Starting seed"), { target: { value: "9223372036854775807" } });
   fireEvent.click(screen.getByRole("button", { name: "Start generation" }));
   expect(await screen.findByText("Generation complete: 1/1 cases · draft 1")).toBeTruthy();
   expect(fetchMock).toHaveBeenCalledWith("/api/admin/tasks/task/generation", expect.objectContaining({
-    body: '{"version":1,"config":{"language":"python","generator":"print(1)","reference":"int main(){}","count":1,"seed":9223372036854775807}}',
+    body: '{"version":1,"config":{"language":"python","reference_language":"cpp","generator":"print(1)","reference":"int main(){}","count":1,"seed":9223372036854775807}}',
     headers: expect.objectContaining({ "X-CSRF-Token": "csrf" }),
   }));
   expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeTruthy();

@@ -4,11 +4,12 @@ import Statement from "./Statement";
 import Generation from "./Generation";
 import { Link, useMatch, useNavigate, useSearchParams } from "react-router";
 import { NotFound, useOffset, useUnsaved } from "./navigation";
+import { languageName, type Language } from "./languages";
 
 type Checker = { kind: "exact" | "tokens" | "python"; source?: string; ignore_final_newline: boolean; ignore_case: boolean;
   absolute_tolerance: string; relative_tolerance: string };
 type Config = { title: string; statement: string; scoring: "partial" | "all_or_nothing";
-  checker: Checker; banned_identifiers?: string[]; cpu_seconds: number; wall_seconds: number; memory_mib: number; stack_mib: number; stdout_mib: number };
+  checker: Checker; languages?: Language[]; banned_identifiers?: string[]; cpu_seconds: number; wall_seconds: number; memory_mib: number; stack_mib: number; stdout_mib: number };
 type Case = { number: number; input_bytes: number; answer_bytes: number };
 type Revision = { id: string; number: number; draft_version: number; created_at: string };
 type Task = { id: string; version: number; config: Config; case_count: number };
@@ -22,6 +23,7 @@ function Summary({ config }: { config: Config }) {
     <p>Checker: {c.kind}; {c.kind === "exact" ? (c.ignore_final_newline ? "ignore one final LF/CRLF" : "all bytes must match")
       : c.kind === "python" ? "Python helpers; explicit accept/reject" : `${c.ignore_case ? "ASCII case-insensitive" : "case-sensitive"}; absolute tolerance ${c.absolute_tolerance}; relative tolerance ${c.relative_tolerance}`}</p>
     <p>CPU {config.cpu_seconds}s · Wall {config.wall_seconds}s · Memory {config.memory_mib} MiB · Stack {config.stack_mib} MiB · Output {config.stdout_mib} MiB</p>
+    <p>Languages: {(config.languages || ["c11"]).map(languageName).join(", ")}</p>
     {!!config.banned_identifiers?.length && <p className="text-lg font-semibold">Banned identifiers: <strong className="text-red-900">{config.banned_identifiers.join(", ")}</strong></p>}
     {c.kind === "python" && <pre className="max-h-64 overflow-auto whitespace-pre-wrap border p-2">{c.source}</pre>}
     <Statement text={config.statement} />
@@ -213,6 +215,9 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
           <label className="block">Banned identifiers (optional, one per line)<textarea className="mt-1 block w-full font-mono" rows={4}
             value={restrictionText} onChange={(event) => setRestrictionText(event.target.value)} /></label>
           <div className="flex flex-wrap gap-3">
+            <label>Permitted languages <select value={config.languages?.length === 2 ? "both" : config.languages?.[0] || "c11"}
+              onChange={(event) => change("languages", event.target.value === "both" ? ["c11", "cpp17"] : [event.target.value as Language])}>
+              <option value="c11">C11</option><option value="cpp17">C++17</option><option value="both">C11 and C++17</option></select></label>
             <label>Scoring <select value={config.scoring} onChange={(e) => change("scoring", e.target.value as Config["scoring"])}>
               <option value="partial">Partial</option><option value="all_or_nothing">All or nothing</option></select></label>
             <label>Checker <select value={config.checker.kind} onChange={(e) => checker({ kind: e.target.value as Checker["kind"],

@@ -7,7 +7,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 test("admin uploads one source with CSRF and sees case streams as text", async () => {
   vi.stubGlobal("EventSource", class extends EventTarget { close = vi.fn(); });
-  const source = { id: "source", filename: "main.c", state: "complete", progress: 2, passed: 1,
+  const source = { id: "source", filename: "main.cpp", language: "cpp17", state: "complete", progress: 2, passed: 1,
     total: 1, verdict: "AC", percentage: 100, compiler_feedback: "", compiler_truncated: false, diagnostic: "" };
   const batch = { id: "batch", revision_id: "revision", created_at: "2026-10-12T00:00:00Z", sources: [source] };
   const fetchMock = vi.fn(async (path: string, options?: RequestInit) => ({ ok: true,
@@ -23,12 +23,12 @@ test("admin uploads one source with CSRF and sees case streams as text", async (
   const router = createMemoryRouter([{ path: "/admin/tasks/:taskId/tester/:batchId?/:sourceId?",
     element: <TaskTester csrf="secret" /> }], { initialEntries: ["/admin/tasks/task/tester?revision=revision"] });
   render(<RouterProvider router={router} />);
-  const input = screen.getByLabelText("C source or ZIP");
-  fireEvent.change(input, { target: { files: [new File(["int main(){}"], "main.c")] } });
+  const input = screen.getByLabelText("C/C++ source or ZIP");
+  fireEvent.change(input, { target: { files: [new File(["int main(){}"], "main.cpp")] } });
   fireEvent.click(screen.getByRole("button", { name: "Test sources" }));
   await screen.findByText("Test batch queued.");
   expect(fetchMock).toHaveBeenCalledWith("/api/admin/tasks/task/tester?revision_id=revision", expect.objectContaining({
-    method: "POST", headers: expect.objectContaining({ "X-CSRF-Token": "secret", "X-Filename": "main.c" }),
+    method: "POST", headers: expect.objectContaining({ "X-CSRF-Token": "secret", "X-Filename": "main.cpp" }),
   }));
   await router.navigate("/admin/tasks/task/tester/batch/source?revision=revision&case=1");
   expect(await screen.findByText("<script>alert(1)</script>")).toBeTruthy();

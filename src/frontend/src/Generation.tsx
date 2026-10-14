@@ -2,14 +2,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "./api";
 import { useAdminEvents } from "./Isolates";
 
-type Config = { language: "python" | "c"; generator: string; reference: string; seed: string; count: number };
+type Config = { language: "python" | "c" | "cpp"; reference_language: "c" | "cpp"; generator: string; reference: string; seed: string; count: number };
 type Job = { id: string; base_version: number; state: string; progress: number; diagnostic: string;
   config: { count: number; seed: string; generator?: string; reference?: string }; source_sha256?: Record<string, string>; cases: { number: number; seed: string; input_size: number; answer_size: number }[] };
 
 export default function Generation({ taskId, version, csrf, disabled, applied, onDirty }: {
   taskId: string; version: number; csrf: string; disabled: boolean; applied: () => Promise<void>; onDirty: (dirty: boolean) => void;
 }) {
-  const [config, setConfig] = useState<Config>({ language: "python", generator: "", reference: "", seed: "0", count: 1 });
+  const [config, setConfig] = useState<Config>({ language: "python", reference_language: "c", generator: "", reference: "", seed: "0", count: 1 });
   const [job, setJob] = useState<Job | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [preview, setPreview] = useState<{ title: string; text: string; truncated: boolean } | null>(null);
   useEffect(() => { onDirty(!!config.generator || !!config.reference || busy);
@@ -54,12 +54,13 @@ export default function Generation({ taskId, version, csrf, disabled, applied, o
   const unresolved = job && !["applied", "discarded"].includes(job.state);
   return <section className="space-y-3 rounded border bg-white p-4">
     <h2 className="font-semibold">Generate cases</h2>
-    <p className="text-sm">One case per seed. Generator receives seed in argv[1]; Python random is seeded automatically. Reference C reads input and prints the answer.</p>
+    <p className="text-sm">One case per seed. Generator receives seed in argv[1]; Python random is seeded automatically. Reference reads input and prints the answer.</p>
     <p className="text-sm">Sources: 64 KiB each. 1–100 cases; 1 MiB per input/answer; 16 MiB combined. CPU 10s, wall 30s per program.</p>
     <form onSubmit={create}><fieldset disabled={disabled || busy || !!unresolved} className="space-y-3">
-      <label>Generator language <select value={config.language} onChange={(e) => setConfig({ ...config, language: e.target.value as Config["language"] })}><option value="python">Python</option><option value="c">C</option></select></label>
+      <label>Generator language <select value={config.language} onChange={(e) => setConfig({ ...config, language: e.target.value as Config["language"] })}><option value="python">Python</option><option value="c">C11</option><option value="cpp">C++17</option></select></label>
+      <label>Reference language <select value={config.reference_language} onChange={(event) => setConfig({ ...config, reference_language: event.target.value as Config["reference_language"] })}><option value="c">C11</option><option value="cpp">C++17</option></select></label>
       <label className="block">Generator source<textarea required rows={6} maxLength={65536} className="block w-full font-mono" value={config.generator} onChange={(e) => setConfig({ ...config, generator: e.target.value })} /></label>
-      <label className="block">Reference C source<textarea required rows={6} maxLength={65536} className="block w-full font-mono" value={config.reference} onChange={(e) => setConfig({ ...config, reference: e.target.value })} /></label>
+      <label className="block">Reference {config.reference_language === "cpp" ? "C++17" : "C"} source<textarea required rows={6} maxLength={65536} className="block w-full font-mono" value={config.reference} onChange={(e) => setConfig({ ...config, reference: e.target.value })} /></label>
       <label>Starting seed <input required inputMode="numeric" pattern="[0-9]+" value={config.seed} onChange={(e) => setConfig({ ...config, seed: e.target.value })} /></label>{" "}
       <label>Case count <input required type="number" min={1} max={100} value={config.count} onChange={(e) => setConfig({ ...config, count: Number(e.target.value) })} /></label>{" "}
       <button>Start generation</button>
