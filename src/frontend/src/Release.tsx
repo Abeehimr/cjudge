@@ -43,7 +43,7 @@ export default function Release({ lab, csrf, accept, deleted }: { lab: AdminLab;
       if (action === "results" && enabled) {
         const warnings = await api<{ id: string; title: string }[]>(`/admin/labs/${lab.id}/release-warnings`);
         if (warnings.length) {
-          acknowledge = confirm(`Tests are reused by scheduled labs: ${warnings.map((row) => row.title).join(", ")}. Reveal anyway?`);
+          acknowledge = confirm(`Tests are reused by scheduled or running labs: ${warnings.map((row) => row.title).join(", ")}. Reveal anyway?`);
           if (!acknowledge) return;
         }
       }

@@ -39,8 +39,10 @@ def fingerprints(conn: sa.Connection, ids: set[UUID]) -> set[bytes]:
 
 
 def reuse(conn: sa.Connection, lab_id: UUID, revision_id: UUID | None = None) -> list[dict]:
+    timestamp = labs.now(conn)
     other = conn.execute(sa.select(labs.labs.c.id, labs.labs.c.title).where(labs.labs.c.id != lab_id,
-        labs.labs.c.starts_at > labs.now(conn))).mappings().all()
+        labs.labs.c.starts_at.is_not(None), labs.labs.c.ends_at > timestamp,
+        labs.labs.c.first_released_at.is_(None))).mappings().all()
     if not other:
         return []
     ids = revision_ids(conn, lab_id)
@@ -70,7 +72,7 @@ def reveal(conn: sa.Connection, lab: dict, enabled: bool, acknowledge: bool, act
         resolved(conn, lab['id'])
         warnings = reuse(conn, lab['id'])
         if warnings and not acknowledge:
-            raise labs.LabError(409, 'Tests are reused by scheduled labs; acknowledge the disclosure warning')
+            raise labs.LabError(409, 'Tests are reused by scheduled or running labs; acknowledge the disclosure warning')
     elif not lab['first_released_at']:
         raise labs.LabError(409, 'Results have not been released')
     values = {'reveal_results': enabled}
