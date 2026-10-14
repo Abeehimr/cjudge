@@ -10,14 +10,19 @@ export default function QuickSubmit({ lab, selected, select, draft, setDraft, bu
   const task = lab.tasks.find((item) => item.revision_id === selected || item.previous_revision_ids?.includes(selected));
   useEffect(() => {
     const element = dialog.current!;
+    const opener = document.activeElement;
     element.showModal();
-    return () => { if (element.open) element.close(); };
+    element.querySelector('select')?.focus();
+    return () => {
+      if (element.open) element.close();
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
   }, []);
-  return <dialog ref={dialog} aria-labelledby="quick-submit-title" className="quick-submit rounded border bg-white p-5"
+  return <dialog ref={dialog} aria-labelledby="quick-submit-title" className="quick-submit rounded border border-slate-300 bg-white p-5"
     onCancel={(e) => { e.preventDefault(); if (!busy) close(); }}>
     <div className="mb-4 flex items-center justify-between gap-3"><h2 id="quick-submit-title" className="text-xl font-semibold">Quick submit</h2>
       <button disabled={busy} onClick={close}>Close</button></div>
-    <label className="mb-4 block">Task <select autoFocus disabled={busy} value={task?.revision_id || ''} onChange={(e) => select(e.target.value)}>
+    <label className="mb-4 block">Task <select disabled={busy} value={task?.revision_id || ''} onChange={(e) => select(e.target.value)}>
       {lab.tasks.map((item) => <option key={item.revision_id} value={item.revision_id}>{item.position}. {item.title}</option>)}</select></label>
     {task ? <SubmissionUpload key={selected} labId={lab.id} tasks={lab.tasks} admission={lab.admission} csrf={csrf} refresh={refresh}
       revisionId={task.revision_id} draft={draft} setDraft={setDraft} onBusyChange={setBusy} onAccepted={accepted} />

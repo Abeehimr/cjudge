@@ -114,7 +114,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     void api<Task[]>(`/admin/labs/task-options?task_id=${encodeURIComponent(publishedTask)}&offset=${revisionOffset}`,
       { signal: controller.signal }).then((next) => {
       if (controller.signal.aborted) return;
-      setRevisions((old) => revisionOffset ? [...old, ...next] : next);
+      setRevisions((old) => revisionOffset ? [...old, ...next.filter((row) => !old.some((item) => item.revision_id === row.revision_id))] : next);
       setOptions((old) => [...old, ...next.filter((row) => !old.some((item) => item.revision_id === row.revision_id))]);
       setMoreRevisions(next.length === 100);
       if (!revisionOffset) setTaskId(next[0]?.revision_id || '');

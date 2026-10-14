@@ -256,6 +256,7 @@ def api_checks(admin_id, student_id, revision_id):
             assert [row['revision_id'] for row in options if row['task_id'] == str(original['task_id'])] == [str(latest_revision)]
             revisions = call('/admin/labs/task-options?task_id=' + str(original['task_id']))[1]
             assert [row['revision_id'] for row in revisions] == [str(latest_revision), str(revision_id)]
+            assert [row['revision_id'] for row in call('/admin/labs/task-options?task_id=' + str(original['task_id']) + '&offset=1')[1]] == [str(revision_id)]
             assert call('/admin/labs/task-options?task_id=invalid')[0] == 422
             assert call('/labs', role='admin')[0] == 403
             assert call('/admin/labs', 'POST', {'title': 'API'}, token='wrong')[0] == 403

@@ -132,8 +132,8 @@ export function StudentLabs({ csrf }: { csrf: string }) {
       </section>
       {detail && <>
         {submissionId && <SubmissionDetail key={submissionId} labId={detail.id} submissionId={submissionId} visible={!!detail.results_visible} refreshKey={detail.server_time} />}
-        {Object.entries(drafts).filter(([id, draft]) => id !== revisionId && draft.pending).map(([id]) => <aside key={id} className="notice notice-warning">
-          Upload acceptance unconfirmed. <Link to={`/labs/${labId}/tasks/${id}`}>Return to {detail.tasks.find((item) => item.revision_id === id)?.title || 'task'} to retry</Link>.
+        {Object.entries(drafts).filter(([id, draft]) => draft.pending && (!task || task.revision_id !== id && !task.previous_revision_ids?.includes(id))).map(([id]) => <aside key={id} className="notice notice-warning">
+          Upload acceptance unconfirmed. <Link to={`/labs/${labId}/tasks/${id}`}>Return to {detail.tasks.find((item) => item.revision_id === id || item.previous_revision_ids?.includes(id))?.title || 'task'} to retry</Link>.
         </aside>)}
         {detail.cancelled && <p role="status" className="notice notice-danger">Lab participation cancelled. New submissions are closed; you can still read lab materials and your history. Reason: {detail.cancel_reason}</p>}
         {detail.frozen && !detail.cancelled && <p role="status" className="notice notice-danger">Submissions paused by administrator. You can still read lab materials.</p>}

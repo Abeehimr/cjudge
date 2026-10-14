@@ -94,11 +94,14 @@ test('quick submit shares the selected file, blocks closing during upload, and o
   vi.stubGlobal('fetch', fetchMock);
   const { router } = renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab/tasks/revision?offset=100');
   fireEvent.change(await screen.findByLabelText(/C file/), { target: { files: [new File(['int main(void){}'], 'main.c')] } });
+  screen.getByRole('button', { name: 'Quick submit' }).focus();
   fireEvent.click(screen.getByRole('button', { name: 'Quick submit' }));
   const dialog = await screen.findByRole('dialog', { name: 'Quick submit' });
+  expect(document.activeElement).toBe(screen.getByLabelText('Task'));
   expect(screen.getByText('Selected: main.c')).toBeTruthy();
   fireEvent(dialog, new Event('cancel', { cancelable: true }));
   expect(screen.queryByRole('dialog')).toBeNull();
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Quick submit' }));
   expect(screen.getByText('Selected: main.c')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Quick submit' }));
   fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
@@ -145,6 +148,31 @@ test('an uncertain quick upload retains its key and original revision on the tas
   expect(posts[1][0]).toContain('revision_id=revision');
   expect(posts[0][1].headers['Idempotency-Key']).toBe(posts[1][1].headers['Idempotency-Key']);
   expect(posts[0][1].body).toBe(posts[1][1].body);
+});
+
+test('cooldown refresh runs once while quick submit is closed and preserves its selected file', async () => {
+  live(); dialogs(); vi.useFakeTimers();
+  try {
+    let allowed = false;
+    const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+      json: async () => path === '/api/labs' ? [summary] : { ...materials,
+        admission: { allowed, reason: allowed ? '' : 'Submission cooldown', code: allowed ? '' : 'cooldown', pending: 0,
+          retry_at: allowed ? null : '2026-09-30T00:00:01Z', server_time: summary.server_time } } }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab');
+    await act(async () => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Quick submit' }));
+    fireEvent.change(screen.getByLabelText(/C file/), { target: { files: [new File(['int main(void){}'], 'main.c')] } });
+    expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    allowed = true;
+    await act(async () => { vi.advanceTimersByTime(1050); });
+    fireEvent.click(screen.getByRole('button', { name: 'Quick submit' }));
+    expect(screen.getByText('Selected: main.c')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    expect(fetchMock.mock.calls.filter(([path]) => path === '/api/labs/lab')).toHaveLength(2);
+  } finally { vi.useRealTimers(); }
 });
 
 test('admin student page isolates controls and filters history to the student', async () => {
