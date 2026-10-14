@@ -98,6 +98,22 @@ def main() -> None:
             revision_path = path + '/revisions/' + revision['id']
             assert call(revision_path)[1]['case_count'] == 1
             assert call(revision_path, role='student')[0] == 403
+            status, task_zip, headers = call(revision_path + '/export')
+            assert status == 200 and headers['Cache-Control'] == 'no-store'
+            assert headers['X-Content-Type-Options'] == 'nosniff'
+            assert headers['Content-Disposition'].endswith('.zip"')
+            assert call(revision_path + '/export', role='student')[0] == 403
+            assert call('/import', 'POST', task_zip, role='student', content_type='application/zip')[0] == 403
+            assert call('/import', 'POST', task_zip, token='wrong', content_type='application/zip')[0] == 403
+            status, imported, _ = call('/import', 'POST', task_zip, content_type='application/zip')
+            assert status == 201 and imported['id'] != draft['id'] and imported['version'] == 1
+            assert imported['config']['title'] == 'Sum' and imported['case_count'] == 1
+            assert call('/' + imported['id'] + '/cases/1/out')[1] == b'3\n'
+            with identity.engine().connect() as conn:
+                before = conn.execute(sa.select(sa.func.count()).select_from(tasks.tasks)).scalar_one()
+            assert call('/import', 'POST', b'not a zip', content_type='application/zip')[0] == 400
+            with identity.engine().connect() as conn:
+                assert conn.execute(sa.select(sa.func.count()).select_from(tasks.tasks)).scalar_one() == before
             assert call(revision_path, 'PUT', {'config': {'title': 'bad'}})[0] == 405
             with identity.engine().connect() as conn:
                 try:

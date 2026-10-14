@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from cjudge import identity, tasks as store
 from cjudge.identity.api import admin, admin_write
 from cjudge.tasks.cases import MAX_FILE, MAX_ZIP, parse_zip, validate_cases
+from cjudge.tasks import bundle
 from cjudge.tasks.grading import TaskConfig
 
 
@@ -166,6 +167,28 @@ async def create_task(request: Request, actor: dict = Depends(admin_write)) -> d
     return await run_in_threadpool(create)
 
 
+@router.post('/import', response_model=DetailOutput, status_code=201)
+async def import_task(request: Request, actor: dict = Depends(admin_write)) -> dict:
+    if request.headers.get('content-type', '').split(';')[0] != 'application/zip':
+        raise HTTPException(415, 'ZIP required')
+    payload = await bounded_body(request)
+    def create() -> dict:
+        try:
+            config, cases = bundle.parse(payload)
+            key = store.save_cases(cases)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(503, 'Task storage unavailable') from exc
+        with identity.engine().begin() as conn:
+            task_id = uuid4()
+            conn.execute(sa.insert(store.tasks).values(id=task_id, version=1, config=config,
+                cases_key=key, case_count=len(cases)))
+            identity.audit(conn, 'task_imported', actor['id'], detail={'task_id': str(task_id)})
+            return detail(conn, find_task(conn, task_id))
+    return await run_in_threadpool(create)
+
+
 @router.get('/{task_id}', response_model=DetailOutput)
 def get_task(task_id: UUID, response: Response) -> dict:
     with identity.engine().connect() as conn:
@@ -262,6 +285,19 @@ def get_revision(task_id: UUID, revision_id: UUID, response: Response) -> dict:
         row = find_revision(conn, task_id, revision_id)
         return {**{key: row[key] for key in PublishedOutput.model_fields if key != 'cases'},
                 'cases': store.case_summary(cases_for(row))}
+
+
+@router.get('/{task_id}/revisions/{revision_id}/export')
+def export_task(task_id: UUID, revision_id: UUID) -> Response:
+    with identity.engine().connect() as conn:
+        row = find_revision(conn, task_id, revision_id)
+        try:
+            payload = bundle.build(row['config'], cases_for(row))
+        except (ValueError, ValidationError) as exc:
+            raise HTTPException(503, 'Task bundle unavailable') from exc
+    return Response(payload, media_type='application/zip', headers={
+        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': f'attachment; filename="task-revision-{row["number"]}.zip"'})
 
 
 @router.get('/{task_id}/cases/{number}/{part}')
