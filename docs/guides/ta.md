@@ -61,12 +61,12 @@ For discrepancies, give admin the roll number, lab/task, submission ID, acceptan
 ## 6. Enter TA marks
 
 1. On the TA student page, click **Claim student**. Other TAs can see the review but cannot edit it.
-2. Enter marks within each task's TA maximum. Set **Done** and click **Save task**, including for zero marks or no submission.
-3. When every enabled task is Done, click **Finalize**. Saved marks count in admin totals immediately; unfinished reviews are marked provisional.
+2. Check suggested marks, scaled from each settled automatic score to its TA maximum. Adjust any value, leave tasks you cannot mark blank, then click **Save marks**. Filled values, including `0.00`, are saved together and marked complete.
+3. When every enabled task is saved, click **Finalize**. Saved marks count in admin totals immediately; unfinished reviews are marked provisional.
 4. To hand off unfinished work, click **Release claim**. Saved marks and Done flags remain. Only the original reviewer or admin can reopen a finalized review.
 
 **Needs recheck** means automatic grading changed after TA marks were saved. Ask admin to acknowledge the existing review or reopen it. TA marks never appear on student pages or the scoreboard.
 
-<!--> **Screenshot T5 — TA marking:** Show claimed student, per-task TA marks and Done controls, provisional total, and Finalize button. -->
+<!--> **Screenshot T5 — TA marking:** Show claimed student, suggested TA marks, automatic scores, Save marks, provisional total, and Finalize. -->
 
 <!--> **Screenshot T4 — Retained result:** Show the **Judge result** selector, an older run selected, the retained-run warning, and official versus run marks.-->
