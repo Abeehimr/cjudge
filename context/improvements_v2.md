@@ -1,6 +1,6 @@
 # Improvements v2 — Agreed Plan
 
-Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M17, M18, and M20 are complete; M19 code is complete pending physical network checks. M21–M27 remain planned. M16 remains pending. Work one module at a time with small tested commits and review at each gate.
+Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M17–M20 and M22–M25 are complete; M19 still needs physical network checks. M16, M21, and M26–M27 remain planned. Work one module at a time with small tested commits and review at each gate.
 
 ## Documentation — M17
 

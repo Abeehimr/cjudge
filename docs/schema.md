@@ -101,6 +101,7 @@ erDiagram
         uuid id PK,FK
         uuid submission_id FK
         uuid revision_id FK
+        json restriction "nullable identifier and line"
     }
     judge_case_results {
         uuid run_id PK,FK
@@ -146,6 +147,7 @@ erDiagram
     tester_sources {
         uuid id PK
         uuid batch_id FK
+        json restriction "nullable identifier and line"
     }
     tester_attempts {
         uuid id PK

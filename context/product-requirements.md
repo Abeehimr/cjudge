@@ -1,12 +1,12 @@
 # Product Requirements
 
-Source of truth for cJudge v1 product behavior. M0–M15, M17 and M18 are implemented; M19 code is complete pending physical network checks. M16 and M20–M27 remain planned. The M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
+Source of truth for cJudge v1 product behavior. M0–M15, M17–M20, and M22–M25 are implemented; M19 code still needs physical network checks. M16, M21, and M26–M27 remain planned. The M9 physical LAN/offline release check remains. See [design.md](design.md) for organization and [technical-requirements.md](technical-requirements.md) for implementation constraints.
 
 ## Scope
 
 An offline-operable LAN judge for C programming labs: one admin, with a performance baseline of 150 concurrent students total, five tasks, ten cases per task, and a two-hour lab. M16 will allow concurrent labs without a configured lab-count limit; current scheduling permits only one active lab. Installation and maintenance may use internet; running a lab must not.
 
-Planned in M17–M27: architecture docs, archive access, roster removal, multiple network addresses, lab-owned marks, task transfer/tester, TAs, source restrictions, C++17, and focused UI changes. Agreed details: [improvements_v2.md](improvements_v2.md).
+M17–M27 cover architecture docs, archive access, roster removal, multiple network addresses, lab-owned marks, task transfer/tester, TAs, source restrictions, C++17, and focused UI changes. Agreed details: [improvements_v2.md](improvements_v2.md).
 
 Deferred: languages beyond C/C++, multiple admins, individual extensions, weighted cases, subtask groups, testlib, plagiarism detection, an in-browser editor, offline installation bundles, automated backups, server restoration, and archive import.
 
@@ -116,14 +116,14 @@ M11–M15 are implemented; M16 remains planned. M17–M27 are specified below. E
 
 ## Planned Improvements — M17–M27
 
-Decisions: [improvements_v2.md](improvements_v2.md). Atomic steps and module gates: [todo.md](todo.md#m17--architecture-documentation--independent). M17 documentation and M18 are complete; M19 code is complete pending physical network checks. M20–M27 describe future behavior.
+Decisions: [improvements_v2.md](improvements_v2.md). Atomic steps and module gates: [todo.md](todo.md#m17--architecture-documentation--independent). M17–M18, M20, and M22–M25 are complete; M19 code is complete pending physical network checks. M21 and M26–M27 remain planned.
 
 - **M17–M19:** document complete schema/container/network architecture; hide and block archived student access; add atomic pre-start CSV enrollment removal; support localhost and both configured LAN interfaces with address-relative links.
 - **M20:** automatic maximum marks belong to each lab assignment, not reusable task revisions. Admin may change them until archive with reason/announcement. Recompute current scores without rerunning programs; preserve historical runs, archived results, and verified exports.
 - **M21–M22:** transfer one published task revision with its assets into a new draft; test published revisions singly or in bounded ZIP batches without a lab or student cooldown. Show pass counts/percentages; retain separate tester history until admin deletes it.
 - **M23:** admin-created TA accounts share the role-detected login and receive versioned lab assignments. Assigned TAs search roll/name, see each student's automatic marks and submissions before release, freeze/cancel participation, release a browser, and reveal one selected student's password with one click. Only the acting TA or admin reverses a penalty; show actor/reason. Submission details open on a separate page with question name, source, verdict, history and failed-case streams; accepted-case streams stay hidden. Admin manages assignments only on the lab TAs tab; lab/TA pages use tables for current owned penalties and activity, with muted yellow freezes, red cancellations and green reversals. Denied TA actions show an inline explanation. Archives lock actions; main settings and grading corrections remain admin-only. Student release gates are unchanged.
 - **M24:** after first release, TA claims/finalizes a student's per-task review. Unsaved inputs suggest settled automatic marks scaled to TA maxima; pending results stay blank. One atomic Save marks action saves filled values and marks those tasks complete; blank tasks stay unfinished. Finalize remains separate. Original TA/admin may reopen; owner releases unfinished claims/admin transfers them. Admins manage but do not enter TA marks. Separate TA maxima and saved marks add immediately to provisional admin totals/exports, remain hidden from students, and never affect scoreboard ranking. Enabled TA tasks are fixed after release; positive maxima may change until archive. Preserve earned fractions when scaling maxima. Cancelled participation is excluded; frozen marks count. Grading changes flag recheck without erasing reviews; admin may acknowledge with a reason or reopen. Archive can contain incomplete reviews and locks further edits.
-- **M25–M26:** revisioned banned identifier tokens reject before compilation with Restricted source, matched identifier/line, and zero automatic marks. Add per-task C11/C++17/both policies and sandboxed C++ authoring. Identifier restrictions are teaching rules, not security isolation.
+- **M25–M26:** optional per-revision banned identifier tokens skip scanning when empty; configured tokens reject before compilation with Restricted source, matched identifier/line, and zero automatic marks. Students see rules and rejection reasons. Add per-task C11/C++17/both policies and sandboxed C++ authoring in M26. Identifier restrictions are teaching rules, not security isolation.
 - **M27:** admin roster frozen/cancelled filters; student quick-submit dialog reusing all existing admission/retry protections.
 
 ## Success Targets

@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15, M17–M18, and M20–M24 are implemented; M19 code is complete pending physical network checks. M16, M21, and M25–M27 remain planned. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15, M17–M18, M20, and M22–M25 are implemented; M19 code is complete pending physical network checks. M16, M21, and M26–M27 remain planned. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -13,6 +13,8 @@ Admin Isolates uses worker registration, startup sandbox checks, and heartbeat f
 M23 adds TA accounts in the same identity database and `lab_tas` assignment rows. TA routes recheck active account, session, lab assignment, and archive state inside each transaction. Admin assignment edits and TA actions hold an exclusive lab lock; TA reads hold a shared lock, so removal cannot pass an in-flight authorization check. TA SSE carries scoped invalidations and rechecks access on every event and keepalive, including judging changes when the scoreboard is hidden. Assigned TAs see one student's automatic marks and submissions before release through scoped endpoints; accepted-case streams remain hidden. Admin lab/TA pages read assignment status, current penalties, and lab-scoped audit activity.
 
 M24 adds TA maxima to lab assignments and student review claims with per-task earned fractions/completion flags. Authorized TA review responses include unsaved suggestions scaled from settled counted automatic results. One versioned transaction saves all filled marks; saved marks override suggestions. Lab-row locks and review versions serialize claims, saves, finalization, and admin transfers. Admin-only totals and CSV combine rounded automatic and TA marks; student responses and scoreboard remain automatic-only. Grading changes flag saved reviews for recheck and invalidate claimed drafts; TA maximum changes also invalidate claimed drafts. Archive v3 retains TA evidence; v1/v2 receipt verification remains compatible.
+
+M25 adds optional identifier lists to immutable task revisions. A bounded scanner runs in the judge worker before isolate compilation; an empty list skips scanning. Restricted runs retain a matched name/line and zero score, and tester sources use the same scanner. New archive format v4 includes that evidence; older receipts keep their original snapshot shape.
 
 Suggested backend boundaries: identity, tasks, labs, submissions, judging, results, and exports. Keep scoring and timing policy separate from HTTP handlers; keep sandbox management in worker-only code.
 

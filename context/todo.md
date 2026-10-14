@@ -263,10 +263,12 @@ Evidence: backend/frontend tests and build, disposable PostgreSQL service/API ga
 
 ## M25 — Restricted Source Identifiers · requires M3, M5
 
-- [ ] Add revisioned case-sensitive banned identifiers; scan tokens excluding comments/string literals before compile.
-- [ ] Retain rejection as Restricted source, matched identifier/line, zero automatic marks; do not compile/run.
-- [ ] Apply to student judging/rejudging and tester when M22 exists; document bypass limits.
-- [ ] **Gate:** token boundaries, escapes/comments/literals/malformed source, correction/history, no execution after rejection.
+- [x] Add optional revisioned case-sensitive banned identifiers; empty lists skip scanning.
+- [x] Retain rejection as Restricted source, matched identifier/line, zero automatic marks; do not compile/run.
+- [x] Apply to student judging/rejudging and tester; show rules and reasons; document bypass limits.
+- [x] **Gate:** token boundaries, escapes/comments/literals/malformed source, correction/history, no execution after rejection.
+
+Evidence: scanner unit tests, disposable PostgreSQL worker/tester/API/archival gate, existing tester/release/TA gates, frontend tests and build. Live lab acceptance remains.
 
 ## M26 — C++17 Support · requires M1, M3, M5
 

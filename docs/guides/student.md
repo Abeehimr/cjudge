@@ -34,7 +34,7 @@ Archived labs are hidden and cannot be reopened from saved links. Ask admin if y
 
 1. Check **Time remaining** and announcements on **Overview**. **Only you** means a private notice.
 2. Download **Lab PDFs**; one PDF may cover several tasks.
-3. Click a task; read its statement and resource limits. Use task links to switch tasks.
+3. Click a task; read its statement, resource limits, and any restricted identifiers. Use task links to switch tasks.
 
 Watch for extensions/corrections. Use **Refresh lab** if information appears stale.
 
@@ -66,6 +66,7 @@ The task page shows its history. **Submissions** lists all tasks, newest first, 
 | Passed — green | All cases passed. |
 | Failed — red | One or more cases failed; check your program. |
 | Compile error — red | Compilation failed; read feedback if the instructor enabled it. |
+| Restricted source — red | Your source uses a listed identifier. Open the submission to see its name and line; edit and submit again. |
 | Judging delayed — yellow | Grading needs attention; tell the instructor. This is not a failed program. |
 
 Deleted submissions remain red with a reason and are excluded from marks. Source, submission marks, and testcase details stay hidden during the lab.
