@@ -491,7 +491,7 @@ async def import_students(lab_id: UUID, request: Request, version: int = Query(g
     payload = await bounded_body(request, 1024 * 1024)
     def enroll():
         with transaction() as conn:
-            return labs.import_roster(conn, labs.find(conn, lab_id, version), identity.parse_csv(payload), actor['id'])
+            return labs.import_roster(conn, labs.find(conn, lab_id, version), identity.parse_csv(payload), actor['id'], partial=True)
     return await run_in_threadpool(enroll)
 
 

@@ -231,7 +231,6 @@ def schedule(conn: sa.Connection, lab: dict, start: datetime | None, end: dateti
     has_pdf = conn.execute(sa.select(pdfs.c.id).where(pdfs.c.lab_id == lab['id'], pdfs.c.active).limit(1)).first()
     if not has_pdf and any(not row['config']['statement'].strip() for row in assigned):
         raise LabError(400, 'Add a lab PDF or provide Markdown for every assigned task')
-    # The exclusion constraint arbitrates overlapping schedules, including races.
     return changed(conn, lab, actor, 'lab_scheduled', starts_at=start, ends_at=end)
 
 
@@ -271,16 +270,36 @@ def submission_allowed(lab: dict, enrollment: dict, timestamp: datetime) -> None
         raise LabError(423, 'Submissions paused by administrator')
 
 
+def enrollment_lock(conn: sa.Connection) -> None:
+    # Serialize reservations across labs, including account creation during CSV import.
+    conn.execute(sa.select(sa.func.pg_advisory_xact_lock(51004)))
+
+
 def overlap_error(exc: IntegrityError) -> LabError:
     if getattr(exc.orig, 'sqlstate', None) == '23P01':
-        return LabError(409, 'Lab time overlaps another lab; reschedule the other lab first')
+        return LabError(409, 'Lab schedule conflicts with an existing exclusion constraint')
     raise exc
+
+
+def reservations(conn: sa.Connection, ids: list[UUID], lab_id: UUID) -> dict[UUID, dict]:
+    rows = conn.execute(sa.select(enrollments.c.account_id, labs.c.id, labs.c.title,
+        labs.c.starts_at, labs.c.ends_at, labs.c.first_released_at, labs.c.archived_at)
+        .join(labs, labs.c.id == enrollments.c.lab_id)
+        .where(enrollments.c.account_id.in_(ids), enrollments.c.lab_id != lab_id,
+               labs.c.first_released_at.is_(None))).mappings()
+    timestamp = now(conn)
+    return {row['account_id']: {'lab_id': str(row['id']), 'lab_title': row['title'],
+        'phase': phase(row, timestamp)} for row in rows}
 
 
 def enroll(conn: sa.Connection, lab: dict, ids: list[UUID], actor: UUID) -> dict:
     from sqlalchemy.dialects.postgresql import insert
+    editable(lab)
+    if lab['first_released_at']:
+        raise LabError(409, 'Enrollment closed after first results release')
     if len(ids) != len(set(ids)):
         raise LabError(400, 'Duplicate student selection')
+    enrollment_lock(conn)
     found = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.active).where(
         identity.accounts.c.id.in_(ids), identity.accounts.c.role == 'student')
         .order_by(identity.accounts.c.id).with_for_update(read=True)).all()
@@ -288,17 +307,43 @@ def enroll(conn: sa.Connection, lab: dict, ids: list[UUID], actor: UUID) -> dict
         raise LabError(404, 'Student not found')
     if any(not row.active for row in found):
         raise LabError(409, 'Inactive student account; reactivate it before enrollment')
+    conflicts = reservations(conn, ids, lab['id'])
+    if conflicts:
+        conflict = next(iter(conflicts.values()))
+        raise LabError(409, f"Student reserved by unreleased lab {conflict['lab_title']} ({conflict['lab_id']})")
     if ids:
         for key in ids:
             conn.execute(insert(enrollments).values(lab_id=lab['id'], account_id=key).on_conflict_do_nothing())
     return changed(conn, lab, actor, 'lab_students_added')
 
 
-def import_roster(conn: sa.Connection, lab: dict, rows: list[tuple[str, str]], actor: UUID) -> dict:
-    result = identity.import_student_rows(conn, rows)
+def import_roster(conn: sa.Connection, lab: dict, rows: list[tuple[str, str]], actor: UUID,
+                  *, partial: bool = False) -> dict:
+    editable(lab)
+    if lab['first_released_at']:
+        raise LabError(409, 'Enrollment closed after first results release')
+    enrollment_lock(conn)
+    existing = conn.execute(sa.select(identity.accounts.c.id, identity.accounts.c.roll_number)
+        .where(identity.accounts.c.roll_number.in_([roll for roll, _ in rows]))).all()
+    by_roll = {row.roll_number: row.id for row in existing}
+    conflicts = reservations(conn, list(by_roll.values()), lab['id'])
+    skipped = [{'roll_number': roll, **conflicts[by_roll[roll]]} for roll, _ in rows
+               if roll in by_roll and by_roll[roll] in conflicts]
+    if skipped and not partial:
+        first = skipped[0]
+        raise LabError(409, f"Student {first['roll_number']} reserved by unreleased lab {first['lab_title']} ({first['lab_id']})")
+    eligible = [(roll, name) for roll, name in rows if roll not in by_roll or by_roll[roll] not in conflicts]
+    if not eligible:
+        return {'created': [], 'existing': [], 'name_mismatches': [], 'enrolled': [], 'already_enrolled': [], 'skipped': skipped}
+    result = identity.import_student_rows(conn, eligible)
     ids = list(conn.execute(sa.select(identity.accounts.c.id).where(
-        identity.accounts.c.roll_number.in_([roll for roll, _ in rows]))).scalars())
+        identity.accounts.c.roll_number.in_([roll for roll, _ in eligible]))).scalars())
+    already = set(conn.execute(sa.select(enrollments.c.account_id).where(
+        enrollments.c.lab_id == lab['id'], enrollments.c.account_id.in_(ids))).scalars())
     enroll(conn, lab, ids, actor)
+    result['enrolled'] = [roll for roll, _ in eligible if by_roll.get(roll) not in already]
+    result['already_enrolled'] = [roll for roll, _ in eligible if by_roll.get(roll) in already]
+    result['skipped'] = skipped
     return result
 
 
@@ -325,12 +370,14 @@ def remove_students(conn: sa.Connection, lab: dict, ids: list[UUID], actor: UUID
     count = conn.execute(sa.select(sa.func.count()).select_from(enrollments).where(
         enrollments.c.lab_id == lab['id'])).scalar_one()
     setup_open(lab, now(conn))
-    if lab['starts_at'] is not None and count == len(ids):
-        raise LabError(400, 'Scheduled lab needs at least one student')
+    reverting = lab['starts_at'] is not None and count == len(ids)
     conn.execute(sa.delete(enrollments).where(enrollments.c.lab_id == lab['id'], enrollments.c.account_id.in_(ids)))
-    conn.execute(sa.update(labs).where(labs.c.id == lab['id']).values(version=lab['version'] + 1))
+    values = {'version': lab['version'] + 1}
+    if reverting:
+        values.update(starts_at=None, ends_at=None)
+    conn.execute(sa.update(labs).where(labs.c.id == lab['id']).values(**values))
     identity.audit(conn, 'lab_student_removed' if len(ids) == 1 else 'lab_students_removed', actor,
-        detail={'lab_id': str(lab['id']), 'students': [dict(id=str(row['id']),
+        detail={'lab_id': str(lab['id']), 'schedule_cleared': reverting, 'students': [dict(id=str(row['id']),
             roll_number=row['roll_number'], name=row['name']) for row in rows]})
     notify(conn, lab_id=lab['id'])
     return find(conn, lab['id'])

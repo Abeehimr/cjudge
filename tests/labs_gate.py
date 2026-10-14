@@ -38,20 +38,14 @@ def core_checks():
             labs.set_tasks(conn, lab, [dict(revision_id=revision_id, maximum_marks='100')], admin_id)
         timestamp = labs.now(conn)
     def schedule(key):
-        try:
-            with identity.engine().begin() as conn:
-                labs.schedule(conn, labs.find(conn, key), timestamp + timedelta(hours=1),
-                              timestamp + timedelta(hours=2), admin_id)
-            return 'ok'
-        except IntegrityError as exc:
-            assert labs.overlap_error(exc).status == 409
-            return 'overlap'
+        with identity.engine().begin() as conn:
+            labs.schedule(conn, labs.find(conn, key), timestamp + timedelta(hours=1),
+                          timestamp + timedelta(hours=2), admin_id)
+        return 'ok'
     with ThreadPoolExecutor(2) as pool:
-        assert sorted(pool.map(schedule, [a['id'], b['id']])) == ['ok', 'overlap']
+        assert sorted(pool.map(schedule, [a['id'], b['id']])) == ['ok', 'ok']
     with identity.engine().begin() as conn:
-        winner = conn.execute(sa.select(labs.labs).where(labs.labs.c.starts_at.is_not(None))).mappings().one()
-        loser = b if winner['id'] == a['id'] else a
-        labs.schedule(conn, labs.find(conn, loser['id']), winner['ends_at'], winner['ends_at'] + timedelta(hours=1), admin_id)
+        winner = labs.find(conn, a['id'])
         assert labs.task_rows(conn, winner['id'])[0]['id'] == revision_id
         try:
             labs.find(conn, winner['id'], 1)
@@ -59,7 +53,8 @@ def core_checks():
             assert exc.status == 409
         else:
             raise AssertionError('Stale edit allowed')
-    print('PASS: migrations, scheduling races, adjacent windows, stale versions, pinned task revisions')
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id.in_([a['id'], b['id']])).values(first_released_at=labs.now(conn)))
+    print('PASS: migrations, overlapping schedules, stale versions, pinned task revisions')
     return admin_id, student_id, revision_id
 
 
@@ -68,12 +63,16 @@ def roster_checks(admin_id, student_id, revision_id):
         a = labs.create(conn, 'Roster', False, admin_id)
         b = labs.create(conn, 'Other roster', False, admin_id)
         result = labs.import_roster(conn, a, [('GATE', 'Different'), ('LATE', 'Late Student')], admin_id)
-        assert result == {'created': ['LATE'], 'existing': ['GATE'], 'name_mismatches': ['GATE']}
+        assert result['created'] == ['LATE'] and result['existing'] == ['GATE']
+        assert result['name_mismatches'] == ['GATE'] and result['enrolled'] == ['GATE', 'LATE']
         assert conn.execute(sa.select(identity.accounts.c.name).where(identity.accounts.c.id == student_id)).scalar_one() == 'Student'
-        labs.enroll(conn, b, [student_id], admin_id)
+        other_id = uuid4()
+        conn.execute(sa.insert(identity.accounts).values(id=other_id, role='student', name='Other',
+            roll_number='OTHER', password_hash='unused', encrypted_password=identity.cipher().encrypt(b'unused')))
+        labs.enroll(conn, b, [other_id], admin_id)
         labs.freeze(conn, a, student_id, True, 'Review', admin_id)
         assert labs.enrollment(conn, a['id'], student_id)['frozen']
-        assert not labs.enrollment(conn, b['id'], student_id)['frozen']
+        assert not labs.enrollment(conn, b['id'], other_id)['frozen']
         labs.freeze(conn, a, student_id, False, 'Resolved', admin_id)
         assert not labs.enrollment(conn, a['id'], student_id)['frozen']
         timestamp = labs.now(conn)
@@ -87,6 +86,7 @@ def roster_checks(admin_id, student_id, revision_id):
             assert exc.status == 409
         else:
             raise AssertionError('Late removal allowed')
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == a['id']).values(first_released_at=labs.now(conn)))
     with identity.engine().begin() as conn:
         draft = labs.create(conn, 'Remove roster', False, admin_id)
         late = conn.execute(sa.select(identity.accounts.c.id).where(identity.accounts.c.roll_number == 'LATE')).scalar_one()
@@ -103,20 +103,17 @@ def roster_checks(admin_id, student_id, revision_id):
         future = labs.now(conn) + timedelta(days=10)
         conn.execute(sa.update(labs.labs).where(labs.labs.c.id == draft['id']).values(starts_at=future, ends_at=future + timedelta(hours=1)))
         scheduled = labs.find(conn, draft['id'])
-        try:
-            labs.remove_students(conn, scheduled, [student_id, late], admin_id)
-        except labs.LabError as exc:
-            assert exc.status == 400
-        else:
-            raise AssertionError('Scheduled roster emptied')
         trimmed = labs.remove_students(conn, scheduled, [student_id], admin_id)
         assert trimmed['version'] == scheduled['version'] + 1
-        assert labs.enrollment(conn, b['id'], student_id)
+        emptied = labs.remove_students(conn, trimmed, [late], admin_id)
+        assert emptied['starts_at'] is None and emptied['ends_at'] is None
+        assert labs.enrollment(conn, b['id'], other_id)
         assert conn.execute(sa.select(identity.accounts.c.id).where(identity.accounts.c.id == student_id)).scalar_one()
-        audit = conn.execute(sa.select(identity.audit_events.c.detail).where(identity.audit_events.c.action == 'lab_student_removed')
-            .order_by(identity.audit_events.c.id.desc()).limit(1)).scalar_one()
-        assert audit['students'][0]['id'] == str(student_id)
-    print('PASS: atomic removal, last-student protection, preserved accounts/other enrollment, identity audit')
+        audits = conn.execute(sa.select(identity.audit_events.c.detail).where(identity.audit_events.c.action == 'lab_student_removed')
+            .order_by(identity.audit_events.c.id.desc()).limit(2)).scalars()
+        assert any(row['students'][0]['id'] == str(student_id) for row in audits)
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == b['id']).values(first_released_at=labs.now(conn)))
+    print('PASS: atomic removal, schedule reset, preserved accounts/other enrollment, identity audit')
     print('PASS: account reuse, atomic enrollment, name mismatch, late additions, freeze isolation')
 
 
@@ -177,6 +174,7 @@ def binding_checks(admin_id, student_id, revision_id):
     with identity.engine().begin() as conn:
         conn.execute(sa.delete(identity.sessions).where(identity.sessions.c.account_id == student_id))
         conn.execute(sa.update(identity.accounts).where(identity.accounts.c.id == student_id).values(active=True))
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab['id']).values(first_released_at=labs.now(conn)))
     print('PASS: WAL-free binding reads, persisted IP changes, token loss, strict IP, release and revoked-session fencing')
 
 
@@ -279,6 +277,9 @@ def api_checks(admin_id, student_id, revision_id):
             assert call(preview_path, 'POST', b'roll_number\nGATE\n', content_type='text/csv')[0] == 409
             assert len(call(removal_path)[1]['students']) == 1
             assert any(row['id'] == str(student_id) for row in call('/admin/students')[1])
+            removal_lab = call(removal_path)[1]
+            assert call(removal_path + '/students/remove', 'POST',
+                {'version': removal_lab['version'], 'ids': [str(outsider)]})[0] == 200
             _, start_race, _ = call('/admin/labs', 'POST', {'title': 'Start/removal race'})
             start_path = '/admin/labs/' + start_race['id']
             _, start_race, _ = call(start_path + '/tasks', 'PUT', {'version': start_race['version'], 'assignments': [dict(revision_id=str(revision_id), maximum_marks='100')]})
