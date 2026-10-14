@@ -106,6 +106,7 @@ export default function TALabs({ csrf, accountId }: { csrf: string; accountId: s
   }
   if ((!route && !listRoute) || parts.length && (parts[0] !== "students" || !studentId || parts.length !== 2 && !(parts.length === 4 && parts[2] === "submissions"))) return <NotFound />;
   return <div className="space-y-4">
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <nav aria-label="TA breadcrumbs"><Link to="/ta/labs">Assigned labs</Link>{labId && <> / <Link to={`/ta/labs/${labId}`}>{lab?.title || "Lab"}</Link></>}
       {studentId && <> / <Link to={`/ta/labs/${labId}/students/${studentId}`}>{student?.roll_number || "Student"}</Link></>}</nav>
     {!labId ? <><h1 className="text-xl font-semibold">Assigned labs</h1>
@@ -125,6 +126,7 @@ export default function TALabs({ csrf, accountId }: { csrf: string; accountId: s
             <span className="block text-sm">{item.submission_count} submissions · {item.bound ? "Browser bound" : "Browser unbound"}{item.cancelled ? " · Cancelled" : item.frozen ? " · Frozen" : ""}</span></li>)}</ul></>}</section>}
       {studentId && !submissionId && student && <section className="space-y-3 rounded border bg-white p-4">
         <h2 className="font-semibold">{student.roll_number} · {student.name}</h2>
+        {actionError && <p role="alert" className="notice notice-danger">{actionError}</p>}
         <p>{student.bound ? "Browser bound" : "Browser unbound"}{student.ip_changed && " · IP changed"} · {student.submission_count} submissions
           {student.last_submission_at && ` · Latest ${new Date(student.last_submission_at).toLocaleString()}`}</p>
         {student.frozen && <p className="notice notice-warning">Frozen by {student.frozen_by_name || "admin"} · {student.freeze_reason}</p>}
@@ -136,7 +138,6 @@ export default function TALabs({ csrf, accountId }: { csrf: string; accountId: s
             const why = reason("release browser"); if (why) void act("release", "POST", { reason: why }, true); }}>Release browser</button>
           <button disabled={busy} onClick={() => { void act("password", "POST", {}, true); }}>Show password</button>
         </div>}
-        {actionError && <p role="alert" className="notice notice-danger">{actionError}</p>}
         {credential && <div className="notice notice-warning" aria-label="Selected student password">
           <p>Current password for {student.roll_number}: <strong className="font-mono">{credential}</strong></p>
           <button onClick={() => setCredential(null)}>Hide password</button></div>}
@@ -164,6 +165,5 @@ export default function TALabs({ csrf, accountId }: { csrf: string; accountId: s
       {submissionId && lab && <SubmissionDetail labId={labId} submissionId={submissionId} visible
         refreshKey={lab.server_time} basePath={`/ta/labs/${labId}/students/${studentId}/submissions`} />}
     </>}
-    {error && <p role="alert" className="notice notice-danger">{error}</p>}
   </div>;
 }

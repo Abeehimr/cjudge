@@ -47,6 +47,7 @@ export function StudentTAReview({ labId, studentId, csrf, accountId, released, a
     changed: !task.done || drafts[task.task_id] !== undefined && drafts[task.task_id] !== task.marks
   })).filter((item) => item.marks !== "" && item.changed).map(({ task_id, marks }) => ({ task_id, marks }));
   return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">TA review</h2>
+    {error && <p role="alert" className="notice notice-danger">{error} <button onClick={() => { void refresh(); }}>Reload review</button></p>}
     <p>{review.cancelled ? "Cancelled" : review.finalized ? "Finalized" : review.owner_id ? "In progress" : "Unclaimed"}
       {review.owner_name && ` · Owner: ${review.owner_name}`}{review.reviewer_name && ` · Reviewer: ${review.reviewer_name}`}
       {review.needs_recheck && " · Needs recheck"} · TA total {review.total ?? "—"}{review.provisional && " (provisional)"}</p>
@@ -67,7 +68,6 @@ export function StudentTAReview({ labId, studentId, csrf, accountId, released, a
       {review.finalized && review.owner_id === accountId && <button disabled={busy} onClick={() => { void change("reopen"); }}>Reopen review</button>}
     </div>}
     {!released && <p>TA marking starts after first result release.</p>}
-    {error && <p role="alert" className="notice notice-danger">{error} <button onClick={() => { void refresh(); }}>Reload review</button></p>}
   </section>;
 }
 
@@ -101,11 +101,11 @@ export function AdminTAReviews({ labId, csrf, archived, tas }: { labId: string; 
     finally { setBusy(false); }
   }
   return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">TA reviews</h2>
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <p>{data?.remaining ?? "—"} remaining / {data?.total ?? "—"} active students</p>
     <label>Status <select value={filter} onChange={(event) => setFilter(event.target.value)}>
       <option value="all">All</option><option value="remaining">Remaining</option><option value="recheck">Needs recheck</option>
     </select></label> <button onClick={() => { void refresh(); }}>Refresh</button>
-    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     {data && <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>
       <th>Student</th><th>Automatic</th><th>TA</th><th>Combined</th><th>Review</th><th>Actions</th></tr></thead>
       <tbody>{data.students.filter((student) => filter === "all" || filter === "remaining" && !student.review.finalized && !student.cancelled ||

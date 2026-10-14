@@ -112,6 +112,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
   if ((!route && !listRoute) || parts.length > 2 || !['overview', 'tasks', 'submissions', 'scoreboard'].includes(section) ||
       section === 'overview' && parts.length > 0 || section === 'scoreboard' && parts.length !== 1 || section === 'tasks' && !revisionId || section === 'submissions' && parts.length > 2 || [404, 422].includes(failure) || detail && revisionId && !task) return <NotFound />;
   return <div className="space-y-4">
+    {message && <p role="alert" className="notice notice-danger">{message}</p>}
     {!labId ? <><h1 className="text-xl font-semibold">Assigned labs</h1>
       {rows.length ? <div className="overflow-x-auto rounded border bg-white p-4"><table className="w-full text-left"><thead><tr><th>Lab</th><th>Status</th><th>Start</th><th>Deadline</th></tr></thead>
         <tbody>{rows.map((row) => <tr className="border-t" key={row.id}><td><Link to={`/labs/${row.id}`}>{row.title}</Link></td>
@@ -165,6 +166,5 @@ export function StudentLabs({ csrf }: { csrf: string }) {
           }} />}
       </>}
     </>}
-    {message && <p role="alert" className="notice notice-danger">{message}</p>}
   </div>;
 }

@@ -153,6 +153,7 @@ export default function Accounts({ csrf }: { csrf: string }) {
 
   return <> <div className="space-y-6">
         <h1 className="text-xl font-semibold">Students</h1>
+    {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
         <section className="no-print rounded border bg-white p-4">
           <h2 className="font-semibold">Add student</h2>
           <form className="mt-3 flex flex-wrap gap-2" onSubmit={addStudent}>
@@ -209,6 +210,5 @@ export default function Accounts({ csrf }: { csrf: string }) {
               <td>{entry.name}</td><td className="font-mono">{entry.password}</td></tr>)}</tbody></table>
         </section>}
       </div>
-    {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
   </>;
 }

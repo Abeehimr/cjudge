@@ -54,6 +54,7 @@ export default function Generation({ taskId, version, csrf, disabled, applied, o
   const unresolved = job && !["applied", "discarded"].includes(job.state);
   return <section className="space-y-3 rounded border bg-white p-4">
     <h2 className="font-semibold">Generate cases</h2>
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <p className="text-sm">One case per seed. Generator receives seed in argv[1]; Python random is seeded automatically. Reference reads input and prints the answer.</p>
     <p className="text-sm">Sources: 64 KiB each. 1–100 cases; 1 MiB per input/answer; 16 MiB combined. CPU 10s, wall 30s per program.</p>
     <form onSubmit={create}><fieldset disabled={disabled || busy || !!unresolved} className="space-y-3">
@@ -78,6 +79,5 @@ export default function Generation({ taskId, version, csrf, disabled, applied, o
       {job.state === "complete" && version !== job.base_version && <p className="notice notice-warning">Draft changed. Discard this job and generate again.</p>}
     </div>}
     {preview && <div><h3>{preview.title}{preview.truncated ? " — first 64 KiB" : ""}</h3><pre className="max-h-64 overflow-auto whitespace-pre-wrap border p-2">{preview.text || "(empty file)"}</pre><button onClick={() => setPreview(null)}>Close generation preview</button></div>}
-    {error && <p role="alert" className="notice notice-danger">{error}</p>}
   </section>;
 }

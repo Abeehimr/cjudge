@@ -57,6 +57,7 @@ function Screen() {
         <button onClick={logout}>Log out</button></div>}
     </header>
     <main className="mx-auto max-w-6xl p-6">
+      {error && <p role="alert" className="mb-4 notice notice-danger">{error}</p>}
       {loading ? <p role="status">Loading…</p> : !session ? <section className="mx-auto max-w-sm rounded border bg-white p-6">
         <h1 className="text-xl font-semibold">Sign in</h1><form className="mt-4 grid gap-3" onSubmit={login}>
           <label>Username or roll number<input className="mt-1 w-full" required autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} /></label>
@@ -83,7 +84,6 @@ function Screen() {
           <Route path="*" element={<NotFound />} />
         </Routes>}
       </div>}
-      {error && <p role="alert" className="mt-4 notice notice-danger">{error}</p>}
     </main>
   </div>;
 }

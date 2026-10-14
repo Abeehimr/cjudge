@@ -164,6 +164,7 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
 
   if (!match && !listRoute) return <NotFound />;
   return <div className="space-y-4">
+    {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
     <h1 className="text-xl font-semibold">Task library</h1>
     {taskId && <nav aria-label="Task breadcrumbs"><Link to="/admin/tasks">Task Library</Link> / {draft?.config.title || "Task"}</nav>}
     {!taskId && <><form onSubmit={create} className="flex flex-wrap gap-2 rounded border bg-white p-4">
@@ -273,6 +274,5 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
       </section>
       {!published && !review && <Generation key={draft.id} taskId={draft.id} version={draft.version} csrf={csrf} disabled={busy || dirty} onDirty={setGenerationDirty} applied={async () => { accept(await api<Detail>(`/admin/tasks/${draft.id}`)); }} />}
     </>}
-    {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
   </div>;
 }

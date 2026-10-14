@@ -53,6 +53,7 @@ export default function Release({ lab, csrf, accept, deleted }: { lab: AdminLab;
     finally { setBusy(false); }
   }
   return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Results and archive</h2>
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <p>{lab.first_released_at ? `First release: ${new Date(lab.first_released_at).toLocaleString()}` : "Results not released."} · Student details {lab.reveal_results ? "visible" : "hidden"}.</p>
     {(lab.phase === "Ended" || !!lab.first_released_at) && <button disabled={busy} onClick={() => { void change("results"); }}>{lab.reveal_results ? "Hide results" : lab.first_released_at ? "Reveal results" : "Release results"}</button>}
     {lab.first_released_at && !lab.archived_at && <button disabled={busy} onClick={() => { void change("archive"); }}>Archive lab</button>}
@@ -67,6 +68,5 @@ export default function Release({ lab, csrf, accept, deleted }: { lab: AdminLab;
         <button className="notice-danger" disabled={!saved || title !== lab.title} onClick={() => { void remove(); }}>Permanently delete lab</button>
       </fieldset>}
     </>}
-    {error && <p role="alert" className="notice notice-danger">{error}</p>}
   </section>;
 }

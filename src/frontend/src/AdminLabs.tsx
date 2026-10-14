@@ -209,6 +209,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       section === 'overview' && parts.length > 0 || section === 'scoreboard' && parts.length !== 1 || [404, 422].includes(failure) || lab && (studentId && !member || revisionId && !task)) return <NotFound />;
   return <div className="space-y-4">
     <h1 className="text-xl font-semibold">{labId ? lab?.title || "Lab" : "Labs"}</h1>
+    {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
     {!labId && <><form onSubmit={create} className="flex flex-wrap gap-2 rounded border bg-white p-4">
       <label>New lab title <input required maxLength={160} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} /></label><button disabled={busy || !!lab?.archived_at}>Create lab</button>
     </form>
@@ -410,6 +411,5 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       {(!submissionId && section === 'submissions' || studentId || revisionId) && <AdminSubmissions key={`${lab.id}/${studentId || revisionId || 'all'}`} labId={lab.id} csrf={csrf}
         tasks={lab.tasks.map((t) => ({ revision_id: t.revision_id, title: t.config.title }))} students={lab.students} accountId={studentId} revisionId={revisionId} />}
     </>}
-    {message && <p role={messageError ? "alert" : "status"} className={`notice ${messageError ? "notice-danger" : "notice-warning"}`}>{message}</p>}
   </div>;
 }

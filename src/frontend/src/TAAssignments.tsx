@@ -20,6 +20,7 @@ export default function TAAssignments({ lab, csrf, onSave }: { lab: AdminLab; cs
   }
   return <section className="space-y-3 rounded border bg-white p-4">
     <h2 className="font-semibold">Assigned TAs</h2>
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     {available.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>
       <th>Assigned</th><th>Username</th><th>Name</th><th>Account status</th><th>Details</th></tr></thead>
       <tbody>{available.map((ta) => { const assigned = lab.tas?.some((item) => item.id === ta.id);
@@ -30,7 +31,6 @@ export default function TAAssignments({ lab, csrf, onSave }: { lab: AdminLab; cs
         <td>{assigned ? <Link to={`/admin/labs/${lab.id}/tas/${ta.id}`}>View TA</Link> : "—"}</td>
       </tr>; })}</tbody></table></div> : <p>Create TA accounts before assigning them.</p>}
     <button disabled={busy || !!lab.archived_at || !changed} onClick={() => { void save(); }}>Save assignments</button>
-    {error && <p role="alert" className="notice notice-danger">{error}</p>}
   </section>;
 }
 

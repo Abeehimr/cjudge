@@ -22,6 +22,8 @@ export default function TAAccounts({ csrf }: { csrf: string }) {
     });
   }
   return <div className="space-y-4">
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
+    {message && <p role="status" className="notice notice-warning">{message}</p>}
     <h1 className="text-xl font-semibold">TA accounts</h1>
     <form onSubmit={(e) => { void create(e); }} className="grid gap-3 rounded border bg-white p-4 sm:grid-cols-2">
       <label>Username<input required maxLength={64} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
@@ -44,7 +46,5 @@ export default function TAAccounts({ csrf }: { csrf: string }) {
           <button disabled={busy}>Save password</button><button type="button" onClick={() => { setResetId(""); setResetPassword(""); }}>Cancel</button></form>}
       </li>)}</ul>
     </section>
-    {error && <p role="alert" className="notice notice-danger">{error}</p>}
-    {message && <p role="status" className="notice notice-warning">{message}</p>}
   </div>;
 }

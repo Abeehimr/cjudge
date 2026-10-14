@@ -22,9 +22,9 @@ export function Marks({ labId, accountId, taskId }: { labId: string; accountId?:
   const selected = rows.filter((row) => !accountId || row.id === accountId);
   const tasks = (rows[0]?.tasks || []).filter((task) => !taskId || task.task_id === taskId);
   return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Marks</h2>
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <button onClick={() => { void refresh(); }}>Refresh marks</button>
     {!accountId && !taskId && <a download href={`/api/admin/labs/${labId}/marks.csv`}>Download final CSV</a>}
-    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <MarksTable rows={selected} tasks={tasks} labId={labId} taskId={taskId} />
   </section>;
 }
@@ -84,6 +84,7 @@ export function Corrections({ lab, task, csrf, refreshLab, onDirty }: { lab: Adm
     finally { setBusy(false); }
   }
   return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Task corrections</h2>
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <p>Publish a correction in the task library, then select its revision here.</p>
     <button onClick={() => { void refresh(); }}>Refresh corrections</button>
     <form onSubmit={(e) => { e.preventDefault(); void correct(); }}><fieldset disabled={busy || active || !['Running', 'Ended', 'Results released'].includes(lab.phase)} className="flex flex-wrap items-center gap-3">
@@ -92,7 +93,6 @@ export function Corrections({ lab, task, csrf, refreshLab, onDirty }: { lab: Adm
       <label>Correction reason <input required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
       <button>Start correction batch</button>
     </fieldset></form>
-    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     {history.map((batch) => <p className={batch.delayed ? 'notice notice-warning' : ''} key={batch.id}>{batch.state === 'published' ? 'Published' : 'Judging'} · {batch.completed}/{batch.total} active submissions completed
       {batch.delayed > 0 && ` · ${batch.delayed} delayed: retry from submission pages`} · {new Date(batch.created_at).toLocaleString()}</p>)}
   </section>;

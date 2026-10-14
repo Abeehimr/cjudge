@@ -29,8 +29,9 @@ export function CompilerFeedback({ labId, csrf, feedback, refreshLab, onDirty }:
     catch (e) { setError((e as Error).message); }
   }
   return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Compiler feedback</h2>
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <label>Student compiler feedback <select value={mode} onChange={(e) => setMode(e.target.value)}><option value="short">First 20 lines</option><option value="full">Full retained feedback</option><option value="none">Verdict only</option></select></label>{" "}
-    <button onClick={() => { void save(); }}>Save compiler feedback</button>{error && <p role="alert" className="notice notice-danger">{error}</p>}
+    <button onClick={() => { void save(); }}>Save compiler feedback</button>
   </section>;
 }
 
@@ -60,6 +61,7 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
     catch (e) { setError((e as Error).message); }
   }
   return <section className="space-y-3 rounded border bg-white p-4">
+    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <h2 className="font-semibold">Submissions</h2><p>{connection}</p>
     <div className="flex flex-wrap items-center gap-3">
       {!accountId && <label>Filter by student <select value={account} onChange={(e) => filter("student", e.target.value)}><option value="">All students</option>
@@ -69,7 +71,6 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
       <button onClick={() => { void refresh(); }}>Refresh submissions</button>
       <label>Attempt order <select value={order} onChange={(e) => filter('order', e.target.value)}><option value="latest">Newest first</option><option value="best">Best first · pending and deleted last</option></select></label>
     </div>
-    {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Accepted</th><th>Student</th><th>Task</th><th>Source</th><th>Status</th><th>Attempts</th><th>IP / MAC</th><th>Fault</th></tr></thead>
       <tbody>{rows.map((row) => <tr className="border-t align-top" data-best={row.best_for_review || undefined} data-deleted={!!row.deleted_at || undefined} key={row.id}><td>{new Date(row.accepted_at).toLocaleString()}</td>
         <td><Link to={`/admin/labs/${labId}/students/${row.account_id}`}>{row.roll_number} · {row.name}</Link></td>
