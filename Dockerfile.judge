@@ -3,7 +3,7 @@ FROM python:3.14-slim
 # Pin isolate source; runtime operation needs no network.
 ARG ISOLATE_REV=8f185bb37f3f23e29b33b0c7727c91c13429abe3
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libc6-dev make pkg-config libcap-dev libseccomp-dev git ca-certificates \
+    gcc g++ libc6-dev make pkg-config libcap-dev libseccomp-dev git ca-certificates \
     && git clone https://github.com/ioi/isolate.git /tmp/isolate \
     && cd /tmp/isolate && git checkout "$ISOLATE_REV" && make isolate \
     && install -m 0755 isolate /usr/local/bin/isolate \

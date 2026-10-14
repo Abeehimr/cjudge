@@ -41,6 +41,7 @@ class TaskConfig(BaseModel):
     scoring: Literal["partial", "all_or_nothing"] = "partial"
     checker: Checker = Field(default_factory=Checker)
     banned_identifiers: list[str] = Field(default_factory=list, max_length=100)
+    languages: list[Literal['c11', 'cpp17']] = Field(default_factory=lambda: ['c11'], min_length=1, max_length=2)
     cpu_seconds: float = Field(default=2, gt=0, le=60)
     wall_seconds: float = Field(default=6, gt=0, le=60)
     memory_mib: int = Field(default=256, ge=1, le=512)
@@ -57,6 +58,8 @@ class TaskConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_limits(self) -> Self:
+        if len(set(self.languages)) != len(self.languages):
+            raise ValueError('Select distinct permitted languages')
         self.title = self.title.strip()
         if not self.title:
             raise ValueError("Title cannot be blank")

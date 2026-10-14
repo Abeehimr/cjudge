@@ -267,6 +267,21 @@ def compile_c(source: bytes) -> Result:
                                  "/box/main.c", "-o", "/box/main", "-lm"], {"main.c": source})
 
 
+def compile_cpp(source: bytes) -> Result:
+    if not isinstance(source, bytes) or not 0 < len(source) <= SOURCE_BYTES:
+        raise ValueError("C++ source must contain 1–65536 bytes")
+    return _run(Profile.COMPILE, ["/usr/bin/g++", "-O2", "-std=c++17", "-fdiagnostics-color=never",
+                                 "/box/main.cpp", "-o", "/box/main"], {"main.cpp": source})
+
+
+def compile_source(source: bytes, language: str = 'c11') -> Result:
+    if language == 'c11':
+        return compile_c(source)
+    if language == 'cpp17':
+        return compile_cpp(source)
+    raise ValueError('Unsupported source language')
+
+
 def execute(executable: bytes, stdin: bytes = b"", limits: Limits | None = None) -> Result:
     if not isinstance(executable, bytes) or not 0 < len(executable) <= 10 * 1024 * 1024:
         raise ValueError("Executable must contain 1 byte to 10 MiB")

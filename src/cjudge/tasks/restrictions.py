@@ -1,7 +1,8 @@
 """Bounded lexical scan of source identifiers; teaching policy, not C preprocessing."""
+from bisect import bisect_left
 
 
-def first_banned(source: bytes, names: list[str]) -> tuple[str, int] | None:
+def first_banned(source: bytes, names: list[str], language: str = 'c11') -> tuple[str, int] | None:
     if not names:
         return None
     if len(source) > 65536:
@@ -9,6 +10,7 @@ def first_banned(source: bytes, names: list[str]) -> tuple[str, int] | None:
     banned = {name.encode('ascii') for name in names}
     logical = bytearray()
     line_numbers = []
+    source_offsets = []
     line = 1
     index = 0
     while index < len(source):
@@ -20,6 +22,7 @@ def first_banned(source: bytes, names: list[str]) -> tuple[str, int] | None:
                 continue
         logical.append(source[index])
         line_numbers.append(line)
+        source_offsets.append(index)
         if source[index] == 10 or source[index] == 13 and (index + 1 == len(source) or source[index + 1] != 10):
             line += 1
         index += 1
@@ -64,6 +67,8 @@ def first_banned(source: bytes, names: list[str]) -> tuple[str, int] | None:
             index += 1
             while index < len(data) and (data[index] in b'._' or 48 <= data[index] <= 57 or
                     65 <= data[index] <= 90 or 97 <= data[index] <= 122 or
+                    language == 'cpp17' and data[index] == 39 and index + 1 < len(data) and
+                    (data[index + 1] == 95 or 48 <= data[index + 1] <= 57 or 65 <= data[index + 1] <= 90 or 97 <= data[index + 1] <= 122) or
                     data[index] in b'+-' and data[index - 1] in b'eEpP'):
                 index += 1
             line_start = False
@@ -74,6 +79,16 @@ def first_banned(source: bytes, names: list[str]) -> tuple[str, int] | None:
                     65 <= data[index] <= 90 or 97 <= data[index] <= 122 or data[index] >= 128):
                 index += 1
             token = data[start:index]
+            if language == 'cpp17' and token in (b'R', b'u8R', b'uR', b'UR', b'LR') and index < len(data) and data[index] == 34:
+                # Raw literals restore line splices; locate their end in original source.
+                opening = source_offsets[index] + 1
+                bracket = source.find(b'(', opening, opening + 17)
+                delimiter = source[opening:bracket] if bracket >= 0 else b''
+                if bracket >= 0 and not any(char in b' ()\\\t\r\n\v\f' for char in delimiter):
+                    end = source.find(b')' + delimiter + b'"', bracket + 1)
+                    index = len(data) if end < 0 else bisect_left(source_offsets, end + len(delimiter) + 2)
+                    line_start = False
+                    continue
             if directive:
                 header_next = token in (b'include', b'include_next')
                 directive = False

@@ -3,7 +3,19 @@ from unittest.mock import patch
 
 import pytest
 
-from cjudge.runner import Limits, Profile, SandboxError, compile_c, execute, run_python, verdict_for
+from cjudge.runner import Limits, Profile, SandboxError, compile_c, compile_source, execute, run_python, verdict_for
+
+
+def test_compiler_language_dispatch():
+    with patch('cjudge.runner._run') as run:
+        compile_source(b'int main(){}', 'cpp17')
+        assert run.call_args.args[0] == Profile.COMPILE
+        assert '/usr/bin/g++' in run.call_args.args[1] and '-std=c++17' in run.call_args.args[1]
+        assert run.call_args.args[2] == {'main.cpp': b'int main(){}'}
+        compile_source(b'int main(){}')
+        assert '/usr/bin/gcc' in run.call_args.args[1]
+    with pytest.raises(ValueError):
+        compile_source(b'int main(){}', 'python')
 
 
 def test_limits_and_verdict_contract() -> None:
