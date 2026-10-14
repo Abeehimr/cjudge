@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, NavLink, useMatch } from "react-router";
+import { Link, NavLink, useMatch, useNavigate } from "react-router";
 import { api } from "./api";
 import SubmissionDetail from "./SubmissionDetail";
 import { Scoreboard } from "./Scoreboard";
@@ -9,8 +9,10 @@ import { languageName } from "./languages";
 import { StudentSubmissions, type UploadDraft } from "./Submissions";
 import { Announcements, type Summary, type PublicLab } from "./Lab";
 import { NotFound, useUnsaved } from "./navigation";
+import QuickSubmit from './QuickSubmit';
 
 export function StudentLabs({ csrf }: { csrf: string }) {
+  const navigate = useNavigate();
   const route = useMatch('/labs/:labId/*'), listRoute = useMatch('/labs');
   const labId = route?.params.labId, parts = (route?.params['*'] || '').split('/').filter(Boolean);
   const section = parts[0] || 'overview', revisionId = section === 'tasks' ? parts[1] : undefined;
@@ -19,6 +21,18 @@ export function StudentLabs({ csrf }: { csrf: string }) {
   const [message, setMessage] = useState(''), [failure, setFailure] = useState(0), [busy, setBusy] = useState(false);
   const [connection, setConnection] = useState('');
   const [drafts, setDrafts] = useState<Record<string, UploadDraft>>({});
+  const [quickRevision, setQuickRevision] = useState<string | null>(null), [uploadBusy, setUploadBusy] = useState(false), [receipt, setReceipt] = useState('');
+  const [submissionDestination, setSubmissionDestination] = useState<string | null>(null);
+  function draftFor(revision: string) {
+    const item = detail?.tasks.find((task) => task.revision_id === revision || task.previous_revision_ids?.includes(revision));
+    const ids = item ? [item.revision_id, ...(item.previous_revision_ids || [])] : [revision];
+    const key = ids.find((id) => drafts[id]?.file || drafts[id]?.pending) || ids[0];
+    return { key, draft: drafts[key] || { file: null, pending: null } };
+  }
+  function saveDraft(revision: string, draft: UploadDraft) {
+    const { key } = draftFor(revision);
+    setDrafts((old) => ({ ...old, [key]: draft }));
+  }
   const currentLab = useRef(labId); currentLab.current = labId;
   const selected = rows.find((row) => row.id === labId);
   async function list(signal?: AbortSignal) {
@@ -41,10 +55,16 @@ export function StudentLabs({ csrf }: { csrf: string }) {
   }
   useEffect(() => {
     const controller = new AbortController();
-    setDetail(null); setMessage(''); setFailure(0); setDrafts({});
+    setDetail(null); setMessage(''); setFailure(0); setDrafts({}); setQuickRevision(null); setReceipt(''); setSubmissionDestination(null);
     void list(controller.signal); if (labId) void refresh(controller.signal);
     return () => controller.abort();
   }, [labId]);
+  useEffect(() => {
+    const admission = detail?.admission;
+    if (!admission?.retry_at) return;
+    const timer = setTimeout(() => { void refresh(); }, Math.max(0, Date.parse(admission.retry_at) - Date.parse(admission.server_time)) + 50);
+    return () => clearTimeout(timer);
+  }, [labId, detail?.admission?.retry_at, detail?.admission?.server_time]);
   async function enter() {
     if (!labId) return;
     const id = labId; setBusy(true); setMessage('');
@@ -84,7 +104,10 @@ export function StudentLabs({ csrf }: { csrf: string }) {
     connect();
     return () => { controller.abort(); source.close(); if (retry) clearTimeout(retry); setConnection(''); };
   }, [detail?.id]);
-  useUnsaved(busy || Object.values(drafts).some((draft) => !!draft.file || !!draft.pending));
+  useUnsaved(!submissionDestination && (busy || uploadBusy || Object.values(drafts).some((draft) => !!draft.file || !!draft.pending)));
+  useEffect(() => {
+    if (submissionDestination && !uploadBusy) { navigate(submissionDestination); setSubmissionDestination(null); }
+  }, [submissionDestination, uploadBusy, navigate]);
   const task = detail?.tasks.find((item) => item.revision_id === revisionId || item.previous_revision_ids?.includes(revisionId || ''));
   if ((!route && !listRoute) || parts.length > 2 || !['overview', 'tasks', 'submissions', 'scoreboard'].includes(section) ||
       section === 'overview' && parts.length > 0 || section === 'scoreboard' && parts.length !== 1 || section === 'tasks' && !revisionId || section === 'submissions' && parts.length > 2 || [404, 422].includes(failure) || detail && revisionId && !task) return <NotFound />;
@@ -95,6 +118,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
           <td>{row.phase}</td><td>{new Date(row.starts_at!).toLocaleString()}</td><td>{new Date(row.ends_at!).toLocaleString()}</td></tr>)}</tbody></table></div>
         : <p>No labs assigned yet.</p>}</> : <>
       <nav aria-label="Lab breadcrumbs"><Link to="/labs">Labs</Link> / <Link to={`/labs/${labId}`}>{detail?.title || selected?.title || 'Lab'}</Link>{task && ` / ${task.title}`}</nav>
+      {receipt && <p role="status" className="notice notice-success">{receipt}</p>}
       {detail && <nav aria-label="Lab navigation" className="flex flex-wrap gap-2"><NavLink end className="nav-link" to={`/labs/${labId}`}>Overview</NavLink>
         <NavLink className="nav-link" to={`/labs/${labId}/submissions`}>Submissions</NavLink>{detail.scoreboard_visible && <NavLink className="nav-link" to={`/labs/${labId}/scoreboard`}>Scoreboard</NavLink>}</nav>}
       <section className="space-y-2 rounded border bg-white p-4"><h1 className="text-xl font-semibold">{detail?.title || selected?.title || 'Lab'}{detail && ` · ${detail.phase}`}</h1>
@@ -103,6 +127,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
           <button disabled={busy || selected.phase === 'Scheduled'} onClick={enter}>Enter lab</button></>}
         {!detail && !failure && <p role="status">Loading lab…</p>}
         <button disabled={busy} onClick={() => { void refresh(); }}>Refresh lab</button>{connection && <p className="text-sm">{connection}</p>}
+        {detail && <button disabled={uploadBusy || !detail.tasks.length} onClick={() => setQuickRevision(task?.revision_id || detail.tasks[0].revision_id)}>Quick submit</button>}
       </section>
       {detail && <>
         {submissionId && <SubmissionDetail key={submissionId} labId={detail.id} submissionId={submissionId} visible={!!detail.results_visible} refreshKey={detail.server_time} />}
@@ -131,7 +156,13 @@ export function StudentLabs({ csrf }: { csrf: string }) {
           <nav aria-label="Task navigation" className="flex flex-wrap gap-3">{detail.tasks.map((item) => <NavLink key={item.revision_id} className="nav-link" to={`/labs/${detail.id}/tasks/${item.revision_id}`}>{item.position}. {item.title}</NavLink>)}</nav>
         </section>}
         {(task || section === 'submissions' && !submissionId) && <StudentSubmissions visible={!!detail.results_visible} earlyFeedback={!!detail.early_feedback_visible && !detail.results_visible} key={revisionId || 'history'} labId={detail.id} tasks={detail.tasks} admission={detail.admission} csrf={csrf} refresh={refresh}
-          revisionId={task?.revision_id} draft={drafts[revisionId || ''] || { file: null, pending: null }} setDraft={(draft) => setDrafts((old) => ({ ...old, [revisionId || '']: draft }))} />}
+          revisionId={task?.revision_id} draft={draftFor(task?.revision_id || '').draft} setDraft={(draft) => saveDraft(task?.revision_id || '', draft)} uploadVisible={quickRevision === null} onBusyChange={setUploadBusy} />}
+        {quickRevision !== null && <QuickSubmit lab={detail} selected={quickRevision} select={setQuickRevision} draft={draftFor(quickRevision).draft}
+          setDraft={(draft) => saveDraft(quickRevision, draft)} busy={uploadBusy} setBusy={setUploadBusy} csrf={csrf} refresh={refresh}
+          close={() => { if (!uploadBusy) setQuickRevision(null); }} accepted={(value) => {
+            if (currentLab.current !== detail.id) return;
+            setReceipt(value); setQuickRevision(null); setSubmissionDestination(`/labs/${detail.id}/submissions`);
+          }} />}
       </>}
     </>}
     {message && <p role="alert" className="notice notice-danger">{message}</p>}

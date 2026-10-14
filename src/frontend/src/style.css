@@ -90,3 +90,5 @@ li[data-deleted="true"] { @apply bg-red-50; }
 tr[data-frozen="true"] { @apply bg-amber-50; }
 tr[data-cancelled="true"] { @apply bg-red-50; }
 tr[data-restored="true"] { @apply bg-green-50; }
+dialog.quick-submit { width: min(36rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; }
+dialog.quick-submit::backdrop { background: rgb(51 65 85 / 35%); }

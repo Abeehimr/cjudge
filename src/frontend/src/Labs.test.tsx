@@ -5,7 +5,20 @@ import { StudentLabs } from "./StudentLabs";
 import { renderRoute } from "./testRouter";
 import { Announcements } from "./Lab";
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+let dialogShim = false;
+afterEach(() => {
+  cleanup(); vi.unstubAllGlobals();
+  if (dialogShim) { Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal'); Reflect.deleteProperty(HTMLDialogElement.prototype, 'close'); dialogShim = false; }
+});
+function dialogs() {
+  // jsdom does not implement native modal methods.
+  if (typeof (HTMLDialogElement.prototype as Partial<HTMLDialogElement>).showModal === 'function') return;
+  dialogShim = true;
+  Object.defineProperties(HTMLDialogElement.prototype, {
+    showModal: { configurable: true, value: function(this: HTMLDialogElement) { this.open = true; } },
+    close: { configurable: true, value: function(this: HTMLDialogElement) { this.open = false; } },
+  });
+}
 const summary = { id: "lab", title: "C practice", phase: "Running", starts_at: "2020-01-01T00:00:00Z", ends_at: "2099-01-01T00:00:00Z", server_time: "2026-09-30T00:00:00Z" };
 const materials = { ...summary, frozen: false, tasks: [{ position: 1, revision_id: "revision", title: "Addition", statement: "Add two numbers.", maximum_marks: "10", cpu_seconds: 1, wall_seconds: 2, memory_mib: 64, stack_mib: 8 }], pdfs: [], announcements: [] };
 test('latest announcement stays visible while older notices use native disclosure', () => {
@@ -68,6 +81,70 @@ test('bound student task deep link restores statement and upload without enterin
   expect(screen.queryByRole('combobox')).toBeNull();
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/labs/lab/submissions?offset=100&revision_id=revision', expect.anything()));
   expect(fetchMock.mock.calls.some(([path]) => path.endsWith('/enter'))).toBe(false);
+});
+
+test('quick submit shares the selected file, blocks closing during upload, and opens all history after acceptance', async () => {
+  live(); dialogs(); let finish!: (response: object) => void;
+  const current = { ...materials, admission: { allowed: true, reason: '', code: '', pending: 0, retry_at: null, server_time: summary.server_time } };
+  const confirm = vi.fn().mockReturnValue(false); vi.stubGlobal('confirm', confirm);
+  const fetchMock = vi.fn().mockImplementation((path: string, options: RequestInit) => {
+    if (options.method === 'POST') return new Promise((resolve) => { finish = resolve; });
+    return Promise.resolve({ ok: true, status: 200, json: async () => path.includes('/submissions') ? [] : path === '/api/labs' ? [summary] : current });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const { router } = renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab/tasks/revision?offset=100');
+  fireEvent.change(await screen.findByLabelText(/C file/), { target: { files: [new File(['int main(void){}'], 'main.c')] } });
+  fireEvent.click(screen.getByRole('button', { name: 'Quick submit' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Quick submit' });
+  expect(screen.getByText('Selected: main.c')).toBeTruthy();
+  fireEvent(dialog, new Event('cancel', { cancelable: true }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.getByText('Selected: main.c')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Quick submit' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+  expect((screen.getByRole('button', { name: 'Close' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  await act(async () => finish({ ok: true, status: 200, json: async () => ({ id: 'submission', filename: 'main.c', accepted_at: summary.server_time }) }));
+  await waitFor(() => expect(router.state.location.pathname).toBe('/labs/lab/submissions'));
+  expect(router.state.location.search).toBe('');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(await screen.findByText(/Accepted main.c/)).toBeTruthy();
+  expect(confirm).not.toHaveBeenCalled();
+  expect(fetchMock.mock.calls.some(([path]) => path === '/api/labs/lab/submissions?offset=0')).toBe(true);
+});
+
+test('an uncertain quick upload retains its key and original revision on the task page after correction and deadline', async () => {
+  live(); dialogs();
+  const original = { ...materials.tasks[0], previous_revision_ids: [] as string[] };
+  let current = { ...materials, tasks: [original], admission: { allowed: true, reason: '', code: '', pending: 0, retry_at: null, server_time: summary.server_time } };
+  let attempts = 0;
+  const fetchMock = vi.fn().mockImplementation((path: string, options: RequestInit) => {
+    if (options.method === 'POST') {
+      if (++attempts === 1) return Promise.reject(new TypeError('Connection lost'));
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ id: 'submission', filename: 'main.c', accepted_at: summary.server_time }) });
+    }
+    return Promise.resolve({ ok: true, status: 200, json: async () => path.includes('/submissions') ? [] : path === '/api/labs' ? [summary] : current });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab/tasks/revision');
+  fireEvent.click(await screen.findByRole('button', { name: 'Quick submit' }));
+  fireEvent.change(screen.getByLabelText(/C file/), { target: { files: [new File(['int main(void){}'], 'main.c')] } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+  await screen.findByRole('button', { name: 'Retry upload' });
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  current = { ...current, phase: 'Ended', tasks: [{ ...original, revision_id: 'corrected', previous_revision_ids: ['revision'] }],
+    admission: { ...current.admission, allowed: false, reason: 'Lab is not running' } };
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh lab' }));
+  await screen.findByText(/Task corrected/);
+  expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry upload' }));
+  await screen.findByText(/Accepted main.c/);
+  const posts = fetchMock.mock.calls.filter(([, options]) => options.method === 'POST');
+  expect(posts[0][0]).toBe(posts[1][0]);
+  expect(posts[1][0]).toContain('revision_id=revision');
+  expect(posts[0][1].headers['Idempotency-Key']).toBe(posts[1][1].headers['Idempotency-Key']);
+  expect(posts[0][1].body).toBe(posts[1][1].body);
 });
 
 test('admin student page isolates controls and filters history to the student', async () => {
