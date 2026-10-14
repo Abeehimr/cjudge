@@ -357,10 +357,17 @@ def list_admin_labs(offset: int = Query(default=0, ge=0)):
 
 
 @admin_router.get('/task-options', response_model=list[AssignedTask])
-def task_options(offset: int = Query(default=0, ge=0)):
+def task_options(offset: int = Query(default=0, ge=0), task_id: UUID | None = None):
     with transaction() as conn:
-        rows = conn.execute(sa.select(tasks.revisions).order_by(tasks.revisions.c.created_at.desc(), tasks.revisions.c.id)
-                            .offset(offset).limit(100)).mappings()
+        query = sa.select(tasks.revisions)
+        if task_id is not None:
+            query = query.where(tasks.revisions.c.task_id == task_id)
+        else:
+            latest = sa.select(tasks.revisions.c.id, sa.func.row_number().over(
+                partition_by=tasks.revisions.c.task_id, order_by=tasks.revisions.c.number.desc()).label('rank')).subquery()
+            query = query.where(tasks.revisions.c.id.in_(sa.select(latest.c.id).where(latest.c.rank == 1)))
+        rows = conn.execute(query.order_by(tasks.revisions.c.number.desc() if task_id else tasks.revisions.c.created_at.desc(),
+                            tasks.revisions.c.id).offset(offset).limit(100)).mappings()
         return [{'position': 0, 'revision_id': row['id'], 'task_id': row['task_id'], 'number': row['number'],
                  'maximum_marks': None, 'config': row['config']} for row in rows]
 

@@ -34,6 +34,8 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   const [failure, setFailure] = useState(0);
   const [lab, setLab] = useState<AdminLab | null>(null);
   const [options, setOptions] = useState<Task[]>([]), [optionOffset, setOptionOffset] = useState(0), [moreOptions, setMoreOptions] = useState(true);
+  const [publishedTask, setPublishedTask] = useState(''), [revisions, setRevisions] = useState<Task[]>([]);
+  const [revisionOffset, setRevisionOffset] = useState(0), [moreRevisions, setMoreRevisions] = useState(false), [loadingRevisions, setLoadingRevisions] = useState(false);
   const [students, setStudents] = useState<Student[]>([]), [selectedStudentId, setStudentId] = useState(""), [search, setSearch] = useState("");
   const [selectedRoster, setSelectedRoster] = useState<string[]>([]);
   const [removalPreview, setRemovalPreview] = useState<{ version: number; students: Student[] } | null>(null);
@@ -51,6 +53,10 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   function setMessage(text: string) { setMessageError(false); setMessageText(text); }
   function showError(text: string) { setMessageError(true); setMessageText(text); }
   const setupOpen = !!lab && (lab.phase === "Draft" || lab.phase === "Scheduled");
+  const latestOptions = new Map<string, Task>();
+  for (const option of options) {
+    if (!latestOptions.has(option.task_id) || latestOptions.get(option.task_id)!.number < option.number) latestOptions.set(option.task_id, option);
+  }
   const visibleRoster = studentId ? lab?.students.filter((row) => row.id === studentId) || [] :
     lab?.students.filter((row) => `${row.roll_number} ${row.name}`.toLowerCase().includes(rosterSearch.toLowerCase()) &&
       (!['yes', 'no'].includes(frozenFilter) || !!row.frozen === (frozenFilter === 'yes')) &&
@@ -92,10 +98,30 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   useEffect(() => { setReleasedCredential(null); }, [labId, section, studentId]);
   useEffect(() => {
     if (section !== "tasks" || revisionId || !labId) return;
-    void api<Task[]>(`/admin/labs/task-options?offset=${optionOffset}`).then((next) => {
-      setOptions((old) => optionOffset ? [...old, ...next.filter((row) => !old.some((item) => item.revision_id === row.revision_id))] : next); setMoreOptions(next.length === 100);
-    }).catch((e) => showError(e.message));
+    const controller = new AbortController();
+    void api<Task[]>(`/admin/labs/task-options?offset=${optionOffset}`, { signal: controller.signal }).then((next) => {
+      if (controller.signal.aborted) return;
+      setOptions((old) => [...old, ...next.filter((row) => !old.some((item) => item.revision_id === row.revision_id))]); setMoreOptions(next.length === 100);
+    }).catch((e) => { if (!controller.signal.aborted) showError(e.message); });
+    return () => controller.abort();
   }, [optionOffset, section, revisionId, labId]);
+  useEffect(() => {
+    setPublishedTask(''); setTaskId(''); setRevisions([]); setRevisionOffset(0); setOptionOffset(0); setOptions([]);
+  }, [labId]);
+  useEffect(() => {
+    if (!publishedTask) return;
+    const controller = new AbortController(); setLoadingRevisions(true);
+    void api<Task[]>(`/admin/labs/task-options?task_id=${encodeURIComponent(publishedTask)}&offset=${revisionOffset}`,
+      { signal: controller.signal }).then((next) => {
+      if (controller.signal.aborted) return;
+      setRevisions((old) => revisionOffset ? [...old, ...next] : next);
+      setOptions((old) => [...old, ...next.filter((row) => !old.some((item) => item.revision_id === row.revision_id))]);
+      setMoreRevisions(next.length === 100);
+      if (!revisionOffset) setTaskId(next[0]?.revision_id || '');
+    }).catch((e) => { if (!controller.signal.aborted) showError(e.message); })
+      .finally(() => { if (!controller.signal.aborted) setLoadingRevisions(false); });
+    return () => controller.abort();
+  }, [publishedTask, revisionOffset]);
   useEffect(() => { if (labId && section === "students" && !studentId) void api<Student[]>("/admin/students").then(setStudents).catch((e) => showError(e.message)); }, [labId, section, studentId]);
   function accept(value: AdminLab, reset = false) {
     if (value.id !== currentLab.current) return;
@@ -237,14 +263,18 @@ export function AdminLabs({ csrf }: { csrf: string }) {
                 <button disabled={!index} onClick={() => move(index, -1)} aria-label={`Move task ${index + 1} up`}>↑</button>
                 <button disabled={index === taskIds.length - 1} onClick={() => move(index, 1)} aria-label={`Move task ${index + 1} down`}>↓</button>
                 <button onClick={() => setTaskIds(taskIds.filter((value) => value !== id))}>Remove task {index + 1}</button></td></tr>; })}</tbody></table></div>
-          <label>Published task revision <select value={taskId} onChange={(e) => setTaskId(e.target.value)}><option value="">Select revision</option>
-            {options.map((option) => <option key={option.revision_id} value={option.revision_id}>{option.config.title} · revision {option.number}</option>)}</select></label>{" "}
+          <label>Published task <select value={publishedTask} onChange={(e) => { setPublishedTask(e.target.value); setTaskId(''); setRevisions([]); setRevisionOffset(0); }}><option value="">Select task</option>
+            {[...latestOptions.values()].map((option) =>
+              <option key={option.task_id} value={option.task_id}>{option.config.title}</option>)}</select></label>{" "}
+          <label>Published revision <select disabled={!publishedTask || loadingRevisions} value={taskId} onChange={(e) => setTaskId(e.target.value)}><option value="">Select revision</option>
+            {revisions.map((option, index) => <option key={option.revision_id} value={option.revision_id}>Revision {option.number}{index === 0 ? ' · Latest' : ''}</option>)}</select></label>{" "}
+          {moreRevisions && <button disabled={loadingRevisions} onClick={() => setRevisionOffset(revisionOffset + 100)}>Load older revisions</button>}
           <label>Maximum marks <input type="number" min="0.01" max="10000" step="0.01" value={newTaskMarks} onChange={(e) => setNewTaskMarks(e.target.value)} /></label>{" "}
           <label>TA maximum <input type="number" min="0" max="10000" step="0.01" value={newTaskTAMarks} onChange={(e) => setNewTaskTAMarks(e.target.value)} /></label>{" "}
-          <button disabled={!taskId || taskIds.includes(taskId) || !newTaskMarks || Number(newTaskMarks) <= 0 || Number(newTaskMarks) > 10000 || !newTaskTAMarks || Number(newTaskTAMarks) < 0 || Number(newTaskTAMarks) > 10000} onClick={() => { setTaskIds([...taskIds, taskId]); setTaskMarks({...taskMarks, [taskId]: newTaskMarks}); setTaskTAMarks({...taskTAMarks, [taskId]: newTaskTAMarks}); setTaskId(""); }}>Add task</button>{" "}
+          <button disabled={!taskId || loadingRevisions || taskIds.some((id) => (options.find((option) => option.revision_id === id) || lab.tasks.find((item) => item.revision_id === id))?.task_id === publishedTask) || !newTaskMarks || Number(newTaskMarks) <= 0 || Number(newTaskMarks) > 10000 || !newTaskTAMarks || Number(newTaskTAMarks) < 0 || Number(newTaskTAMarks) > 10000} onClick={() => { setTaskIds([...taskIds, taskId]); setTaskMarks({...taskMarks, [taskId]: newTaskMarks}); setTaskTAMarks({...taskTAMarks, [taskId]: newTaskTAMarks}); setTaskId(""); setPublishedTask(''); setRevisions([]); }}>Add task</button>{" "}
           <button onClick={() => perform(() => mutate("/tasks", "PUT", { version: lab.version, assignments: taskIds.map((revision_id) => ({revision_id, maximum_marks: taskMarks[revision_id], ta_maximum: taskTAMarks[revision_id]})) }))}>Save task order</button>
         </fieldset>
-        {moreOptions && <button onClick={() => setOptionOffset(optionOffset + 100)}>Load more task revisions</button>}
+        {moreOptions && <button onClick={() => setOptionOffset(optionOffset + 100)}>Load more tasks</button>}
       </section>
       </>}
       {section === "overview" && <>

@@ -218,6 +218,10 @@ def api_checks(admin_id, student_id, revision_id):
     csrf = secrets.token_hex(32)
     with identity.engine().begin() as conn:
         outsider = uuid4()
+        original = conn.execute(sa.select(tasks.revisions).where(tasks.revisions.c.id == revision_id)).mappings().one()
+        latest_revision = uuid4()
+        conn.execute(sa.insert(tasks.revisions).values(id=latest_revision, task_id=original['task_id'],
+            number=2, draft_version=2, config=original['config'], case_count=1, cases_key=uuid4()))
         conn.execute(sa.insert(identity.accounts).values(id=outsider, role='student', roll_number='OUTSIDER',
             name='Not enrolled', password_hash='unused', encrypted_password=identity.cipher().encrypt(b'unused')))
         for role, account_id in [('admin', admin_id), ('student', student_id), ('outsider', outsider)]:
@@ -248,6 +252,11 @@ def api_checks(admin_id, student_id, revision_id):
             else:
                 raise AssertionError('Test API did not start')
             assert call('/admin/labs', role='student')[0] == 403
+            options = call('/admin/labs/task-options')[1]
+            assert [row['revision_id'] for row in options if row['task_id'] == str(original['task_id'])] == [str(latest_revision)]
+            revisions = call('/admin/labs/task-options?task_id=' + str(original['task_id']))[1]
+            assert [row['revision_id'] for row in revisions] == [str(latest_revision), str(revision_id)]
+            assert call('/admin/labs/task-options?task_id=invalid')[0] == 422
             assert call('/labs', role='admin')[0] == 403
             assert call('/admin/labs', 'POST', {'title': 'API'}, token='wrong')[0] == 403
             _, removal_lab, _ = call('/admin/labs', 'POST', {'title': 'Bulk removal'})
