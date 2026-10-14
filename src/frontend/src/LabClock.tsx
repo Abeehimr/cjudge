@@ -27,9 +27,12 @@ export default function LabClock({ serverTime, start, end, refresh }: {
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", visible); };
   }, [serverTime, start, end]);
   if (!start || !end) return <p>Draft — not scheduled.</p>;
-  if (now >= Date.parse(end)) return <p role="timer">Lab ended.</p>;
+  const elapsed = Math.min(100, Math.max(0, 100 * (now - Date.parse(start)) / (Date.parse(end) - Date.parse(start))));
+  const progress = <progress className="lab-progress" aria-label="Lab time elapsed" value={elapsed} max={100}
+    aria-valuetext={`${Math.floor(elapsed)}% of lab time elapsed`} />;
+  if (now >= Date.parse(end)) return <div className="space-y-2"><p role="timer" className="text-3xl font-semibold tabular-nums">Lab ended.</p>{progress}</div>;
   const before = now < Date.parse(start);
   const remaining = Math.max(0, Math.ceil((Date.parse(before ? start : end) - now) / 1000));
-  return <p role="timer">{before ? "Starts in" : "Time remaining"}: {Math.floor(remaining / 3600)}:
-    {String(Math.floor(remaining / 60) % 60).padStart(2, "0")}:{String(remaining % 60).padStart(2, "0")}</p>;
+  return <div className="space-y-2"><p role="timer" className="text-3xl font-semibold tabular-nums">{before ? "Starts in" : "Time remaining"}: {Math.floor(remaining / 3600)}:
+    {String(Math.floor(remaining / 60) % 60).padStart(2, "0")}:{String(remaining % 60).padStart(2, "0")}</p>{!before && progress}</div>;
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useMatch, useNavigate, useSearchParams } from "react-router";
 import { api } from "./api";
 import SubmissionDetail from "./SubmissionDetail";
+import LabClock from './LabClock';
 import { MarksTable, type StudentMarks } from "./Marks";
 import { StudentTAReview } from "./TAReviews";
 import { NotFound } from "./navigation";
@@ -113,6 +114,7 @@ export default function TALabs({ csrf, accountId }: { csrf: string; accountId: s
       {!labs.length && <p>No labs assigned.</p>}</> : <>
       <h1 className="text-xl font-semibold">{lab?.title || "Lab"}</h1>
       {lab && <p>{lab.phase}{lab.archived && " · Read only"} · Results {lab.results_visible ? "released" : "hidden"}</p>}
+      {lab && <LabClock serverTime={lab.server_time} start={lab.starts_at} end={lab.ends_at} refresh={() => setRefresh((value) => value + 1)} />}
       {!studentId && <section className="space-y-3 rounded border bg-white p-4">
         <h2 className="font-semibold">Find a student</h2>
         <form className="flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); setParams(query.trim() ? { search: query.trim() } : {}); }}>
