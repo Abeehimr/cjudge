@@ -167,12 +167,19 @@ def set_tasks(conn: sa.Connection, lab: dict, selected: list[dict], actor: UUID)
         raise LabError(400, 'Select distinct published tasks; each revision must exist')
     revisions = {row.id: row for row in rows}
     values = [Decimal(str(item['maximum_marks'])) for item in selected]
+    ta_values = [Decimal(str(item['ta_maximum'])) if item.get('ta_maximum') is not None else None for item in selected]
     if any(not value.is_finite() or value <= 0 or value > 10000 or value.as_tuple().exponent < -2 for value in values):
         raise LabError(400, 'Maximum marks must be 0.01–10000.00 with at most two decimals')
+    if any(value is not None and (not value.is_finite() or value < 0 or value > 10000 or value.as_tuple().exponent < -2)
+           for value in ta_values):
+        raise LabError(400, 'TA maximum must be 0–10000.00 with at most two decimals')
     existing = {row['task_id']: row for row in task_rows(conn, lab['id'])}
     if any(revisions[key].task_id in existing and existing[revisions[key].task_id]['maximum_marks'] != value
            for key, value in zip(ids, values)):
         raise LabError(409, 'Change existing maximum marks with a reason first')
+    if any(revisions[key].task_id in existing and value is not None and
+           existing[revisions[key].task_id]['ta_maximum'] != value for key, value in zip(ids, ta_values)):
+        raise LabError(409, 'Change existing TA maximum with a reason first')
     if lab['starts_at'] is not None:
         if not ids:
             raise LabError(400, 'Scheduled lab needs at least one task')
@@ -184,8 +191,8 @@ def set_tasks(conn: sa.Connection, lab: dict, selected: list[dict], actor: UUID)
     if ids:
         conn.execute(sa.insert(assignments), [{'lab_id': lab['id'], 'position': pos, 'revision_id': key,
             'maximum_marks': value, 'ta_maximum': existing[revisions[key].task_id]['ta_maximum']
-            if revisions[key].task_id in existing else Decimal('0')}
-            for pos, (key, value) in enumerate(zip(ids, values), 1)])
+            if revisions[key].task_id in existing else ta_value if ta_value is not None else Decimal('0')}
+            for pos, (key, value, ta_value) in enumerate(zip(ids, values, ta_values), 1)])
     return changed(conn, lab, actor, 'lab_tasks_updated')
 
 

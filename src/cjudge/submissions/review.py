@@ -176,7 +176,7 @@ def set_deleted(conn: sa.Connection, lab: dict, submission_id: UUID, deleted: bo
     conn.execute(sa.update(reviews).where(reviews.c.submission_id == submission_id).values(
         deleted_at=labs.now(conn) if deleted else None, deleted_by=actor if deleted else None,
         delete_reason=reason if deleted else None))
-    ta_reviews.flag(conn, lab['id'], row['account_id'])
+    ta_reviews.flag(conn, lab['id'], row['account_id'], task_id_for(conn, row['revision_id']))
     if not deleted:
         task_id = task_id_for(conn, row['revision_id'])
         batch = active_batch(conn, lab['id'], task_id)
@@ -214,7 +214,7 @@ def rejudge(conn: sa.Connection, lab: dict, submission_id: UUID, actor: UUID, re
     if job['state'] != 'complete':
         raise labs.LabError(409, 'Wait for current judging or retry its delayed job')
     enqueue(conn, submission_id, current_revision(conn, lab['id'], task_id), 'rejudge')
-    ta_reviews.flag(conn, lab['id'], row['account_id'])
+    ta_reviews.flag(conn, lab['id'], row['account_id'], task_id)
     identity.audit(conn, 'submission_rejudge', actor, row['account_id'],
         detail={'lab_id': str(lab['id']), 'submission_id': str(submission_id), 'reason': reason})
     labs.announce(conn, lab['id'], f'Submission {submission_id} queued for rejudge. Reason: {reason}', actor, row['account_id'])

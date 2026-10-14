@@ -165,9 +165,9 @@ def finish(conn: sa.Connection, slot: int, generation: UUID, submission: dict, r
     else:
         conn.execute(insert(reviews).values(submission_id=submission['id'], run_id=attempt_id)
             .on_conflict_do_update(index_elements=['submission_id'], set_={'run_id': attempt_id}))
-        if job['kind'] != 'initial':
-            from cjudge.labs import ta_reviews
-            ta_reviews.flag(conn, submission['lab_id'], submission['account_id'])
+        from cjudge.labs import ta_reviews
+        from cjudge.submissions.review import task_id_for
+        ta_reviews.flag(conn, submission['lab_id'], submission['account_id'], task_id_for(conn, submission['revision_id']))
     conn.execute(sa.update(workers).where(workers.c.slot == slot, workers.c.generation == generation).values(
         state='Idle', attempt_id=None, completed=workers.c.completed + 1, heartbeat_at=timestamp, fault=None))
     notify(conn, submission['account_id'], lab_id=submission['lab_id'])

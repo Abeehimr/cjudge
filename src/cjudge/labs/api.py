@@ -95,6 +95,7 @@ class EditInput(TitleInput, VersionInput):
 class TaskAssignmentInput(StrictModel):
     revision_id: UUID
     maximum_marks: Decimal = Field(gt=0, le=10000, max_digits=7, decimal_places=2)
+    ta_maximum: Decimal | None = Field(default=None, ge=0, le=10000, max_digits=7, decimal_places=2)
 
 
 class TaskInput(VersionInput):
@@ -447,6 +448,8 @@ async def task_ta_maximum(lab_id: UUID, task_id: UUID, request: Request, actor: 
                 raise labs.LabError(400, 'Reason required')
             conn.execute(sa.update(labs.assignments).where(labs.assignments.c.lab_id == lab_id,
                 labs.assignments.c.position == row['position']).values(ta_maximum=body.ta_maximum))
+            conn.execute(sa.update(ta_reviews.reviews).where(ta_reviews.reviews.c.lab_id == lab_id)
+                .values(version=ta_reviews.reviews.c.version + 1))
             identity.audit(conn, 'lab_task_ta_maximum_changed', actor['id'], detail={
                 'lab_id': str(lab_id), 'task_id': str(task_id), 'old': str(row['ta_maximum']),
                 'new': str(body.ta_maximum), 'reason': body.reason.strip()})

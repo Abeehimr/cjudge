@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
 from cjudge import identity, labs
+from cjudge.submissions import review as automatic
 from cjudge.submissions.review import displayed
 
 reviews = sa.Table('ta_reviews', identity.metadata,
@@ -30,20 +31,34 @@ def current(conn: sa.Connection, lab_id: UUID, student_id: UUID) -> dict | None:
     return dict(row) if row else None
 
 
-def detail(conn: sa.Connection, lab_id: UUID, student_id: UUID) -> dict:
+def detail(conn: sa.Connection, lab_id: UUID, student_id: UUID, *, suggestions: bool = True) -> dict:
     enrollment = labs.enrollment(conn, lab_id, student_id, lock=False)
     row = current(conn, lab_id, student_id)
     saved = {r['task_id']: r for r in conn.execute(sa.select(marks).where(
         marks.c.lab_id == lab_id, marks.c.student_id == student_id)).mappings()}
+    automatic_cells = {cell['task_id']: cell for cell in automatic.marks(conn, lab_id, student_id)[0]['tasks']} if suggestions else {}
+    counted = {}
+    official_rows = conn.execute(automatic.official_query(lab_id).where(
+        automatic.submissions.c.account_id == student_id,
+        automatic.reviews.c.deleted_at.is_(None))).mappings() if suggestions else []
+    for submission in official_rows:
+        counted.setdefault(submission['task_id'], []).append(submission)
     cells, total = [], 0
     for task in enabled(conn, lab_id):
         item = saved.get(task['task_id'])
+        automatic_cell = automatic_cells.get(task['task_id'])
+        best = automatic.counted_submission(counted.get(task['task_id'], [])) if suggestions else None
         value = displayed(Fraction(item['earned_numerator'], item['earned_denominator']) *
             Fraction(task['ta_maximum'])) if item else None
+        suggestion = None if not automatic_cell or automatic_cell['pending'] else displayed(
+            automatic.exact(best) * Fraction(task['ta_maximum']) / Fraction(task['maximum_marks']) if best else Fraction(0))
         if value is not None:
             total += int(Decimal(value) * 100)
         cells.append({'task_id': task['task_id'], 'title': task['config']['title'],
-            'maximum': f"{task['ta_maximum']:.2f}", 'marks': value, 'done': bool(item and item['done'])})
+            'maximum': f"{task['ta_maximum']:.2f}", 'marks': value, 'done': bool(item and item['done']),
+            'automatic_marks': automatic_cell['marks'] if automatic_cell else None,
+            'automatic_maximum': f"{task['maximum_marks']:.2f}",
+            'automatic_pending': automatic_cell['pending'] if automatic_cell else False, 'suggested_marks': suggestion})
     owner = conn.execute(sa.select(identity.accounts.c.name).where(
         identity.accounts.c.id == row['owner_id'])).scalar_one_or_none() if row and row['owner_id'] else None
     reviewer = conn.execute(sa.select(identity.accounts.c.name).where(
@@ -112,6 +127,30 @@ def save(conn: sa.Connection, lab: dict, student_id: UUID, task_id: UUID,
     return change(conn, lab['id'], student_id, actor, 'ta_review_marks_saved')
 
 
+def save_many(conn: sa.Connection, lab: dict, student_id: UUID, version: int,
+              actor: UUID, entries: list[dict]) -> dict:
+    row = prepare(conn, lab, student_id, version, actor)
+    if row['finalized_at']:
+        raise labs.LabError(409, 'Reopen finalized review before editing')
+    available = {task['task_id']: task for task in enabled(conn, lab['id'])}
+    if not entries or len({entry['task_id'] for entry in entries}) != len(entries):
+        raise labs.LabError(400, 'Select distinct tasks to mark')
+    for entry in entries:
+        value, task = entry['marks'], available.get(entry['task_id'])
+        if task is None or not value.is_finite() or value < 0 or value > task['ta_maximum']:
+            raise labs.LabError(400, 'Marks must fit enabled TA maximum')
+    for entry in entries:
+        earned = Fraction(entry['marks']) / Fraction(available[entry['task_id']]['ta_maximum'])
+        conn.execute(insert(marks).values(lab_id=lab['id'], student_id=student_id,
+            task_id=entry['task_id'], earned_numerator=earned.numerator,
+            earned_denominator=earned.denominator, done=True).on_conflict_do_update(
+            index_elements=['lab_id', 'student_id', 'task_id'], set_={
+                'earned_numerator': earned.numerator, 'earned_denominator': earned.denominator, 'done': True}))
+    identity.audit(conn, 'ta_review_marks_batch', actor, student_id, detail={'lab_id': str(lab['id']),
+        'marks': {str(entry['task_id']): str(entry['marks']) for entry in entries}})
+    return change(conn, lab['id'], student_id, actor, 'ta_review_marks_saved')
+
+
 def finalize(conn: sa.Connection, lab: dict, student_id: UUID, version: int, actor: UUID) -> dict:
     row = prepare(conn, lab, student_id, version, actor)
     if row['finalized_at']:
@@ -167,12 +206,16 @@ def reopen(conn: sa.Connection, lab: dict, student_id: UUID, version: int, actor
 
 def flag(conn: sa.Connection, lab_id: UUID, student_id: UUID | None = None,
          task_id: UUID | None = None) -> None:
+    active = enabled(conn, lab_id)
+    if not active or task_id is not None and all(task['task_id'] != task_id for task in active):
+        return
     condition = [reviews.c.lab_id == lab_id]
     if student_id is not None:
         condition.append(reviews.c.student_id == student_id)
     evidence = [marks.c.lab_id == reviews.c.lab_id, marks.c.student_id == reviews.c.student_id]
     if task_id is not None:
         evidence.append(marks.c.task_id == task_id)
-    conn.execute(sa.update(reviews).where(*condition, sa.exists(sa.select(marks.c.task_id).where(*evidence)))
-        .values(needs_recheck=True, version=reviews.c.version + 1))
+    affected = sa.exists(sa.select(marks.c.task_id).where(*evidence))
+    conn.execute(sa.update(reviews).where(*condition).values(
+        needs_recheck=sa.or_(reviews.c.needs_recheck, affected), version=reviews.c.version + 1))
     labs.ta_notify(conn, lab_id)

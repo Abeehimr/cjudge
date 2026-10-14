@@ -25,7 +25,7 @@ def summary(conn: sa.Connection, lab_id: UUID) -> dict:
     has_manual = bool(ta_reviews.enabled(conn, lab_id))
     result = []
     for student in automatic:
-        manual = ta_reviews.detail(conn, lab_id, student['id'])
+        manual = ta_reviews.detail(conn, lab_id, student['id'], suggestions=False)
         auto_total = student['total']
         ta_total = manual['total']
         combined = f'{Decimal(auto_total) + Decimal(ta_total):.2f}' if auto_total is not None and ta_total is not None else None

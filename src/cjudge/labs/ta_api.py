@@ -236,6 +236,15 @@ class ReviewSave(ReviewVersion):
     done: bool
 
 
+class ReviewMark(StrictModel):
+    task_id: UUID
+    marks: Decimal = Field(ge=0, le=10000, max_digits=7, decimal_places=2)
+
+
+class ReviewBatch(ReviewVersion):
+    marks: list[ReviewMark] = Field(min_length=1, max_length=100)
+
+
 @router.get('/labs/{lab_id}/students/{student_id}/ta-review')
 def review_detail(lab_id: UUID, student_id: UUID, request: Request,
                   account: dict = Depends(ta)) -> dict:
@@ -259,6 +268,15 @@ def save_review(lab_id: UUID, student_id: UUID, task_id: UUID, body: ReviewSave,
         lab = access(conn, request, account, lab_id, write=True)
         return ta_reviews.save(conn, lab, student_id, task_id, body.version,
             account['id'], body.marks, body.done)
+
+
+@router.put('/labs/{lab_id}/students/{student_id}/ta-review/marks')
+def save_review_marks(lab_id: UUID, student_id: UUID, body: ReviewBatch,
+                      request: Request, account: dict = Depends(ta_write)) -> dict:
+    with transaction() as conn:
+        lab = access(conn, request, account, lab_id, write=True)
+        return ta_reviews.save_many(conn, lab, student_id, body.version, account['id'],
+            [entry.model_dump() for entry in body.marks])
 
 
 @router.post('/labs/{lab_id}/students/{student_id}/ta-review/finalize')
