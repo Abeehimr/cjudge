@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import TAAssignments, { AdminTADetail } from "./TAAssignments";
 import type { AdminLab } from "./Lab";
 import { MemoryRouter } from "react-router";
+import { renderRoute } from "./testRouter";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -43,4 +44,15 @@ test("admin lab TA page shows current penalties and student-linked activity", as
   expect(screen.getAllByText("Frozen").every((cell) => cell.closest("tr")?.getAttribute("data-frozen") === "true")).toBe(true);
   expect(screen.getByText("Cancelled").closest("tr")?.getAttribute("data-cancelled")).toBe("true");
   expect(screen.getByText("Reinstated").closest("tr")?.getAttribute("data-restored")).toBe("true");
+});
+
+test("assigned TA row opens details but checkbox stays on assignment page", async () => {
+  const ta = { id: "ta", username: "HELPER", name: "Helper", active: true };
+  const lab = { id: "lab", version: 1, tas: [ta], archived_at: null } as unknown as AdminLab;
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [ta] }));
+  const { router } = renderRoute(<TAAssignments lab={lab} csrf="csrf" onSave={() => {}} />, "/admin/labs/lab/tas");
+  fireEvent.click(await screen.findByLabelText("Assign HELPER"));
+  expect(router.state.location.pathname).toBe("/admin/labs/lab/tas");
+  fireEvent.click(screen.getByText("HELPER"));
+  expect(router.state.location.pathname).toBe("/admin/labs/lab/tas/ta");
 });

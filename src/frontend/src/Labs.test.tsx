@@ -246,10 +246,12 @@ test('admin assigns a revision with explicit lab marks', async () => {
   renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/tasks');
   fireEvent.change(await screen.findByLabelText('Published task revision'), { target: { value: 'revision' } });
   fireEvent.change(screen.getByLabelText('Maximum marks'), { target: { value: '5.00' } });
+  fireEvent.change(screen.getByLabelText('TA maximum'), { target: { value: '10.00' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add task' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save task order' }));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/admin/labs/lab/tasks', expect.objectContaining({
-    method: 'PUT', body: JSON.stringify({ version: 1, assignments: [{ revision_id: 'revision', maximum_marks: '5.00' }] }) })));
+    method: 'PUT', body: JSON.stringify({ version: 1, assignments: [{ revision_id: 'revision', maximum_marks: '5.00', ta_maximum: '10.00' }] }) })));
+  expect(screen.getByRole('columnheader', { name: 'TA maximum' })).toBeTruthy();
 });
 
 test('a scheduled lab enables explicit entry when its start is reached', async () => {
