@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 import io
 import os
 import threading
+import subprocess
+import time
 from uuid import uuid4
 import zipfile
 from alembic import command
@@ -18,6 +20,7 @@ from cjudge.api import app
 from cjudge.judging import worker
 from cjudge.labs import archive
 from cjudge.submissions import service, review, files
+from cjudge.submissions import api as submission_api
 from cjudge.tasks.grading import TaskConfig
 from test_ta_gate import ta_database, login, ORIGIN
 
@@ -55,6 +58,7 @@ def test_cpp_admission_correction_tester_and_archive(ta_database, monkeypatch, t
     monkeypatch.setattr(identity, 'KEY_FILE', key)
     monkeypatch.setenv('CJUDGE_SUBMISSION_FILES', str(tmp_path))
     monkeypatch.setenv('CJUDGE_AUTHORING_FILES', str(tmp_path))
+    monkeypatch.setenv('CJUDGE_TASK_FILES', str(tmp_path))
     monkeypatch.setattr(tasks, 'ARTIFACTS', tmp_path)
     identity.create_admin('M26-admin-password')
     lab_id, task_id, c_revision, both_revision = [uuid4() for _ in range(4)]
@@ -84,15 +88,38 @@ def test_cpp_admission_correction_tester_and_archive(ta_database, monkeypatch, t
         assert service.accept(conn, lab, enrollment, both_revision, retry_key, 'main.cpp', source, '192.0.2.1')[1] is False
         with pytest.raises(labs.LabError, match='retained submissions'):
             review.correct(conn, lab, task_id, c_revision, actor, 'Narrow policy')
+        conn.execute(sa.update(labs.enrollments).where(labs.enrollments.c.lab_id == lab_id).values(cancelled=True))
+        conn.execute(sa.update(submissions.reviews).where(submissions.reviews.c.submission_id == row['id'])
+            .values(deleted_at=timestamp, delete_reason='Test deletion'))
+        with pytest.raises(labs.LabError, match='retained submissions'):
+            review.correct(conn, lab, task_id, c_revision, actor, 'Narrow excluded evidence')
         current = archive.snapshot(conn, lab)
         old = archive.snapshot(conn, lab, 4)
         assert current['submissions'][0]['language'] == 'cpp17'
         assert 'language' not in old['submissions'][0]
-    compiled = []
-    monkeypatch.setattr(runner, 'compile_cpp', lambda data: compiled.append(data) or runner.Result('OK', b'', b'', 0, 0, 0, b'binary'))
-    monkeypatch.setattr(runner, 'execute', lambda *a, **kw: runner.Result('OK', b'', b'', 0, 0, 0))
-    assert worker.judge(row, threading.Event())['verdict'] == 'AC'
-    assert compiled == [source]
+    if os.getenv('CJUDGE_CPP_SANDBOX') == '1':
+        pool = subprocess.Popen(['python', '-m', 'cjudge.judging.worker'])
+        try:
+            for _ in range(300):
+                assert pool.poll() is None, 'Worker exited during startup or judging'
+                with identity.engine().connect() as conn:
+                    state = conn.execute(sa.select(submissions.jobs.c.state)).scalar_one()
+                if state == 'complete':
+                    break
+                time.sleep(.1)
+            else:
+                raise AssertionError('C++ student job did not finish')
+            with identity.engine().connect() as conn:
+                assert conn.execute(sa.select(submissions.runs.c.verdict)).scalar_one() == 'AC'
+        finally:
+            pool.terminate()
+            pool.wait(timeout=15)
+    else:
+        compiled = []
+        monkeypatch.setattr(runner, 'compile_cpp', lambda data: compiled.append(data) or runner.Result('OK', b'', b'', 0, 0, 0, b'binary'))
+        monkeypatch.setattr(runner, 'execute', lambda *a, **kw: runner.Result('OK', b'', b'', 0, 0, 0))
+        assert worker.judge(row, threading.Event())['verdict'] == 'AC'
+        assert compiled == [source]
     with TestClient(app, base_url=ORIGIN) as admin:
         csrf = login(admin, 'admin', 'M26-admin-password')['csrf_token']
         data = io.BytesIO()
@@ -110,3 +137,6 @@ def test_cpp_admission_correction_tester_and_archive(ta_database, monkeypatch, t
         assert {item['language'] for item in accepted.json()['sources']} == {'c11', 'cpp17'}
         downloaded = admin.get(f'/api/admin/labs/{lab_id}/submissions/{row["id"]}/source')
         assert downloaded.status_code == 200 and '.cpp"' in downloaded.headers['content-disposition']
+    monkeypatch.setattr(submission_api, 'released_row', lambda *args: (None, row))
+    downloaded = submission_api.released_source(lab_id, row['id'], None, {'id': student})
+    assert '.cpp"' in downloaded.headers['content-disposition']

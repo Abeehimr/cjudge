@@ -280,7 +280,7 @@ Evidence: scanner unit tests, disposable PostgreSQL worker/tester/API/archival g
 - [x] Block correction narrowing for every incompatible retained submission, including deleted/cancelled evidence.
 - [x] **Gate:** migration/receipt compatibility, admission/retries, mixed tester batches, compiler errors/timeouts/recovery, authoring and frontend checks.
 
-Evidence: disposable PostgreSQL/API tests, real isolate C++17/STL and C++/Python authoring gates, real tester queue/recovery gate, existing marks/release gates, backend/frontend tests and build. Live browser acceptance remains.
+Evidence: disposable PostgreSQL/API tests, real worker startup/student judging, real isolate C++17/STL and C++/Python authoring gates, real tester queue/recovery gate, existing marks/release gates, backend/frontend tests and Docker builds. Live browser acceptance remains.
 
 ## M27 — Focused UI Improvements · requires M4, M5, M15
 

@@ -393,4 +393,4 @@ def released_source(lab_id: UUID, submission_id: UUID, request: Request, account
     with transaction() as conn:
         _, row = released_row(conn, lab_id, submission_id, request, account)
         return Response(files.read(row), media_type='application/octet-stream', headers={'Cache-Control': 'no-store',
-            'X-Content-Type-Options': 'nosniff', 'Content-Disposition': f'attachment; filename="{submission_id}.c"'})
+            'X-Content-Type-Options': 'nosniff', 'Content-Disposition': f'attachment; filename="{submission_id}.{"cpp" if row["language"] == "cpp17" else "c"}"'})

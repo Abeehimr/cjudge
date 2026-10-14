@@ -122,12 +122,15 @@ def work(slot: int) -> None:
                 review.publish_ready(conn, lab_id)
         with identity.engine().begin() as conn:
             queue.register(conn, slot, generation)
-        compiled = runner.compile_c(b'#include <stdio.h>\nint main(void){puts("ready");return 0;}')
-        if compiled.verdict != 'OK':
-            raise runner.SandboxError('Startup sandbox check failed')
-        execution = runner.execute(compiled.executable)
-        if execution.verdict != 'OK' or execution.stdout != b'ready\n':
-            raise runner.SandboxError('Startup sandbox check failed')
+        for language, source in (
+                ('c11', b'#include <stdio.h>\nint main(void){puts("ready");return 0;}'),
+                ('cpp17', b'#include <iostream>\nint main(){std::cout<<"ready\\n";}')):
+            compiled = runner.compile_source(source, language)
+            if compiled.verdict != 'OK':
+                raise runner.SandboxError('Startup sandbox check failed')
+            execution = runner.execute(compiled.executable)
+            if execution.verdict != 'OK' or execution.stdout != b'ready\n':
+                raise runner.SandboxError('Startup sandbox check failed')
         with identity.engine().begin() as conn:
             queue.worker_status(conn, slot, generation, 'Idle')
         url = sa.make_url(os.environ['DATABASE_URL']).set(drivername='postgresql').render_as_string(hide_password=False)
