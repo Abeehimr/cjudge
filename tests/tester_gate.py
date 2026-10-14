@@ -39,7 +39,8 @@ def exercise(directory: str, sandbox: bool) -> None:
             conn.execute(sa.insert(identity.sessions).values(account_id=key,
                 token_hash=identity.token_digest(value), csrf_token=csrf,
                 expires_at=labs.now(conn) + timedelta(hours=1)))
-        config = TaskConfig(title='Tester gate', checker={'kind': 'tokens'}).model_dump(mode='json')
+        config = TaskConfig(title='Tester gate', checker={'kind': 'tokens'},
+            languages=['c11', 'cpp17'] if '--cpp' in sys.argv else ['c11']).model_dump(mode='json')
         case_key = tasks.save_cases([(b'2\n', b'4\n'), (b'3\n', b'6\n')])
         conn.execute(sa.insert(tasks.tasks).values(id=task_id, version=1, config=config,
             case_count=2, cases_key=case_key))
@@ -68,7 +69,7 @@ def exercise(directory: str, sandbox: bool) -> None:
                 time.sleep(.1)
         else: raise AssertionError('API failed to start')
         upload = f'?revision_id={revision_id}'
-        headers = {'Content-Type': 'application/octet-stream', 'X-Filename': 'correct.c',
+        headers = {'Content-Type': 'application/octet-stream', 'X-Filename': 'correct.cpp' if '--cpp' in sys.argv else 'correct.c',
                    'Idempotency-Key': 'gate-one'}
         assert call(upload, 'POST', SOURCE, role='student', headers=headers)[0] == 403
         assert call(upload, 'POST', SOURCE, headers=headers | {'X-CSRF-Token': 'bad'})[0] == 403
@@ -117,11 +118,11 @@ def exercise(directory: str, sandbox: bool) -> None:
         # After testing, pending generation gets the next background turn.
         with identity.engine().begin() as conn:
             conn.execute(sa.insert(authoring.jobs).values(id=uuid4(), task_id=task_id, base_version=1,
-                config={'language': 'python', 'generator': 'print(2)', 'reference': SOURCE.decode(),
+                config={'language': 'python', 'reference_language': 'cpp' if '--cpp' in sys.argv else 'c', 'generator': 'print(2)', 'reference': SOURCE.decode(),
                     'seed': 1, 'count': 1}, actor_id=admin))
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, 'w') as zipped:
-            zipped.writestr('one.c', SOURCE)
+            zipped.writestr('one.cpp' if '--cpp' in sys.argv else 'one.c', SOURCE)
             zipped.writestr('two.c', b'int main(void){return 1;}')
         status, second = call(upload, 'POST', archive.getvalue(), headers={
             'Content-Type': 'application/zip', 'Idempotency-Key': 'gate-two'})
@@ -166,6 +167,9 @@ def exercise(directory: str, sandbox: bool) -> None:
 
 
 def main() -> None:
+    global SOURCE
+    if '--cpp' in sys.argv:
+        SOURCE = b'#include <iostream>\n#include <vector>\nint main(){int n;std::cin>>n;std::vector<int> v{n,n};std::cout<<v[0]+v[1]<<"\\n";}'
     name = 'tester_gate_' + secrets.token_hex(8)
     root_url = sa.make_url(os.environ['DATABASE_URL'])
     root = sa.create_engine(root_url, isolation_level='AUTOCOMMIT')

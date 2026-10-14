@@ -13,7 +13,7 @@ import zlib
 import sqlalchemy as sa
 
 from cjudge import identity, labs, runner, tasks
-from cjudge.submissions.files import SOURCE_BYTES, validate
+from cjudge.submissions.files import SOURCE_BYTES, validate, language_for
 from cjudge.tasks.grading import TaskConfig, compare_output
 from cjudge.tasks.restrictions import first_banned
 from cjudge.tasks.authoring import check_python
@@ -38,6 +38,7 @@ sources = sa.Table('tester_sources', identity.metadata,
     sa.Column('id', sa.Uuid(), primary_key=True),
     sa.Column('batch_id', sa.Uuid(), sa.ForeignKey('tester_batches.id'), nullable=False),
     sa.Column('filename', sa.String(160), nullable=False),
+    sa.Column('language', sa.String(8), nullable=False, server_default='c11'),
     sa.Column('size', sa.Integer(), nullable=False),
     sa.Column('sha256', sa.String(64), nullable=False),
     sa.Column('state', sa.String(16), nullable=False, server_default='queued'),
@@ -83,7 +84,7 @@ def parse_sources(filename: str, payload: bytes, *, archive: bool) -> list[tuple
         with zipfile.ZipFile(io.BytesIO(payload)) as bundle:
             entries = bundle.infolist()
             if not 1 <= len(entries) <= BATCH_LIMIT:
-                raise ValueError('ZIP must contain 1–20 C files')
+                raise ValueError('ZIP must contain 1–20 source files')
             result = []
             names = set()
             for entry in entries:
@@ -91,8 +92,7 @@ def parse_sources(filename: str, payload: bytes, *, archive: bool) -> list[tuple
                 if name in names or entry.filename != name:
                     raise ValueError('Duplicate ZIP entry')
                 names.add(name)
-                if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,157}\.c', name):
-                    raise ValueError('Use flat .c filenames')
+                language_for(name)
                 kind = stat.S_IFMT(entry.external_attr >> 16)
                 if kind not in (0, stat.S_IFREG) or entry.flag_bits & 1:
                     raise ValueError('Only unencrypted regular files allowed')
@@ -230,11 +230,11 @@ def run_case(job: dict) -> dict:
         raise runner.SandboxError('Invalid test artifacts')
     if job['progress'] == 0:
         source = read(job, 'c')
-        restriction = first_banned(source, config.banned_identifiers)
+        restriction = first_banned(source, config.banned_identifiers, job.get('language', 'c11'))
         if restriction:
             return dict(kind='compile', verdict='Restricted', compiler_feedback='',
                 compiler_truncated=False, restriction={'identifier': restriction[0], 'line': restriction[1]})
-        compiled = runner.compile_c(source)
+        compiled = runner.compile_source(source, job.get('language', 'c11'))
         result = dict(kind='compile', verdict=compiled.verdict,
             compiler_feedback=compiled.stderr.decode('utf-8', errors='replace')[:65536],
             compiler_truncated=compiled.stderr_truncated)

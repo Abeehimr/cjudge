@@ -17,7 +17,10 @@ def test_bounded_immutable_sources(monkeypatch, tmp_path):
         files.save(key, b'changed')
     with pytest.raises(OSError):
         files.read(row | {'sha256': hashlib.sha256(b'changed').hexdigest()})
-    for name, data in [('../main.c', source), ('x.cpp', source), ('x.c', b''),
+    assert files.validate('main.cpp', source) == digest
+    assert files.language_for('main.cpp') == 'cpp17'
+    assert files.language_for('main.c') == 'c11'
+    for name, data in [('../main.c', source), ('x.txt', source), ('x.c', b''),
                        ('x.c', b'x' * 65537), ('x.c', b'x\x00')]:
         with pytest.raises(ValueError):
             files.validate(name, data)

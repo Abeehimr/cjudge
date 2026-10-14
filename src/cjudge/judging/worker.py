@@ -48,7 +48,7 @@ def judge(submission: dict, lost: threading.Event) -> dict:
             tasks.revisions.c.task_id == revision['task_id'])).scalar_one()
     config = TaskConfig.model_validate(revision['config'])
     source = files.read(submission)
-    restriction = first_banned(source, config.banned_identifiers)
+    restriction = first_banned(source, config.banned_identifiers, submission.get('language', 'c11'))
     if restriction:
         identifier, line = restriction
         return dict(verdict='Restricted', passed=0, total=revision['case_count'],
@@ -57,7 +57,7 @@ def judge(submission: dict, lost: threading.Event) -> dict:
     test_cases = tasks.load_cases(revision['cases_key'])
     if not test_cases or len(test_cases) != revision['case_count']:
         raise runner.SandboxError('Invalid test artifacts')
-    compiled = runner.compile_c(source)
+    compiled = runner.compile_source(source, submission.get('language', 'c11'))
     if lost.is_set():
         raise runner.SandboxError('Lease lost')
     case_results = []

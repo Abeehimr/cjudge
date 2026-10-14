@@ -11,6 +11,8 @@ from cjudge import identity, tasks, tester
 from cjudge.identity.api import admin, admin_write, no_store
 from cjudge.tasks.api import bounded_body, find_task, json_input
 from cjudge.labs.api import ReasonInput
+from cjudge.submissions.files import language_for
+from cjudge.tasks.grading import TaskConfig
 
 router = APIRouter(prefix='/api/admin/tasks/{task_id}/tester', dependencies=[Depends(admin), Depends(no_store)])
 
@@ -34,6 +36,7 @@ def source_view(row: dict, total: int) -> dict:
         'Failed' if state == 'complete' else state)
     return {key: row[key] for key in ('id', 'filename', 'state', 'progress', 'passed',
         'compiler_feedback', 'compiler_truncated', 'diagnostic', 'restriction')} | {'total': total, 'verdict': verdict,
+        'language': row.get('language', 'c11'),
         'percentage': round(row['passed'] * 100 / total, 2) if state == 'complete' else None}
 
 
@@ -63,7 +66,7 @@ async def create(task_id: UUID, request: Request, revision_id: UUID,
                  actor: dict = Depends(admin_write)):
     media = request.headers.get('content-type', '').split(';')[0]
     if media not in ('text/x-c', 'application/octet-stream', 'application/zip'):
-        raise HTTPException(415, 'C source or ZIP required')
+        raise HTTPException(415, 'Source or ZIP required')
     payload = await bounded_body(request, tester.ZIP_LIMIT if media == 'application/zip' else tester.SOURCE_BYTES)
     filename = request.headers.get('x-filename', '')
     try:
@@ -91,6 +94,9 @@ async def create(task_id: UUID, request: Request, revision_id: UUID,
                     if previous['deleted_at']:
                         raise HTTPException(409, 'Idempotency key belongs to a deleted batch')
                     return output(conn, dict(previous))
+            allowed = TaskConfig.model_validate(revision['config']).languages
+            if any(language_for(name) not in allowed for name, _ in items):
+                raise HTTPException(422, 'This revision does not allow every uploaded source language')
             outstanding = conn.execute(sa.select(sa.func.count()).select_from(tester.sources)
                 .where(tester.sources.c.state.in_(['queued', 'testing']))).scalar_one()
             if outstanding + len(items) > tester.OUTSTANDING_LIMIT:
@@ -102,7 +108,7 @@ async def create(task_id: UUID, request: Request, revision_id: UUID,
                 source_id = uuid4()
                 tester.save(batch_id, source_id, 'c', source)
                 conn.execute(sa.insert(tester.sources).values(id=source_id, batch_id=batch_id,
-                    filename=name, size=len(source), sha256=hashlib.sha256(source).hexdigest()))
+                    filename=name, language=language_for(name), size=len(source), sha256=hashlib.sha256(source).hexdigest()))
             identity.audit(conn, 'tester_created', actor['id'], detail={'task_id': str(task_id), 'batch_id': str(batch_id), 'count': len(items)})
             tester.signal(conn)
             return output(conn, find(conn, task_id, batch_id))

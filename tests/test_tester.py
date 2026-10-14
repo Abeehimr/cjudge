@@ -21,6 +21,7 @@ def bundle(entries: list[tuple[str, bytes]], *, compression=zipfile.ZIP_DEFLATED
 
 def test_single_and_flat_archive_limits():
     assert tester.parse_sources('main.c', b'int main(){}', archive=False) == [('main.c', b'int main(){}')]
+    assert tester.parse_sources('main.cpp', b'int main(){}', archive=False) == [('main.cpp', b'int main(){}')]
     assert tester.parse_sources('', bundle([('a.c', b'a'), ('b.c', b'b')]), archive=True) == [('a.c', b'a'), ('b.c', b'b')]
     for filename, content in [('no.txt', b'a'), ('../bad.c', b'a'), ('a.c', b''), ('a.c', b'\0'),
                               ('a.c', b'a' * (65536 + 1))]:

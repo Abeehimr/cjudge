@@ -164,6 +164,7 @@ class LabSummary(StrictModel):
 
 
 class PublicTask(StrictModel):
+    languages: list[str] = Field(default_factory=lambda: ['c11'])
     position: int
     revision_id: UUID
     previous_revision_ids: list[UUID] = []

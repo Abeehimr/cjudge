@@ -19,9 +19,14 @@ def root() -> Path:
     return Path(os.getenv('CJUDGE_SUBMISSION_FILES', '/var/lib/cjudge-submissions'))
 
 
+def language_for(filename: str) -> str:
+    if len(filename) > 160 or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*\.(c|cpp)', filename):
+        raise ValueError('Use a plain .c or .cpp filename, at most 160 characters')
+    return 'cpp17' if filename.endswith('.cpp') else 'c11'
+
+
 def validate(filename: str, source: bytes) -> str:
-    if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,157}\.c', filename):
-        raise ValueError('Use a plain .c filename, at most 160 characters')
+    language_for(filename)
     if not 0 < len(source) <= SOURCE_BYTES or b'\x00' in source:
         raise ValueError('Source must contain 1–65536 bytes and no NUL bytes')
     return hashlib.sha256(source).hexdigest()

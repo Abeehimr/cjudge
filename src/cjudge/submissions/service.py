@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from cjudge import events, labs, tasks
 from cjudge.submissions import submissions, jobs, turns, reviews, batches, members
 from cjudge.submissions import files
+from cjudge.tasks.grading import TaskConfig
 
 
 class SubmissionError(ValueError):
@@ -51,6 +52,10 @@ def accept(conn: sa.Connection, lab: dict, enrollment: dict, revision_id: UUID, 
         labs.assignments.c.lab_id == lab['id'], labs.assignments.c.revision_id == revision_id)).first()
     if not assigned:
         raise SubmissionError(409, 'invalid_task', 'Task revision changed or is not assigned; refresh the task page')
+    language = files.language_for(filename)
+    config = conn.execute(sa.select(tasks.revisions.c.config).where(tasks.revisions.c.id == revision_id)).scalar_one()
+    if language not in TaskConfig.model_validate(config).languages:
+        raise SubmissionError(422, 'invalid_language', 'This task does not allow the uploaded source language')
     policy = allowance(conn, lab, enrollment)
     if not policy['allowed']:
         raise SubmissionError(429 if policy['code'] in ('cooldown', 'pending_limit') else 423 if policy['code'] in ('frozen', 'cancelled') else 403,
@@ -61,7 +66,7 @@ def accept(conn: sa.Connection, lab: dict, enrollment: dict, revision_id: UUID, 
     timestamp = labs.now(conn)
     labs.submission_allowed(lab, enrollment, timestamp)
     row = dict(id=submission_id, lab_id=lab['id'], account_id=enrollment['account_id'],
-               revision_id=revision_id, idempotency_key=key, filename=filename, sha256=digest,
+               revision_id=revision_id, idempotency_key=key, filename=filename, language=language, sha256=digest,
                size=len(source), accepted_at=timestamp, client_ip=ip,
                client_mac=None, mac_source=None, mac_observed_at=None)
     conn.execute(sa.insert(submissions).values(**row))

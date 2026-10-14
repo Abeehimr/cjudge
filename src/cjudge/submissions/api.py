@@ -40,6 +40,7 @@ class SubmissionOutput(StrictModel):
     id: UUID
     revision_id: UUID
     filename: str
+    language: Literal['c11', 'cpp17'] = 'c11'
     size: int
     accepted_at: datetime
     status: str
@@ -137,8 +138,8 @@ def output(row: dict, feedback: str, *, admin_view: bool = False, early_feedback
     if (row['run_id'] and row['verdict'] == 'Failed' and row['result_config'].get('scoring', 'partial') == 'partial'
             and 0 < row['passed'] < row['total'] and (admin_view or early_feedback_enabled or results_visible)):
         status = 'Partial pass'
-    result = {key: row[key] for key in SubmissionOutput.model_fields if key not in ('status', 'compiler_feedback', 'compiler_truncated', 'restriction', 'best_for_review', 'early_feedback')}
-    result.update(status=status, compiler_feedback=None, compiler_truncated=False, restriction=row.get('restriction'), best_for_review=False)
+    result = {key: row[key] for key in SubmissionOutput.model_fields if key not in ('status', 'language', 'compiler_feedback', 'compiler_truncated', 'restriction', 'best_for_review', 'early_feedback')}
+    result.update(status=status, language=row.get('language', 'c11'), compiler_feedback=None, compiler_truncated=False, restriction=row.get('restriction'), best_for_review=False)
     if (early_feedback_enabled or results_visible) and row['run_id'] and row['result_config'].get('scoring', 'partial') == 'partial':
         result['early_feedback'] = {'passed': row['passed'], 'total': row['total'],
                                     'marks': review.displayed(review.exact(row)),
@@ -166,7 +167,7 @@ async def upload(lab_id: UUID, request: Request, response: Response,
                  revision_id: UUID, filename: str = Query(max_length=160),
                  idempotency_key: UUID = Header(), account: dict = Depends(student_write)):
     if request.headers.get('content-type', '').split(';')[0] != 'application/octet-stream':
-        raise HTTPException(415, 'Raw C source required')
+        raise HTTPException(415, 'Raw source required')
     source = await bounded_body(request, files.SOURCE_BYTES)
     def create():
         with transaction() as conn:
@@ -245,7 +246,7 @@ def source(lab_id: UUID, submission_id: UUID):
         if not row:
             raise HTTPException(404, 'Submission not found')
         return Response(files.read(row), media_type='application/octet-stream', headers={'Cache-Control': 'no-store',
-            'X-Content-Type-Options': 'nosniff', 'Content-Disposition': f'attachment; filename="{submission_id}.c"'})
+            'X-Content-Type-Options': 'nosniff', 'Content-Disposition': f'attachment; filename="{submission_id}.{"cpp" if row["language"] == "cpp17" else "c"}"'})
 
 
 @admin_router.get('/{submission_id}')

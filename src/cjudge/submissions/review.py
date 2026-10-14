@@ -7,7 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
 from cjudge import identity, labs, tasks
-from cjudge.tasks.grading import score
+from cjudge.tasks.grading import score, TaskConfig
 from cjudge.submissions import submissions, jobs, runs, reviews, batches, members, attempts
 
 
@@ -230,6 +230,13 @@ def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, ac
     base = current_revision(conn, lab['id'], task_id)
     if task_id_for(conn, revision_id) != task_id:
         raise labs.LabError(400, 'Select a published revision of the same task')
+    config = conn.execute(sa.select(tasks.revisions.c.config).where(tasks.revisions.c.id == revision_id)).scalar_one()
+    allowed = TaskConfig.model_validate(config).languages
+    incompatible = conn.execute(sa.select(submissions.c.language).join(tasks.revisions,
+        tasks.revisions.c.id == submissions.c.revision_id).where(submissions.c.lab_id == lab['id'],
+        tasks.revisions.c.task_id == task_id, submissions.c.language.not_in(allowed)).limit(1)).scalar_one_or_none()
+    if incompatible:
+        raise labs.LabError(409, f'Correction excludes {incompatible} used by retained submissions')
     if lab.get('reveal_results'):
         from cjudge.labs.release import reuse
         labs.disclosure_lock(conn)
