@@ -3,6 +3,7 @@ import { Link, useMatch, useNavigate, useSearchParams } from "react-router";
 import { api } from "./api";
 import SubmissionDetail from "./SubmissionDetail";
 import { MarksTable, type StudentMarks } from "./Marks";
+import { StudentTAReview } from "./TAReviews";
 import { NotFound } from "./navigation";
 
 type Lab = { id: string; title: string; phase: string; starts_at: string | null; ends_at: string | null;
@@ -14,7 +15,7 @@ type Submission = { id: string; task_title: string; filename: string; accepted_a
   deleted_at: string | null; delete_reason: string | null; marks: string | null; maximum_marks: string | null;
   passed: number | null; total: number | null };
 
-export default function TALabs({ csrf }: { csrf: string }) {
+export default function TALabs({ csrf, accountId }: { csrf: string; accountId: string }) {
   const route = useMatch("/ta/labs/:labId/*"), listRoute = useMatch("/ta/labs"), navigate = useNavigate();
   const labId = route?.params.labId, parts = (route?.params["*"] || "").split("/").filter(Boolean);
   const studentId = parts[0] === "students" ? parts[1] : undefined;
@@ -139,6 +140,9 @@ export default function TALabs({ csrf }: { csrf: string }) {
       </section>}
       {studentId && !submissionId && <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Marks</h2>
         <MarksTable rows={marks} tasks={marks[0]?.tasks || []} labId={labId} taStudentId={studentId} /></section>}
+      {studentId && !submissionId && (lab?.phase === "Results released" || lab?.phase === "Archived") &&
+        <StudentTAReview labId={labId} studentId={studentId} csrf={csrf}
+          accountId={accountId} released archived={!!lab?.archived} refreshKey={refresh} />}
       {studentId && !submissionId && <section className="space-y-3 rounded border bg-white p-4">
         <h2 className="font-semibold">Submissions</h2>
         <ul className="divide-y">{history.map((row) => <li key={row.id} className="py-3" data-best={row.best_for_review || undefined} data-deleted={!!row.deleted_at || undefined}>

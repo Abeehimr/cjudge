@@ -10,6 +10,7 @@ import Release from "./Release";
 import { Marks, Corrections } from "./Marks";
 import { AdminScoreboard } from "./Scoreboard";
 import TAAssignments, { AdminTADetail } from "./TAAssignments";
+import { AdminTAReviews } from "./TAReviews";
 
 export function AdminLabs({ csrf }: { csrf: string }) {
   const [rows, setRows] = useState<Summary[]>([]);
@@ -34,6 +35,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   const [newTitle, setNewTitle] = useState(""), [title, setTitle] = useState(""), [strict, setStrict] = useState(false);
   const [taskIds, setTaskIds] = useState<string[]>([]), [taskId, setTaskId] = useState("");
   const [taskMarks, setTaskMarks] = useState<Record<string, string>>({}), [newTaskMarks, setNewTaskMarks] = useState('100.00');
+  const [taskTAMarks, setTaskTAMarks] = useState<Record<string, string>>({}), [newTaskTAMarks, setNewTaskTAMarks] = useState('0.00');
   const [defaultDates] = useState(() => ({ start: localDate(null, 5), end: localDate(null, 125) }));
   function dateInput(value: string | null, minutes: number): string { return value ? localDate(value) : defaultDates[minutes === 5 ? "start" : "end"]; }
   const [start, setStart] = useState(defaultDates.start), [end, setEnd] = useState(defaultDates.end), [reason, setReason] = useState("");
@@ -96,6 +98,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     setStrict((old) => keep && old !== previous!.strict_ip ? old : value.strict_ip);
     setTaskIds((old) => keep && JSON.stringify(old) !== JSON.stringify(previous!.tasks.map((t) => t.revision_id)) ? old : value.tasks.map((t) => t.revision_id));
     setTaskMarks((old) => ({...old, ...Object.fromEntries(value.tasks.map((t) => [t.revision_id, t.maximum_marks || '100.00']))}));
+    setTaskTAMarks((old) => ({...old, ...Object.fromEntries(value.tasks.map((t) => [t.revision_id, t.ta_maximum || '0.00']))}));
     setStart((old) => keep && old !== dateInput(previous!.starts_at, 5) ? old : dateInput(value.starts_at, 5));
     setEnd((old) => keep && old !== dateInput(previous!.ends_at, 125) ? old : dateInput(value.ends_at, 125));
     savedLab.current = value;
@@ -168,7 +171,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     section === 'tasks' && !revisionId && JSON.stringify(taskIds) !== JSON.stringify(lab.tasks.map((t) => t.revision_id)) ||
     section === 'students' && (!!roll || !!name)));
   useUnsaved(dirty);
-  if ((!route && !listRoute) || parts.length > 2 || !['overview', 'students', 'tasks', 'submissions', 'scoreboard', 'tas'].includes(section) ||
+  if ((!route && !listRoute) || parts.length > 2 || !['overview', 'students', 'tasks', 'submissions', 'scoreboard', 'tas', 'reviews'].includes(section) ||
       section === 'overview' && parts.length > 0 || section === 'scoreboard' && parts.length !== 1 || [404, 422].includes(failure) || lab && (studentId && !member || revisionId && !task)) return <NotFound />;
   return <div className="space-y-4">
     <h1 className="text-xl font-semibold">{labId ? lab?.title || "Lab" : "Labs"}</h1>
@@ -185,7 +188,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     {labId && !lab && !message && <p role="status">Loading lab…</p>}
     {lab && <>
       <nav aria-label="Lab breadcrumbs"><Link to="/admin/labs">Labs</Link> / <Link to={`/admin/labs/${lab.id}`}>{lab.title}</Link>{studentId && ` / ${member?.roll_number}`}{revisionId && ` / ${task?.config.title}`}{taId && ` / ${lab.tas?.find((ta) => ta.id === taId)?.username || 'TA'}`}</nav>
-      <nav aria-label="Lab navigation" className="flex flex-wrap gap-2">{[["", "Overview"], ["students", "Students"], ["tasks", "Tasks"], ["tas", "TAs"], ["submissions", "Submissions"], ["scoreboard", "Scoreboard"]].map(([path, title]) => <NavLink end={!path} className="nav-link" key={path} to={`/admin/labs/${lab.id}${path ? "/" + path : ""}`}>{title}</NavLink>)}</nav>
+      <nav aria-label="Lab navigation" className="flex flex-wrap gap-2">{[["", "Overview"], ["students", "Students"], ["tasks", "Tasks"], ["tas", "TAs"], ["reviews", "TA Reviews"], ["submissions", "Submissions"], ["scoreboard", "Scoreboard"]].map(([path, title]) => <NavLink end={!path} className="nav-link" key={path} to={`/admin/labs/${lab.id}${path ? "/" + path : ""}`}>{title}</NavLink>)}</nav>
       <section className="rounded border bg-white p-4"><div className="flex justify-between"><h2 className="font-semibold">{lab.title} · {lab.phase}</h2>
         <button disabled={busy} onClick={() => perform(() => reload())}>Refresh lab</button></div>
         <LabClock serverTime={lab.server_time} start={lab.starts_at} end={lab.ends_at} refresh={() => { void reload().catch((e) => showError(e.message)); }} />
@@ -219,16 +222,19 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       {section === "tasks" && !revisionId && <>
       <section className="rounded border bg-white p-4"><h2 className="font-semibold">Ordered tasks</h2>
         <fieldset disabled={busy || !setupOpen} className="space-y-2">
-          <ol>{taskIds.map((id, index) => { const item = options.find((o) => o.revision_id === id) || lab.tasks.find((t) => t.revision_id === id);
-            return <li className="flex flex-wrap items-center gap-2 border-t py-2" key={id}>{index + 1}. <Link to={`/admin/labs/${lab.id}/tasks/${id}`}>{item?.config.title || id}</Link> · revision {item?.number} · {taskMarks[id]} marks
-              <button disabled={!index} onClick={() => move(index, -1)} aria-label={`Move task ${index + 1} up`}>↑</button>
-              <button disabled={index === taskIds.length - 1} onClick={() => move(index, 1)} aria-label={`Move task ${index + 1} down`}>↓</button>
-              <button onClick={() => setTaskIds(taskIds.filter((value) => value !== id))}>Remove task {index + 1}</button></li>; })}</ol>
+          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Order</th><th>Task</th><th>Revision</th><th>Automatic maximum</th><th>TA maximum</th><th>Actions</th></tr></thead>
+            <tbody>{taskIds.map((id, index) => { const item = options.find((o) => o.revision_id === id) || lab.tasks.find((t) => t.revision_id === id);
+              return <tr className="border-t" key={id}><td>{index + 1}</td><td><Link to={`/admin/labs/${lab.id}/tasks/${id}`}>{item?.config.title || id}</Link></td>
+                <td>{item?.number}</td><td>{taskMarks[id]}</td><td>{taskTAMarks[id] || '0.00'}</td><td>
+                <button disabled={!index} onClick={() => move(index, -1)} aria-label={`Move task ${index + 1} up`}>↑</button>
+                <button disabled={index === taskIds.length - 1} onClick={() => move(index, 1)} aria-label={`Move task ${index + 1} down`}>↓</button>
+                <button onClick={() => setTaskIds(taskIds.filter((value) => value !== id))}>Remove task {index + 1}</button></td></tr>; })}</tbody></table></div>
           <label>Published task revision <select value={taskId} onChange={(e) => setTaskId(e.target.value)}><option value="">Select revision</option>
             {options.map((option) => <option key={option.revision_id} value={option.revision_id}>{option.config.title} · revision {option.number}</option>)}</select></label>{" "}
           <label>Maximum marks <input type="number" min="0.01" max="10000" step="0.01" value={newTaskMarks} onChange={(e) => setNewTaskMarks(e.target.value)} /></label>{" "}
-          <button disabled={!taskId || taskIds.includes(taskId) || !newTaskMarks || Number(newTaskMarks) <= 0 || Number(newTaskMarks) > 10000} onClick={() => { setTaskIds([...taskIds, taskId]); setTaskMarks({...taskMarks, [taskId]: newTaskMarks}); setTaskId(""); }}>Add task</button>{" "}
-          <button onClick={() => perform(() => mutate("/tasks", "PUT", { version: lab.version, assignments: taskIds.map((revision_id) => ({revision_id, maximum_marks: taskMarks[revision_id]})) }))}>Save task order</button>
+          <label>TA maximum <input type="number" min="0" max="10000" step="0.01" value={newTaskTAMarks} onChange={(e) => setNewTaskTAMarks(e.target.value)} /></label>{" "}
+          <button disabled={!taskId || taskIds.includes(taskId) || !newTaskMarks || Number(newTaskMarks) <= 0 || Number(newTaskMarks) > 10000 || !newTaskTAMarks || Number(newTaskTAMarks) < 0 || Number(newTaskTAMarks) > 10000} onClick={() => { setTaskIds([...taskIds, taskId]); setTaskMarks({...taskMarks, [taskId]: newTaskMarks}); setTaskTAMarks({...taskTAMarks, [taskId]: newTaskTAMarks}); setTaskId(""); }}>Add task</button>{" "}
+          <button onClick={() => perform(() => mutate("/tasks", "PUT", { version: lab.version, assignments: taskIds.map((revision_id) => ({revision_id, maximum_marks: taskMarks[revision_id], ta_maximum: taskTAMarks[revision_id]})) }))}>Save task order</button>
         </fieldset>
         {moreOptions && <button onClick={() => setOptionOffset(optionOffset + 100)}>Load more task revisions</button>}
       </section>
@@ -336,11 +342,22 @@ export function AdminLabs({ csrf }: { csrf: string }) {
       <Announcements messages={lab.announcements} />
       </>}
       {section === "tas" && (taId ? <AdminTADetail labId={lab.id} taId={taId} /> : <TAAssignments lab={lab} csrf={csrf} onSave={accept} />)}
+      {section === "reviews" && <AdminTAReviews labId={lab.id} csrf={csrf} archived={!!lab.archived_at} tas={lab.tas || []} />}
       {revisionId && task && <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">{task.config.title} · revision {task.number}</h2>
         <p>{task.maximum_marks} marks · CPU {task.config.cpu_seconds}s · Wall {task.config.wall_seconds}s · Memory {task.config.memory_mib} MiB</p>
         {!lab.archived_at && <form key={`${task.task_id}-${task.maximum_marks}`} onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const maximum_marks = (form.elements.namedItem('maximum_marks') as HTMLInputElement).value; const reason = (form.elements.namedItem('reason') as HTMLInputElement).value; void perform(() => mutate(`/tasks/${task.task_id}/maximum`, 'PUT', {version: lab.version, maximum_marks, reason})); }} className="flex flex-wrap gap-2">
           <label>Maximum marks <input name="maximum_marks" type="number" min="0.01" max="10000" step="0.01" defaultValue={task.maximum_marks || ''} required /></label>
           <label>Reason <input name="reason" maxLength={500} required /></label><button disabled={busy}>Change marks</button>
+        </form>}
+        <p>TA maximum: {task.ta_maximum || "0.00"}</p>
+        {!lab.archived_at && <form key={`${task.task_id}-${task.ta_maximum}`} onSubmit={(event) => { event.preventDefault();
+          const form = event.currentTarget; const ta_maximum = (form.elements.namedItem('ta_maximum') as HTMLInputElement).value;
+          const reason = (form.elements.namedItem('reason') as HTMLInputElement).value;
+          void perform(() => mutate(`/tasks/${task.task_id}/ta-maximum`, 'PUT', { version: lab.version, ta_maximum, reason }));
+        }} className="flex flex-wrap gap-2">
+          <label>TA maximum <input name="ta_maximum" type="number" min={lab.first_released_at ? "0.01" : "0"}
+            max="10000" step="0.01" defaultValue={task.ta_maximum || "0.00"} required /></label>
+          <label>Reason <input name="reason" maxLength={500} required /></label><button disabled={busy}>Change TA marks</button>
         </form>}
         <Statement text={task.config.statement} /><p><Link to={`/admin/tasks/${task.task_id}?revision=${task.revision_id}`}>View library revision and cases</Link></p>
       </section>}

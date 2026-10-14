@@ -270,7 +270,8 @@ def exercise(directory):
         status, sheet = call(base + '/marks.csv'); assert status == 200
         csv_rows = list(csv.reader(io.StringIO(sheet.decode('utf-8-sig'))))
         ada = next(row for row in csv_rows if row[0] == "'=Ada")
-        assert ada[1:7] == ["'=Ada", 'Active', '5.00', '50.00', '5.00', '1'], ada
+        assert ada[1:5] == ["'=Ada", 'Active', '5.00', '50.00'], ada
+        assert ada[7:13] == ['5.00', '0.00', '5.00', 'Unclaimed', '', '1'], ada
         assert csv_rows[0][3].startswith("'")
         assert call(base + '/marks.csv', student_view=True)[0] == 403
         with identity.engine().begin() as conn:
@@ -282,7 +283,7 @@ def exercise(directory):
         assert call(f'/labs/{lab_id}', student_view=True)[1]['admission']['code'] == 'lab_closed'
         status, cancelled_sheet = call(base + '/marks.csv'); assert status == 200
         cancelled_ada = next(row for row in csv.reader(io.StringIO(cancelled_sheet.decode('utf-8-sig'))) if row[0] == "'=Ada")
-        assert cancelled_ada[2:6] == ['Cancelled', '', '', '']
+        assert cancelled_ada[2:7] == ['Cancelled', '', '', '', '']
         assert call(cancellation, 'PUT', {'version': call(base)[1]['version'], 'cancelled': False,
             'reason': 'Appeal accepted'})[0] == 204
         assert call(base)[1]['phase'] == 'Results released'
@@ -326,11 +327,12 @@ def exercise(directory):
         assert hashlib.sha256(zipped).hexdigest() == receipt['sha256']
         with zipfile.ZipFile(io.BytesIO(zipped)) as zipped_file:
             manifest = json.loads(zipped_file.read('manifest.json'))
-            assert manifest['version'] == 2
+            assert manifest['version'] == 3
             assert f'sources/{excluded}.c' in zipped_file.namelist()
             assert f'pdfs/{pdf}.pdf' in zipped_file.namelist()
             evidence = json.loads(zipped_file.read('snapshot.json'))
             assert len(evidence['runs']) == 3 and evidence['reviews'] and evidence['marks']
+            assert 'ta_reviews' in evidence and 'ta_review_marks' in evidence
             assert next(row for row in evidence['roster'] if row['id'] == str(student))['cancel_reason'] == 'Final review'
             assert next(row for row in evidence['marks'] if row['id'] == str(student))['total'] is None
             assert b'password_hash' not in zipped_file.read('snapshot.json') and b'binding_hash' not in zipped_file.read('snapshot.json')

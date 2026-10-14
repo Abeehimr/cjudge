@@ -22,7 +22,7 @@ test("TA sees pre-release evidence, reveals password with one click, and clears 
       : path.includes("/submissions?offset=") ? [] : student,
   }));
   vi.stubGlobal("fetch", fetchMock);
-  const { router } = renderRoute(<TALabs csrf="csrf" />, "/ta/labs/lab/students/student");
+  const { router } = renderRoute(<TALabs csrf="csrf" accountId="ta" />, "/ta/labs/lab/students/student");
   expect(await screen.findByText(/2 submissions/)).toBeTruthy();
   expect(screen.getByText(/Results hidden/)).toBeTruthy();
   expect(await screen.findByText("Submissions")).toBeTruthy();
@@ -56,7 +56,7 @@ test("TA evidence links to a standalone student submission before release", asyn
       : path.endsWith("/marks") ? [{ id: "student", roll_number: "001A", name: "Ada", cancelled: false,
         tasks: [], total: "5.00", pending: false, submission_count: 1 }] : student,
   })));
-  const { router } = renderRoute(<TALabs csrf="csrf" />, "/ta/labs/lab/students/student");
+  const { router } = renderRoute(<TALabs csrf="csrf" accountId="ta" />, "/ta/labs/lab/students/student");
   expect((await screen.findByRole("link", { name: "answer.c" })).getAttribute("href")).toBe("/ta/labs/lab/students/student/submissions/sub");
   expect(screen.getByText("Best for review")).toBeTruthy();
   expect(screen.getByText("Question: Addition")).toBeTruthy();
@@ -85,7 +85,7 @@ test("search to student loads submissions without a refresh", async () => {
         tasks: [], total: "5.00", pending: false, submission_count: 1 }] : student,
   }));
   vi.stubGlobal("fetch", fetchMock);
-  renderRoute(<TALabs csrf="csrf" />, "/ta/labs/lab?search=Ada");
+  renderRoute(<TALabs csrf="csrf" accountId="ta" />, "/ta/labs/lab?search=Ada");
   fireEvent.click(await screen.findByRole("link", { name: "001A · Ada" }));
   expect(await screen.findByRole("link", { name: "answer.c" })).toBeTruthy();
   expect(fetchMock.mock.calls.some(([path]) => String(path).includes("/students/student/marks"))).toBe(true);
@@ -107,7 +107,7 @@ test("denied reinstatement is visible beside controls and survives live refresh"
       : path.includes("/submissions?") || path.endsWith("/marks") ? [] : student,
   }));
   vi.stubGlobal("fetch", fetchMock);
-  const { router } = renderRoute(<TALabs csrf="csrf" />, "/ta/labs/lab/students/student");
+  const { router } = renderRoute(<TALabs csrf="csrf" accountId="ta" />, "/ta/labs/lab/students/student");
   fireEvent.click(await screen.findByRole("button", { name: "Reinstate" }));
   const alert = await screen.findByRole("alert");
   expect(alert.textContent).toBe(denial);

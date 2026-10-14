@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15, M17–M18, and M20–M23 are implemented; M19 code is complete pending physical network checks. M16 and M24–M27 remain planned. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15, M17–M18, and M20–M24 are implemented; M19 code is complete pending physical network checks. M16, M21, and M25–M27 remain planned. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -11,6 +11,8 @@ Docker Compose separates `web`, `api`, `db`, and runtime `worker`; standalone `j
 Admin Isolates uses worker registration, startup sandbox checks, and heartbeat freshness rather than periodic probes. Admin SSE carries invalidations; stale workers become Offline locally even if updates disconnect. Student SSE refreshes admission/history without exposing hidden grading data.
 
 M23 adds TA accounts in the same identity database and `lab_tas` assignment rows. TA routes recheck active account, session, lab assignment, and archive state inside each transaction. Admin assignment edits and TA actions hold an exclusive lab lock; TA reads hold a shared lock, so removal cannot pass an in-flight authorization check. TA SSE carries scoped invalidations and rechecks access on every event and keepalive, including judging changes when the scoreboard is hidden. Assigned TAs see one student's automatic marks and submissions before release through scoped endpoints; accepted-case streams remain hidden. Admin lab/TA pages read assignment status, current penalties, and lab-scoped audit activity.
+
+M24 adds TA maxima to lab assignments and student review claims with per-task earned fractions/completion flags. Authorized TA review responses include unsaved suggestions scaled from settled counted automatic results. One versioned transaction saves all filled marks; saved marks override suggestions. Lab-row locks and review versions serialize claims, saves, finalization, and admin transfers. Admin-only totals and CSV combine rounded automatic and TA marks; student responses and scoreboard remain automatic-only. Grading changes flag saved reviews for recheck and invalidate claimed drafts; TA maximum changes also invalidate claimed drafts. Archive v3 retains TA evidence; v1/v2 receipt verification remains compatible.
 
 Suggested backend boundaries: identity, tasks, labs, submissions, judging, results, and exports. Keep scoring and timing policy separate from HTTP handlers; keep sandbox management in worker-only code.
 
@@ -100,7 +102,7 @@ Follow [todo.md](todo.md) for module dependencies, milestones, and per-module te
 
 Agreed decisions: [improvements_v2.md](improvements_v2.md); implementation gates: [todo.md](todo.md#m17--architecture-documentation--independent). The system diagram above describes current architecture.
 
-Reuse existing web/API/PostgreSQL/artifact storage and isolate workers. M17 adds linked schema, Docker and network documents under `docs/`; M19 supports validated localhost/multiple LAN addresses. M20 moves current automatic maxima into lab assignments while preserving historical evidence. M21 transfers task assets and M22 adds separate admin tester jobs/history through the existing pool. M23 adds assigned-lab TA authorization, mobile student lookup, and operation ownership. M24 plans review claims/marks; TA marks remain absent from student responses and scoreboard. M25–M26 extend immutable task policy and sandbox language profiles. M18/M27 extend access and existing interface flows.
+Reuse existing web/API/PostgreSQL/artifact storage and isolate workers. M17 adds linked schema, Docker and network documents under `docs/`; M19 supports validated localhost/multiple LAN addresses. M20 moves current automatic maxima into lab assignments while preserving historical evidence. M21 transfers task assets and M22 adds separate admin tester jobs/history through the existing pool. M23 adds assigned-lab TA authorization, mobile student lookup, and operation ownership. M24 adds review claims/marks while student responses and scoreboard remain automatic-only. M25–M26 extend immutable task policy and sandbox language profiles. M18/M27 extend access and existing interface flows.
 
 No new runtime services, polling, or student-program host execution. Refresh diagrams as modules land; planned features must not appear as deployed components.
 

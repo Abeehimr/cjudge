@@ -165,6 +165,7 @@ def enqueue(conn: sa.Connection, submission_id: UUID, revision_id: UUID, kind: s
 
 def set_deleted(conn: sa.Connection, lab: dict, submission_id: UUID, deleted: bool, actor: UUID, reason: str) -> None:
     from cjudge.judging import queue
+    from cjudge.labs import ta_reviews
     labs.editable(lab)
     queue.scheduler_lock(conn)
     row = find_submission(conn, lab['id'], submission_id)
@@ -175,6 +176,7 @@ def set_deleted(conn: sa.Connection, lab: dict, submission_id: UUID, deleted: bo
     conn.execute(sa.update(reviews).where(reviews.c.submission_id == submission_id).values(
         deleted_at=labs.now(conn) if deleted else None, deleted_by=actor if deleted else None,
         delete_reason=reason if deleted else None))
+    ta_reviews.flag(conn, lab['id'], row['account_id'], task_id_for(conn, row['revision_id']))
     if not deleted:
         task_id = task_id_for(conn, row['revision_id'])
         batch = active_batch(conn, lab['id'], task_id)
@@ -199,6 +201,7 @@ def set_deleted(conn: sa.Connection, lab: dict, submission_id: UUID, deleted: bo
 
 def rejudge(conn: sa.Connection, lab: dict, submission_id: UUID, actor: UUID, reason: str) -> None:
     from cjudge.judging import queue
+    from cjudge.labs import ta_reviews
     labs.editable(lab)
     queue.scheduler_lock(conn)
     row = find_submission(conn, lab['id'], submission_id)
@@ -211,6 +214,7 @@ def rejudge(conn: sa.Connection, lab: dict, submission_id: UUID, actor: UUID, re
     if job['state'] != 'complete':
         raise labs.LabError(409, 'Wait for current judging or retry its delayed job')
     enqueue(conn, submission_id, current_revision(conn, lab['id'], task_id), 'rejudge')
+    ta_reviews.flag(conn, lab['id'], row['account_id'], task_id)
     identity.audit(conn, 'submission_rejudge', actor, row['account_id'],
         detail={'lab_id': str(lab['id']), 'submission_id': str(submission_id), 'reason': reason})
     labs.announce(conn, lab['id'], f'Submission {submission_id} queued for rejudge. Reason: {reason}', actor, row['account_id'])
@@ -263,6 +267,7 @@ def correct(conn: sa.Connection, lab: dict, task_id: UUID, revision_id: UUID, ac
 
 def publish_ready(conn: sa.Connection, lab_id: UUID) -> None:
     from cjudge.judging import queue
+    from cjudge.labs import ta_reviews
     lab = labs.find(conn, lab_id)
     for batch in conn.execute(sa.select(batches).where(batches.c.lab_id == lab_id, batches.c.state == 'judging')).mappings().all():
         eligible = members.join(reviews, reviews.c.submission_id == members.c.submission_id).join(
@@ -280,6 +285,7 @@ def publish_ready(conn: sa.Connection, lab_id: UUID) -> None:
         for key, run_id in staged:
             conn.execute(sa.update(reviews).where(reviews.c.submission_id == key).values(run_id=run_id))
         conn.execute(sa.update(batches).where(batches.c.id == batch['id']).values(state='published', published_at=labs.now(conn)))
+        ta_reviews.flag(conn, lab_id, task_id=batch['task_id'])
         conn.execute(sa.update(jobs).where(jobs.c.batch_id == batch['id']).values(batch_id=None))
         identity.audit(conn, 'task_correction_published', batch['actor_id'], detail={'lab_id': str(lab_id), 'batch_id': str(batch['id'])})
         title = conn.execute(sa.select(tasks.revisions.c.config).where(tasks.revisions.c.id == batch['revision_id'])).scalar_one()['title']

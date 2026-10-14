@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { api } from "./api";
 import type { AdminLab } from "./Lab";
 import type { TA } from "./TAAccounts";
 
 export default function TAAssignments({ lab, csrf, onSave }: { lab: AdminLab; csrf: string; onSave: (lab: AdminLab) => void }) {
+  const navigate = useNavigate();
   const [available, setAvailable] = useState<TA[]>([]), [selected, setSelected] = useState<string[]>(lab.tas?.map((ta) => ta.id) || []);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   useEffect(() => { setSelected(lab.tas?.map((ta) => ta.id) || []); }, [lab.id, lab.tas]);
@@ -21,11 +22,13 @@ export default function TAAssignments({ lab, csrf, onSave }: { lab: AdminLab; cs
     <h2 className="font-semibold">Assigned TAs</h2>
     {available.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>
       <th>Assigned</th><th>Username</th><th>Name</th><th>Account status</th><th>Details</th></tr></thead>
-      <tbody>{available.map((ta) => <tr key={ta.id} className="border-t">
+      <tbody>{available.map((ta) => { const assigned = lab.tas?.some((item) => item.id === ta.id);
+        return <tr key={ta.id} className={`border-t ${assigned ? "cursor-pointer hover:bg-slate-50" : ""}`}
+          onClick={(event) => { if (assigned && !(event.target as HTMLElement).closest('input,button,a,select,label')) navigate(`/admin/labs/${lab.id}/tas/${ta.id}`); }}>
         <td><input aria-label={`Assign ${ta.username}`} type="checkbox" disabled={busy || !!lab.archived_at || !ta.active} checked={selected.includes(ta.id)} onChange={(e) => setSelected((ids) => e.target.checked ? [...ids, ta.id] : ids.filter((id) => id !== ta.id))} /></td>
         <td>{ta.username}</td><td>{ta.name}</td><td>{ta.active ? "Active" : "Inactive"}</td>
-        <td>{lab.tas?.some((assigned) => assigned.id === ta.id) ? <Link to={`/admin/labs/${lab.id}/tas/${ta.id}`}>View TA</Link> : "—"}</td>
-      </tr>)}</tbody></table></div> : <p>Create TA accounts before assigning them.</p>}
+        <td>{assigned ? <Link to={`/admin/labs/${lab.id}/tas/${ta.id}`}>View TA</Link> : "—"}</td>
+      </tr>; })}</tbody></table></div> : <p>Create TA accounts before assigning them.</p>}
     <button disabled={busy || !!lab.archived_at || !changed} onClick={() => { void save(); }}>Save assignments</button>
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
   </section>;

@@ -38,7 +38,7 @@ TA may explicitly reveal the selected assigned student's current password. Audit
 
 ## TA Review Marks — M24
 
-Admin sets a separate TA maximum per lab task, default disabled. Marking starts after release. TA claims a student, saves task marks and explicit Done flags (including zero/no submission), then finalizes when every TA-enabled task is Done. Reject competing claims/saves transactionally.
+Admin sets a separate TA maximum per lab task, default disabled. Marking starts after release. TA claims a student, checks scaled automatic suggestions, saves all filled marks together (including zero), then finalizes when every TA-enabled task is saved. Blank tasks remain unfinished. Reject competing claims/saves transactionally.
 
 Other TAs see reviewer/completion but cannot overwrite. Original TA or admin may reopen finalized reviews. Owner may release unfinished claims; admin may transfer them, retaining saved marks/audit history.
 

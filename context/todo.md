@@ -248,15 +248,18 @@ Evidence: 43 backend tests (including disposable PostgreSQL gate), 73 frontend t
 
 ## M24 — TA Review Marks · requires M20, M23
 
-- [ ] Add separate TA maximum per lab task, default disabled; admin configuration until archive.
-- [ ] After release, claim student and save task marks/Done flags; finalize when all TA-enabled tasks are Done.
-- [ ] Reject competing claims/stale saves; show reviewer; owner releases unfinished claims/admin transfers with audit.
-- [ ] Permit original TA/admin reopening; other TAs cannot overwrite finalized reviews.
-- [ ] Show admin remaining reviews, automatic/TA/combined totals; admin exports include separate/combined marks.
-- [ ] Keep TA marks hidden from students and scoreboard; exclude cancelled participation, retain review evidence.
-- [ ] Scale marks from stored fractions on maximum changes; zero maximum only when no reviews exist.
-- [ ] Retain reviews on grading changes, flag Needs recheck; archive permits incomplete reviews and locks changes.
-- [ ] **Gate:** claim/save/finalize races, zero/no-submission marks, scale/rounding, reopen/transfer, cancellation/freeze, disclosure, exports/archive.
+- [x] Add separate TA maximum per lab task, default disabled; admin configuration until archive.
+- [x] After release, claim student, review scaled automatic suggestions, save filled marks together, and finalize when all TA-enabled tasks are saved.
+- [x] Reject competing claims/stale saves; show reviewer; owner releases unfinished claims/admin transfers with audit.
+- [x] Permit original TA/admin reopening; other TAs cannot overwrite finalized reviews.
+- [x] Show admin remaining reviews, automatic/TA/combined totals; admin exports include separate/combined marks.
+- [x] Keep TA marks hidden from students and scoreboard; exclude cancelled participation, retain review evidence.
+- [x] Scale marks from stored fractions on maximum changes; zero maximum only when no reviews exist.
+- [x] Retain reviews on grading changes, flag Needs recheck; archive permits incomplete reviews and locks changes.
+- [x] Show TA maxima in lab task table; set both maxima when adding tasks; make assigned TA rows clickable.
+- [x] **Gate:** claim/save/finalize races, zero/no-submission marks, scale/rounding, reopen/transfer, cancellation/freeze, disclosure, exports/archive.
+
+Evidence: backend/frontend tests and build, disposable PostgreSQL service/API gates. Physical mobile/LAN acceptance remains.
 
 ## M25 — Restricted Source Identifiers · requires M3, M5
 

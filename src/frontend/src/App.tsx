@@ -79,7 +79,7 @@ function Screen() {
           <Route path="/admin/labs/*" element={<AdminLabs csrf={session.csrf_token} />} />
           <Route path="/admin/isolates" element={<Isolates />} />
           <Route path="/labs/*" element={<StudentLabs csrf={session.csrf_token} />} />
-          <Route path="/ta/labs/*" element={<TALabs csrf={session.csrf_token} />} />
+          <Route path="/ta/labs/*" element={<TALabs csrf={session.csrf_token} accountId={session.id} />} />
           <Route path="*" element={<NotFound />} />
         </Routes>}
       </div>}

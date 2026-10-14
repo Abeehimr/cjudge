@@ -8,6 +8,8 @@ from fastapi import Depends, Response
 import sqlalchemy as sa
 
 from cjudge import identity, labs
+from cjudge.labs import ta_reviews
+from decimal import Decimal
 from cjudge.identity.api import admin
 from cjudge.labs.api import admin_router
 from cjudge.labs.release import resolved
@@ -33,17 +35,29 @@ def sheet(conn: sa.Connection, lab: dict) -> bytes:
         reviews.c.deleted_at.is_(None)).group_by(submissions.c.account_id)).all())
     buffer = io.StringIO(newline=''); writer = csv.writer(buffer)
     writer.writerow(['Roll number', 'Name', 'Status', *[heading for task in assigned for heading in
-        (safe_cell(task['config']['title'] + ' marks'), safe_cell(task['config']['title'] + ' pass %'))],
-        'Total marks', 'Active submissions', 'Last active submission (UTC)'])
+        (safe_cell(task['config']['title'] + ' automatic marks'), safe_cell(task['config']['title'] + ' pass %'),
+         safe_cell(task['config']['title'] + ' TA marks'), safe_cell(task['config']['title'] + ' combined marks'))],
+        'Automatic total', 'TA total', 'Combined total', 'TA review status', 'TA reviewer',
+        'Active submissions', 'Last active submission (UTC)'])
     for student in marks:
+        manual = ta_reviews.detail(conn, lab['id'], student['id'])
+        by_task = {task['task_id']: task for task in manual['tasks']}
         cells = []
         for cell in student['tasks']:
             percentage = review.displayed(Fraction(100 * cell['passed'], cell['total'])) if cell['total'] else '0.00'
-            cells.extend(['', ''] if student['cancelled'] else [cell['marks'], percentage])
+            manual_mark = by_task.get(cell['task_id'], {}).get('marks')
+            combined = f"{Decimal(cell['marks']) + Decimal(manual_mark or '0'):.2f}" if cell['marks'] is not None else ''
+            cells.extend(['', '', '', ''] if student['cancelled'] else
+                [cell['marks'], percentage, manual_mark or '', combined])
         timestamp = latest.get(student['id'])
+        combined_total = f"{Decimal(student['total']) + Decimal(manual['total']):.2f}" if student['total'] is not None and manual['total'] is not None else ''
+        status = 'Cancelled' if student['cancelled'] else 'Needs recheck' if manual['needs_recheck'] else (
+            'Finalized' if manual['finalized'] else 'Provisional' if manual['owner_id'] else 'Unclaimed')
         writer.writerow([safe_cell(student['roll_number']), safe_cell(student['name']),
             'Cancelled' if student['cancelled'] else 'Active', *cells,
-            student['total'] or '', student['submission_count'], timestamp.isoformat() if timestamp else ''])
+            student['total'] or '', manual['total'] or '', combined_total, status,
+            safe_cell(manual['reviewer_name'] or manual['owner_name'] or ''),
+            student['submission_count'], timestamp.isoformat() if timestamp else ''])
     return buffer.getvalue().encode('utf-8-sig')
 
 

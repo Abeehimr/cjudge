@@ -306,3 +306,9 @@ Apply migrations `20261013_ta_accounts` and `20261013_ta_labs` before starting t
 ```sh
 CJUDGE_TA_GATE_URL='postgresql+psycopg://USER:PASSWORD@HOST:PORT/postgres' uv run pytest -q tests/test_ta_gate.py
 ```
+
+## M24 TA Review Marks
+
+Apply migration `20261013_ta_reviews` before restarting the API. Admin → Lab → Tasks sets automatic and TA maxima when adding tasks (TA defaults to `0.00`, disabled); after first release, only positive TA maximum changes remain available. TA → Assigned labs → Student supports claim, suggested marks scaled from settled automatic results, one Save marks action, finalize, release, and original-reviewer reopen. Blank fields are skipped; saving filled marks completes those tasks. Admin → Lab → TA Reviews shows remaining work, automatic/TA/combined totals, claim transfer, reopen, and Needs recheck acknowledgement. Saved marks count immediately and remain provisional until finalization. The final CSV and archive v3 include TA evidence; student marks and scoreboard remain automatic-only.
+
+Run the disposable database gate with `docker compose run --rm -v ./tests:/app/tests:ro api python tests/ta_review_gate.py`. Run API contract tests with the project development dependencies and a disposable PostgreSQL server. See [TA guide](docs/guides/ta.md).
