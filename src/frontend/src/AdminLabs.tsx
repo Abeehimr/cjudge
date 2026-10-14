@@ -22,6 +22,12 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   const taId = section === "tas" ? parts[1] : undefined;
   const [params, setParams] = useSearchParams();
   const rosterSearch = params.get("search") || "";
+  const frozenFilter = params.get('frozen') || '', cancelledFilter = params.get('cancelled') || '';
+  function rosterFilter(key: string, value: string) {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value); else next.delete(key);
+    setParams(next, { replace: true });
+  }
   const [destination, setDestination] = useState<string | null>(null);
   const currentLab = useRef(labId); currentLab.current = labId;
   const savedLab = useRef<AdminLab | null>(null);
@@ -46,7 +52,9 @@ export function AdminLabs({ csrf }: { csrf: string }) {
   function showError(text: string) { setMessageError(true); setMessageText(text); }
   const setupOpen = !!lab && (lab.phase === "Draft" || lab.phase === "Scheduled");
   const visibleRoster = studentId ? lab?.students.filter((row) => row.id === studentId) || [] :
-    lab?.students.filter((row) => `${row.roll_number} ${row.name}`.toLowerCase().includes(rosterSearch.toLowerCase())) || [];
+    lab?.students.filter((row) => `${row.roll_number} ${row.name}`.toLowerCase().includes(rosterSearch.toLowerCase()) &&
+      (!['yes', 'no'].includes(frozenFilter) || !!row.frozen === (frozenFilter === 'yes')) &&
+      (!['yes', 'no'].includes(cancelledFilter) || !!row.cancelled === (cancelledFilter === 'yes'))) || [];
   const selectableRoster = setupOpen && !studentId;
   useEffect(() => { setSelectedRoster([]); setRemovalPreview(null); }, [labId, setupOpen]);
   function selectRoster(id: string) {
@@ -318,12 +326,17 @@ export function AdminLabs({ csrf }: { csrf: string }) {
             <button disabled={busy} onClick={() => setRemovalPreview(null)}>Discard preview</button>
           </div>}
         </section>}
-        <label className="block">Filter roster <input value={rosterSearch} onChange={(e) => setParams(e.target.value ? { search: e.target.value } : {}, { replace: true })} /></label>
+        <div className="flex flex-wrap gap-3"><label>Filter roster <input value={rosterSearch} onChange={(e) => rosterFilter('search', e.target.value)} /></label>
+          <label>Frozen <select value={frozenFilter} onChange={(e) => rosterFilter('frozen', e.target.value)}><option value="">All</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+          <label>Cancelled <select value={cancelledFilter} onChange={(e) => rosterFilter('cancelled', e.target.value)}><option value="">All</option><option value="yes">Yes</option><option value="no">No</option></select></label></div>
         </>}
         <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{selectableRoster && <th><input type="checkbox" aria-label="Select all visible students" disabled={busy || !visibleRoster.length}
             checked={visibleRoster.length > 0 && visibleRoster.every((row) => selectedRoster.includes(row.id))}
             onChange={(e) => setSelectedRoster((old) => e.target.checked ? [...new Set([...old, ...visibleRoster.map((row) => row.id)])] : old.filter((id) => !visibleRoster.some((row) => row.id === id)))} /></th>}<th>Roll number</th><th>Name</th><th>Browser / IP</th><th>Submissions</th><th>Actions</th></tr></thead>
-          <tbody>{visibleRoster.map((member) => <tr className="border-t" data-frozen={member.frozen || undefined} data-cancelled={member.cancelled || undefined} key={member.id}>{selectableRoster && <td><input type="checkbox" aria-label={`Select ${member.roll_number}`} disabled={busy}
+          <tbody>{visibleRoster.map((member) => <tr className={`border-t ${selectableRoster ? 'cursor-pointer focus-visible:outline' : ''}`} data-frozen={member.frozen || undefined} data-cancelled={member.cancelled || undefined} key={member.id}
+            tabIndex={selectableRoster ? 0 : undefined} aria-selected={selectableRoster ? selectedRoster.includes(member.id) : undefined}
+            onClick={(e) => { if (selectableRoster && !busy && !(e.target as HTMLElement).closest('a,button,input,select,label')) selectRoster(member.id); }}
+            onKeyDown={(e) => { if (selectableRoster && !busy && e.target === e.currentTarget && ['Enter', ' '].includes(e.key)) { e.preventDefault(); selectRoster(member.id); } }}>{selectableRoster && <td><input type="checkbox" aria-label={`Select ${member.roll_number}`} disabled={busy}
               checked={selectedRoster.includes(member.id)} onChange={() => selectRoster(member.id)} /></td>}<td><Link to={`/admin/labs/${lab.id}/students/${member.id}`}>{member.roll_number}</Link></td><td>{member.name}</td>
             <td>{member.bound_at ? `Bound · ${member.last_ip}` : "Not bound"}{member.ip_changed && <span className="block">IP changed (original {member.bound_ip})</span>}</td>
             <td><span className={member.cancelled ? 'notice-danger rounded px-2 py-1' : member.frozen ? "notice-warning rounded px-2 py-1" : ""}>{member.cancelled ? `Cancelled by ${member.cancelled_by_name || "admin"} · ${member.cancel_reason}` : member.frozen ? `Frozen by ${member.frozen_by_name || "admin"} · ${member.freeze_reason}` : "Enabled during lab"}</span></td><td><div className="flex flex-wrap gap-2">

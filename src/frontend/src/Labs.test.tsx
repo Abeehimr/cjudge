@@ -369,6 +369,24 @@ const rosterMembers = [
 function rosterLab() { return { ...summary, phase: 'Draft', starts_at: null, ends_at: null, version: 1, strict_ip: false,
   first_released_at: null, tasks: [], pdfs: [], students: rosterMembers, announcements: [] }; }
 
+test('roster combines URL filters and row selection without selecting through links', async () => {
+  live(); const lab = { ...rosterLab(), students: [rosterMembers[0], { ...rosterMembers[1], frozen: true, cancelled: true }] };
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path === '/api/admin/students' ? [] : lab })));
+  const { router } = renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students?frozen=yes&cancelled=yes');
+  const row = (await screen.findByLabelText('Select B')).closest('tr')!;
+  expect(screen.queryByLabelText('Select A')).toBeNull();
+  fireEvent.click(screen.getByText('Grace'));
+  expect((screen.getByLabelText('Select B') as HTMLInputElement).checked).toBe(true);
+  fireEvent.keyDown(row, { key: ' ' });
+  expect((screen.getByLabelText('Select B') as HTMLInputElement).checked).toBe(false);
+  fireEvent.change(screen.getByLabelText('Filter roster'), { target: { value: 'Grace' } });
+  expect(router.state.location.search).toContain('frozen=yes');
+  expect(router.state.location.search).toContain('cancelled=yes');
+  fireEvent.click(screen.getByRole('link', { name: 'B' }));
+  expect(router.state.location.pathname).toBe('/admin/labs/lab/students/grace');
+});
+
 test('CSV roster reports reservation conflicts and closes enrollment after first release', async () => {
   live(); let lab: Omit<ReturnType<typeof rosterLab>, 'first_released_at'> & { first_released_at: string | null } = rosterLab();
   const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
