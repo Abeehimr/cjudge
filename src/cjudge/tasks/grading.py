@@ -5,7 +5,7 @@ from fractions import Fraction
 import re
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class Checker(BaseModel):
@@ -40,11 +40,20 @@ class TaskConfig(BaseModel):
     maximum_marks: Decimal = Field(default=Decimal(100), gt=0, le=10000, max_digits=7, decimal_places=2, exclude=True)
     scoring: Literal["partial", "all_or_nothing"] = "partial"
     checker: Checker = Field(default_factory=Checker)
+    banned_identifiers: list[str] = Field(default_factory=list, max_length=100)
     cpu_seconds: float = Field(default=2, gt=0, le=60)
     wall_seconds: float = Field(default=6, gt=0, le=60)
     memory_mib: int = Field(default=256, ge=1, le=512)
     stack_mib: int = Field(default=8, ge=1, le=64)
     stdout_mib: int = Field(default=10, ge=1, le=10)
+
+    @field_validator('banned_identifiers')
+    @classmethod
+    def valid_identifiers(cls, names: list[str]) -> list[str]:
+        if len(names) != len(set(names)) or any(len(name) > 128 or
+                not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name, flags=re.ASCII) for name in names):
+            raise ValueError('Use distinct ASCII C identifiers, each at most 128 characters')
+        return names
 
     @model_validator(mode="after")
     def validate_limits(self) -> Self:
