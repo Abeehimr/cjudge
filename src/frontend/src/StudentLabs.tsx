@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, NavLink, useMatch, useNavigate } from "react-router";
 import { api } from "./api";
 import SubmissionDetail from "./SubmissionDetail";
@@ -109,9 +110,12 @@ export function StudentLabs({ csrf }: { csrf: string }) {
     if (submissionDestination && !uploadBusy) { navigate(submissionDestination); setSubmissionDestination(null); }
   }, [submissionDestination, uploadBusy, navigate]);
   const task = detail?.tasks.find((item) => item.revision_id === revisionId || item.previous_revision_ids?.includes(revisionId || ''));
+  const headerAction = document.getElementById('student-header-action');
+  const quickSubmit = detail && <button disabled={uploadBusy || !detail.tasks.length} onClick={() => setQuickRevision(task?.revision_id || detail.tasks[0].revision_id)}>Quick submit</button>;
   if ((!route && !listRoute) || parts.length > 2 || !['overview', 'tasks', 'submissions', 'scoreboard'].includes(section) ||
       section === 'overview' && parts.length > 0 || section === 'scoreboard' && parts.length !== 1 || section === 'tasks' && !revisionId || section === 'submissions' && parts.length > 2 || [404, 422].includes(failure) || detail && revisionId && !task) return <NotFound />;
   return <div className="space-y-4">
+    {headerAction && quickSubmit && createPortal(quickSubmit, headerAction)}
     {message && <p role="alert" className="notice notice-danger">{message}</p>}
     {!labId ? <><h1 className="text-xl font-semibold">Assigned labs</h1>
       {rows.length ? <div className="overflow-x-auto rounded border bg-white p-4"><table className="w-full text-left"><thead><tr><th>Lab</th><th>Status</th><th>Start</th><th>Deadline</th></tr></thead>
@@ -128,7 +132,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
           <button disabled={busy || selected.phase === 'Scheduled'} onClick={enter}>Enter lab</button></>}
         {!detail && !failure && <p role="status">Loading lab…</p>}
         <button disabled={busy} onClick={() => { void refresh(); }}>Refresh lab</button>{connection && <p className="text-sm">{connection}</p>}
-        {detail && <button disabled={uploadBusy || !detail.tasks.length} onClick={() => setQuickRevision(task?.revision_id || detail.tasks[0].revision_id)}>Quick submit</button>}
+        {!headerAction && quickSubmit}
       </section>
       {detail && <>
         {submissionId && <SubmissionDetail key={submissionId} labId={detail.id} submissionId={submissionId} visible={!!detail.results_visible} refreshKey={detail.server_time} />}

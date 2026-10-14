@@ -54,6 +54,7 @@ function Screen() {
   return <div className="min-h-screen bg-slate-100 text-slate-900">
     <header className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-slate-300 bg-white px-6 py-3">
       <strong>cJudge</strong>{session && <div className="flex items-center gap-3"><span>{session.name}{session.roll_number && ` · Roll number: ${session.roll_number}`}</span>
+        {session.role === "student" && <span id="student-header-action" />}
         <button onClick={logout}>Log out</button></div>}
     </header>
     <main className="mx-auto max-w-6xl p-6">

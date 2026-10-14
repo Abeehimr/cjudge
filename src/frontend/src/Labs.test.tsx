@@ -83,6 +83,16 @@ test('bound student task deep link restores statement and upload without enterin
   expect(fetchMock.mock.calls.some(([path]) => path.endsWith('/enter'))).toBe(false);
 });
 
+test('quick submit appears immediately before logout in student header', async () => {
+  live();
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path === '/api/labs' ? [summary] : materials })));
+  render(<header><span id="student-header-action" /><button>Log out</button></header>);
+  renderRoute(<StudentLabs csrf="csrf" />, '/labs/lab');
+  const quick = await screen.findByRole('button', { name: 'Quick submit' });
+  expect(quick.parentElement?.nextElementSibling).toBe(screen.getByRole('button', { name: 'Log out' }));
+});
+
 test('quick submit shares the selected file, blocks closing during upload, and opens all history after acceptance', async () => {
   live(); dialogs(); let finish!: (response: object) => void;
   const current = { ...materials, admission: { allowed: true, reason: '', code: '', pending: 0, retry_at: null, server_time: summary.server_time } };
