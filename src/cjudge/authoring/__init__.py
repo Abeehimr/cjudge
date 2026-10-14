@@ -157,18 +157,18 @@ def fail(conn: sa.Connection, key: UUID, diagnostic: str, *, expired: bool = Fal
 def run_case(job: dict) -> dict:
     config = GenerationConfig.model_validate(job['config'])
     # Protected compile cache survives case-level yielding and worker restarts.
-    def binary(part: str, source: str) -> bytes:
+    def binary(part: str, source: str, language: str) -> bytes:
         path = artifact_path(job['id'], job['id'], part)
         if path.exists():
             return read(job['id'], job['id'], part, 10 * 1024 * 1024)
-        content = compile_source(source, part)
+        content = compile_source(source, part, language)
         try:
             save(job['id'], job['id'], part, content)
         except FileExistsError:
             return read(job['id'], job['id'], part, 10 * 1024 * 1024)
         return content
-    reference = binary('reference', config.reference)
-    generator = binary('generator', config.generator) if config.language == 'c' else None
+    reference = binary('reference', config.reference, config.reference_language)
+    generator = binary('generator', config.generator, config.language) if config.language != 'python' else None
     seed = config.seed + job['progress']
     input_bytes, answer = generate_case(config, seed, reference, generator)
     key = uuid4()

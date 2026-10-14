@@ -23,6 +23,8 @@ ORIGIN = 'https://localhost:8443'
 
 @pytest.fixture
 def ta_database(monkeypatch):
+    if not os.getenv('CJUDGE_TA_GATE_URL'):
+        pytest.skip('requires PostgreSQL for a disposable database')
     name = 'm23_' + uuid4().hex[:12]
     base = sa.engine.make_url(os.environ['CJUDGE_TA_GATE_URL'])
     server = sa.create_engine(base, isolation_level='AUTOCOMMIT')

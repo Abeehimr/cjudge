@@ -25,7 +25,7 @@ def test_task_bundle_round_trip():
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
         assert archive.namelist() == ['manifest.json', 'cases/1.in', 'cases/1.out', 'cases/2.in', 'cases/2.out']
         manifest = json.loads(archive.read('manifest.json'))
-        assert manifest['format'] == 'cjudge-task' and manifest['version'] == 1
+        assert manifest['format'] == 'cjudge-task' and manifest['version'] == 2
         assert manifest['case_count'] == 2 and 'maximum_marks' not in manifest['config']
     restored, cases = parse(payload)
     assert restored['statement'] == config['statement']
@@ -36,7 +36,7 @@ def test_task_bundle_round_trip():
 
 
 @pytest.mark.parametrize('change', [
-    lambda m, e: m.update(version=2),
+    lambda m, e: m.update(version=3),
     lambda m, e: m.update(case_count=2),
     lambda m, e: m.update(config={'title': 'Bad', 'checker': {'kind': 'python', 'source': ''}}),
     lambda m, e: m.update(config={'title': 'Bad', 'maximum_marks': 5}),
@@ -70,3 +70,14 @@ def test_reject_large_expansion_and_unknown_type():
     with pytest.raises(ValueError):
         parse(output.getvalue())
     assert parse(make_zip([('manifest.json', manifest), ('cases/1.in', b''), ('cases/1.out', b'')]))[1] == [(b'', b'')]
+
+
+def test_task_language_bundle_versions():
+    config, _ = parse(make_zip([('manifest.json', json.dumps({'format': 'cjudge-task', 'version': 1,
+        'config': {'title': 'Legacy'}, 'case_count': 1})), ('cases/1.in', b''), ('cases/1.out', b'')]))
+    assert config['languages'] == ['c11']
+    assert parse(build({'title': 'CPP', 'languages': ['cpp17']}, [(b'', b'')]))[0]['languages'] == ['cpp17']
+    with pytest.raises(ValueError, match='v1 supports only C11'):
+        parse(make_zip([('manifest.json', json.dumps({'format': 'cjudge-task', 'version': 1,
+            'config': {'title': 'CPP', 'languages': ['cpp17']}, 'case_count': 1})),
+            ('cases/1.in', b''), ('cases/1.out', b'')]))

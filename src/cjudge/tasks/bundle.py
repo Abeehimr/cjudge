@@ -25,7 +25,7 @@ class Manifest(BaseModel):
 
 def build(config: dict, cases: list[tuple[bytes, bytes]]) -> bytes:
     validate_cases(cases)
-    manifest = Manifest(format='cjudge-task', version=1,
+    manifest = Manifest(format='cjudge-task', version=2,
         config=TaskConfig.model_validate(config), case_count=len(cases))
     metadata = manifest.model_dump_json(exclude={'config': {'maximum_marks'}}).encode()
     if len(metadata) > MANIFEST_LIMIT:
@@ -77,8 +77,10 @@ def parse(payload: bytes) -> tuple[dict, list[tuple[bytes, bytes]]]:
             if 'maximum_marks' in manifest_data['config']:
                 raise ValueError('Task ZIP must not contain lab marks')
             manifest = Manifest.model_validate(manifest_data)
-            if manifest.format != 'cjudge-task' or manifest.version != 1:
+            if manifest.format != 'cjudge-task' or manifest.version not in (1, 2):
                 raise ValueError('Unsupported task ZIP format/version')
+            if manifest.version == 1 and manifest.config.languages != ['c11']:
+                raise ValueError('Task ZIP v1 supports only C11')
             expected = {f'cases/{number}.{part}' for number in range(1, manifest.case_count + 1)
                         for part in ('in', 'out')}
             if files.keys() != expected:

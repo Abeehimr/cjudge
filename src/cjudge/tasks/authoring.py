@@ -9,7 +9,8 @@ from cjudge import runner
 
 class GenerationConfig(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    language: Literal['python', 'c'] = 'python'
+    language: Literal['python', 'c', 'cpp'] = 'python'
+    reference_language: Literal['c', 'cpp'] = 'c'
     generator: str = Field(min_length=1, max_length=65536)
     reference: str = Field(min_length=1, max_length=65536)
     seed: int = Field(default=0, ge=0, le=2**63 - 1, strict=True)
@@ -67,8 +68,8 @@ class AuthoringError(ValueError):
     """Confirmed teacher program failure, not a retryable infrastructure failure."""
 
 
-def compile_source(source: str, label: str) -> bytes:
-    result = runner.compile_c(source.encode())
+def compile_source(source: str, label: str, language: str = 'c') -> bytes:
+    result = runner.compile_source(source.encode(), 'cpp17' if language == 'cpp' else 'c11')
     if result.verdict != 'OK':
         raise AuthoringError(f'{label} compile error: ' + result.stderr.decode('utf-8', errors='replace'))
     return result.executable
