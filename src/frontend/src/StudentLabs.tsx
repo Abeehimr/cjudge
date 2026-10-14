@@ -124,7 +124,7 @@ export function StudentLabs({ csrf }: { csrf: string }) {
         {task && <section className="space-y-3 rounded border bg-white p-4"><h2 className="text-lg font-semibold">{task.position}. {task.title} · {task.maximum_marks} marks</h2>
           {task.revision_id !== revisionId && <p className="notice notice-warning">Task corrected. New uploads use the current revision; unconfirmed uploads retain their original retry key.</p>}
           <p>CPU {task.cpu_seconds}s · Wall {task.wall_seconds}s · Memory {task.memory_mib} MiB · Stack {task.stack_mib} MiB</p>
-          {!!task.banned_identifiers?.length && <p className="notice notice-warning">Banned identifiers: {task.banned_identifiers.join(", ")}</p>}
+          {!!task.banned_identifiers?.length && <p className="notice notice-warning text-lg font-semibold">Banned identifiers: <strong className="text-red-900">{task.banned_identifiers.join(", ")}</strong></p>}
           <Statement text={task.statement} />
           <nav aria-label="Task navigation" className="flex flex-wrap gap-3">{detail.tasks.map((item) => <NavLink key={item.revision_id} className="nav-link" to={`/labs/${detail.id}/tasks/${item.revision_id}`}>{item.position}. {item.title}</NavLink>)}</nav>
         </section>}

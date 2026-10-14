@@ -22,7 +22,7 @@ function Summary({ config }: { config: Config }) {
     <p>Checker: {c.kind}; {c.kind === "exact" ? (c.ignore_final_newline ? "ignore one final LF/CRLF" : "all bytes must match")
       : c.kind === "python" ? "Python helpers; explicit accept/reject" : `${c.ignore_case ? "ASCII case-insensitive" : "case-sensitive"}; absolute tolerance ${c.absolute_tolerance}; relative tolerance ${c.relative_tolerance}`}</p>
     <p>CPU {config.cpu_seconds}s · Wall {config.wall_seconds}s · Memory {config.memory_mib} MiB · Stack {config.stack_mib} MiB · Output {config.stdout_mib} MiB</p>
-    {!!config.banned_identifiers?.length && <p>Banned identifiers: {config.banned_identifiers.join(", ")}</p>}
+    {!!config.banned_identifiers?.length && <p className="text-lg font-semibold">Banned identifiers: <strong className="text-red-900">{config.banned_identifiers.join(", ")}</strong></p>}
     {c.kind === "python" && <pre className="max-h-64 overflow-auto whitespace-pre-wrap border p-2">{c.source}</pre>}
     <Statement text={config.statement} />
   </div>;

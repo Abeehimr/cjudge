@@ -77,5 +77,5 @@ test("optional banned identifiers save on draft and appear in review", async () 
   expect(fetchMock.mock.calls.some(([path, options]) => path === "/api/admin/tasks/task" && options?.method === "PUT" &&
     JSON.parse(String(options.body)).config.banned_identifiers.join(",") === "printf,scanf")).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Review draft" }));
-  expect(await screen.findByText("Banned identifiers: printf, scanf")).toBeTruthy();
+  expect((await screen.findByText("printf, scanf")).className).toContain("text-red-900");
 });
