@@ -28,7 +28,7 @@ Deferred: languages beyond C/C++, multiple admins, individual extensions, weight
 - Admin may freeze/unfreeze new submissions per student and lab with an audit reason; retain materials access and prior accepted work. Unfreezing adds no time.
 - Admin posts plain-text announcements; enrolled students can read public and their own private history after start. Lab time, PDF, problem, rejudge and result changes automatically announce the action and any supplied reason. Individual submission, freeze and binding actions notify only the affected student; admins see every notice and its audience.
 - Use a common server-authoritative deadline. Allow whole-lab extensions and reopening before first release; never reopen after release, even if results are hidden again.
-- Until M16, prevent overlapping labs globally. M16 replaces this with per-student overlap checks for enrollment and all schedule changes; see the planned requirements below.
+- Allow overlapping lab schedules. An enrollment reserves the student until first results release or pre-start unenrollment.
 - Accept one `.c` (C11) or `.cpp` (C++17) file up to 64 KiB in a permitted task language only after complete upload, validation, and durable acceptance strictly before the deadline. Queued judging may finish afterward.
 - Save each accepted submission's client IP and MAC address when available from a trusted LAN source. Admin review shows these values and flags changes across a student's submissions within the lab as possible PC switches, not proof. Missing MAC values display as unavailable and do not block submission.
 - Enforce a 30-second cooldown across tasks and at most three pending submissions per student. Rejudge jobs do not consume upload slots.
@@ -110,8 +110,9 @@ M11–M15 are implemented; M16 remains planned. M17–M27 are specified below. E
 
 ### M16 — Concurrent Labs
 
-- Allow concurrent labs with disjoint rosters and historical/non-overlapping enrollment for a student. Enforce conflicts during manual/CSV enrollment, scheduling, start-now, extensions, and reopening. Adjacent schedules are allowed.
-- Reject conflicts with the student and conflicting lab/time identified. Draft enrollments are checked when scheduled; cancelled/deactivated students retain their enrollment reservations.
+- Allow concurrent labs with disjoint unreleased rosters. Draft, Scheduled, Running, and Ended enrollments reserve students until first results release; hiding results does not restore reservations. Cancelled, frozen, and inactive students remain reserved. Historical enrollment and browser binding remain intact.
+- Allow enrollment until first results release, including after the deadline without extra submission time. Manual conflicts fail; CSV enrolls available students and reports skipped students with the conflicting lab. Pre-start unenrollment frees the student. Removing the last student from a Scheduled lab returns it to Draft and clears its schedule.
+- Warn and require acknowledgment when releasing tests reused by Scheduled or Running labs.
 - Share the existing sandbox pool and fair queue. No configured lab-count limit; the performance baseline remains 150 concurrent users total, not a product enrollment cap. Higher capacity remains unverified.
 
 ## Planned Improvements — M17–M27

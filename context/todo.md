@@ -170,12 +170,12 @@ Evidence: 34 backend tests, 60 frontend tests and build, disposable-database mar
 
 ## M16 — Concurrent Labs · requires M4, M5, M8
 
-- [ ] Replace global schedule exclusion with transaction-safe per-student conflicts.
-- [ ] Cover enrollment/import, scheduling, start-now, extensions, and reopening; identify conflicting student/lab/time.
-- [ ] Allow adjacent schedules and disjoint concurrent rosters; retain cancelled/deactivated enrollment reservations when those features exist.
+- [x] Replace global schedule exclusion with transaction-safe unreleased enrollment reservations; reject duplicate reservations during migration.
+- [x] Enforce manual/selected conflicts, partial CSV imports, late enrollment until first release, and pre-start removal. Return an emptied Scheduled lab to Draft.
+- [x] Warn and require acknowledgment for reused tests in Scheduled or Running labs.
 - [ ] Reuse the shared sandbox pool/fair queue; retain the 150-total-user benchmark baseline without a lab-count cap.
-- [ ] **Test:** competing enrollment/scheduling, atomic import rejection, adjacent/draft schedules, cross-lab access/disclosure, and worker fairness.
-- [ ] **Gate:** scheduling database checks and a concurrent-lab run at 150 total users pass; record measured performance and stop for review.
+- [ ] **Test:** competing enrollments, partial CSV, Draft/Ended/frozen/cancelled reservations, first release and rehidden results, schedule cancellation, cross-lab access/disclosure, and worker fairness.
+- [ ] **Gate:** disposable database and frontend checks plus a concurrent-lab run at 150 total users pass; record measured performance and stop for review.
 
 Integration when applicable: verify deactivation plus cancellation, credential resets across concurrent labs, and early-feedback/release boundaries together. Preserve the outstanding M9 physical LAN/offline gate; higher capacity remains unverified.
 

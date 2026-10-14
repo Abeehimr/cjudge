@@ -84,6 +84,10 @@ def main() -> None:
             conn.execute(sa.update(labs.labs).where(labs.labs.c.id == held['id']).values(
                 starts_at=timestamp - timedelta(hours=1), ends_at=timestamp + timedelta(hours=1)))
             assert release.reuse(conn, other['id']) == [dict(id=held['id'], title=held['title'])]
+            conn.execute(sa.update(labs.enrollments).where(labs.enrollments.c.lab_id == held['id'],
+                labs.enrollments.c.account_id == third).values(frozen=True, cancelled=True))
+            conn.execute(sa.update(identity.accounts).where(identity.accounts.c.id == third).values(active=False))
+            assert labs.reservations(conn, [third], other['id'])[third]['lab_id'] == str(held['id'])
             # First release frees reservations even if results are later hidden.
             conn.execute(sa.update(labs.labs).where(labs.labs.c.id == other['id']).values(
                 starts_at=future - timedelta(days=2), ends_at=future - timedelta(days=1)))
@@ -102,7 +106,18 @@ def main() -> None:
                 assert exc.status == 409
             else:
                 raise AssertionError('Enrollment after first release accepted')
-        print('PASS: competing enrollments, partial CSV, overlapping labs, schedule removal, release reuse')
+            keys = [uuid4() for _ in range(150)]
+            conn.execute(sa.insert(identity.accounts), [dict(id=key, role='student', name=f'Load {number}',
+                roll_number=f'LOAD{number:03}', password_hash='unused',
+                encrypted_password=identity.cipher().encrypt(b'unused')) for number, key in enumerate(keys)])
+            for number in range(3):
+                group = labs.create(conn, f'Concurrent {number + 1}', False, admin)
+                group = labs.enroll(conn, group, keys[number * 50:(number + 1) * 50], admin)
+                group = labs.set_tasks(conn, group, [{'revision_id': revision_id, 'maximum_marks': '5'}], admin)
+                labs.schedule(conn, group, future, future + timedelta(hours=1), admin)
+            assert conn.execute(sa.select(sa.func.count()).select_from(labs.enrollments).where(
+                labs.enrollments.c.account_id.in_(keys))).scalar_one() == 150
+        print('PASS: competing enrollments, partial CSV, overlapping labs, schedule removal, release reuse, 3 × 50 rosters')
     finally:
         identity.engine().dispose()
         identity.engine.cache_clear()
