@@ -181,7 +181,7 @@ Integration when applicable: verify deactivation plus cancellation, credential r
 
 ## Improvements v2 — M17–M27
 
-M17, M18, and M20 are complete; M19 code is complete pending physical network checks. M21–M27 remain planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
+M17–M26 are complete; M19 code is complete pending physical network checks. M27 remains planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
 
 ## M17 — Architecture Documentation · independent
 
@@ -274,10 +274,13 @@ Evidence: scanner unit tests, disposable PostgreSQL worker/tester/API/archival g
 
 ## M26 — C++17 Support · requires M1, M3, M5
 
-- [ ] Add revision-level C11/C++17/both allowlist; existing tasks default C11; persist explicit submission language.
-- [ ] Add sandboxed C++17 compilation and generator/reference support.
-- [ ] Extend uploads, feedback, rejudge, archive and existing tester/ZIP/restriction features when implemented.
-- [ ] **Gate:** language validation, compile errors, sandbox limits/recovery, C history compatibility, authoring and integrations.
+- [x] Add revision-level C11/C++17/both allowlist; existing tasks default C11; persist extension-derived source language.
+- [x] Add isolated g++ C++17 compilation and independent generator/reference language selection.
+- [x] Extend uploads, details/downloads, rejudge, tester, restrictions, task ZIP v2 and lab archive v5.
+- [x] Block correction narrowing for every incompatible retained submission, including deleted/cancelled evidence.
+- [x] **Gate:** migration/receipt compatibility, admission/retries, mixed tester batches, compiler errors/timeouts/recovery, authoring and frontend checks.
+
+Evidence: disposable PostgreSQL/API tests, real isolate C++17/STL and C++/Python authoring gates, real tester queue/recovery gate, existing marks/release gates, backend/frontend tests and build. Live browser acceptance remains.
 
 ## M27 — Focused UI Improvements · requires M4, M5, M15
 

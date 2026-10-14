@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15 and M17–M25 are implemented; M19 code is complete pending physical network checks. M16 and M26–M27 remain planned. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15 and M17–M26 are implemented; M19 code is complete pending physical network checks. M16 and M27 remain planned. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -15,6 +15,8 @@ M23 adds TA accounts in the same identity database and `lab_tas` assignment rows
 M24 adds TA maxima to lab assignments and student review claims with per-task earned fractions/completion flags. Authorized TA review responses include unsaved suggestions scaled from settled counted automatic results. One versioned transaction saves all filled marks; saved marks override suggestions. Lab-row locks and review versions serialize claims, saves, finalization, and admin transfers. Admin-only totals and CSV combine rounded automatic and TA marks; student responses and scoreboard remain automatic-only. Grading changes flag saved reviews for recheck and invalidate claimed drafts; TA maximum changes also invalidate claimed drafts. Archive v3 retains TA evidence; v1/v2 receipt verification remains compatible.
 
 M25 adds optional identifier lists to immutable task revisions. A bounded scanner runs in the judge worker before isolate compilation; an empty list skips scanning. Restricted runs retain a matched name/line and zero score, and tester sources use the same scanner. New archive format v4 includes that evidence; older receipts keep their original snapshot shape.
+
+M26 persists C11/C++17 source language from upload extensions. Task revision policies control admission; lab locks serialize correction narrowing with acceptance. Isolate compiles fixed GCC/g++ profiles. Authoring selects generator/reference languages independently. Task ZIP v2 transfers policy and lab archive v5 retains source language; legacy imports, artifacts and receipt snapshots remain compatible.
 
 Suggested backend boundaries: identity, tasks, labs, submissions, judging, results, and exports. Keep scoring and timing policy separate from HTTP handlers; keep sandbox management in worker-only code.
 

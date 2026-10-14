@@ -1,6 +1,6 @@
 # Improvements v2 — Agreed Plan
 
-Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M17–M25 are complete; M19 still needs physical network checks. M16 and M26–M27 remain planned. Work one module at a time with small tested commits and review at each gate.
+Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M17–M26 are complete; M19 still needs physical network checks. M16 and M27 remain planned. Work one module at a time with small tested commits and review at each gate.
 
 ## Documentation — M17
 
@@ -50,7 +50,7 @@ Maximum changes scale awarded TA marks from stored earned fractions, avoiding re
 
 Task revisions may ban exact, case-sensitive C/C++ identifier tokens, excluding comments and string literals. Scan before compilation. Retain rejected student source with **Restricted source**, zero automatic marks, matched identifier/line; do not compile/run it. Apply to judging, rejudging, and tester sources. Teaching rules have bypass limitations and are not a sandbox security boundary.
 
-Task revisions allow C11, C++17, or both; existing tasks default C11. Store explicit submission language. Add sandboxed C++17 compilation and generator/reference support; extend tester, task ZIPs, rejudge, diagnostics, and archives. Never run submitted or authoring programs directly on the host.
+Task revisions allow C11, C++17, or both; existing tasks default C11. Infer and persist language from `.c`/`.cpp`. Sandbox C++17 compilation and independent generator/reference languages; extend tester, task ZIPs, rejudge, diagnostics, and archives. Block corrections removing a language used by any retained submission. Never run submitted or authoring programs directly on the host.
 
 ## UI — M27
 

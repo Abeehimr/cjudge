@@ -81,6 +81,7 @@ erDiagram
         uuid lab_id FK
         uuid account_id FK
         uuid revision_id FK
+        string language "c11 or cpp17"
     }
     judge_jobs {
         uuid submission_id PK,FK
@@ -147,6 +148,7 @@ erDiagram
     tester_sources {
         uuid id PK
         uuid batch_id FK
+        string language "c11 or cpp17"
         json restriction "nullable identifier and line"
     }
     tester_attempts {

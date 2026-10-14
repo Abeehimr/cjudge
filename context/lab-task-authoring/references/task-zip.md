@@ -1,4 +1,4 @@
-# cJudge Task ZIP v1
+# cJudge Task ZIP v2
 
 Use this format for **Import task ZIP**. The older **Replace cases from ZIP** control accepts only flat `1.in`/`1.out` pairs and does not import task settings.
 
@@ -17,11 +17,12 @@ task.zip
 ```json
 {
   "format": "cjudge-task",
-  "version": 1,
+  "version": 2,
   "config": {
     "title": "Add two integers",
     "statement": "Read two integers and print their sum.",
     "scoring": "partial",
+    "languages": ["c11"],
     "checker": {
       "kind": "tokens",
       "source": "",
@@ -47,7 +48,7 @@ To package existing case bytes in Python, use `zipfile.ZipFile(..., 'w', compres
 
 ## Generate then package
 
-The supplied [`build-task-zip.py`](../scripts/build-task-zip.py) compiles the reference C program, generates one case per consecutive seed, runs the reference on each input, and writes this ZIP. It calls cJudge's isolated authoring runner. Run it inside the standalone `judge` container with the task files mounted read-only and an output directory mounted writable:
+The supplied [`build-task-zip.py`](../scripts/build-task-zip.py) compiles the reference C/C++ program, generates one case per consecutive seed, runs the reference on each input, and writes this ZIP. It calls cJudge's isolated authoring runner. Run it inside the standalone `judge` container with the task files mounted read-only and an output directory mounted writable:
 
 ```sh
 docker compose build judge
@@ -60,5 +61,7 @@ docker compose --profile sandbox run --rm --no-deps \
   --seed 0 --count 10 --output /bundle/task.zip
 ```
 
-Replace file paths with your task files. Set `--language c` for a C generator. The Python generator reads its seed from `sys.argv[1]`; cJudge seeds `random` automatically inside the isolate. A standalone generator script run elsewhere must seed `random` itself. Generator stdout becomes case input; reference stdout becomes expected output. If compilation, generation, reference execution, or validation fails, no ZIP is written. Keep generator/reference sources separately: the ZIP contains their resulting cases, not those programs. Review case previews and check expected answers independently before import.
+Replace file paths with your task files. Set `--language c` or `--language cpp` for compiled generators; set `--reference-language cpp` for a C++17 reference (default C11). The Python generator reads its seed from `sys.argv[1]`; cJudge seeds `random` automatically inside the isolate. A standalone generator script run elsewhere must seed `random` itself. Generator stdout becomes case input; reference stdout becomes expected output. If compilation, generation, reference execution, or validation fails, no ZIP is written. Keep generator/reference sources separately: the ZIP contains their resulting cases, not those programs. Review case previews and check expected answers independently before import.
 `task-config.json` contains only the `config` object from the manifest example; the script adds `format`, `version`, and `case_count`.
+
+Use `languages: ["cpp17"]` for C++17-only tasks or `["c11", "cpp17"]` for both. Legacy v1 ZIPs remain importable as C11; they cannot declare C++17.

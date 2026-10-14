@@ -1,6 +1,6 @@
 # cJudge Student Guide
 
-**During the lab:** sign in → enter your lab → read a task → upload C source → check acceptance and status → log out.
+**During the lab:** sign in → enter your lab → read a task → upload source → check acceptance and status → log out.
 
 ## 1. Sign in
 
@@ -34,7 +34,7 @@ Archived labs are hidden and cannot be reopened from saved links. Ask admin if y
 
 1. Check **Time remaining** and announcements on **Overview**. **Only you** means a private notice.
 2. Download **Lab PDFs**; one PDF may cover several tasks.
-3. Click a task; read its statement, resource limits, and any restricted identifiers. Use task links to switch tasks.
+3. Click a task; read its permitted languages, statement, resource limits, and any restricted identifiers. Use task links to switch tasks.
 
 Watch for extensions/corrections. Use **Refresh lab** if information appears stale.
 
@@ -44,8 +44,8 @@ Watch for extensions/corrections. Use **Refresh lab** if information appears sta
 
 ## 4. Submit your program
 
-1. Save C source in your editor; upload neither an executable nor ZIP.
-2. On the correct task, under **Submit C source**, select a nonempty `.c` file, maximum **64 KiB**, named plainly, e.g. `main.c`.
+1. Save source in your editor; upload neither an executable nor ZIP.
+2. On the correct task, select a nonempty source file, maximum **64 KiB**, with a plain name. Use `.c` for C11 or `.cpp` for C++17; the task must allow that language.
 3. Check **Selected: main.c**; click **Submit**.
 4. Wait for **Accepted … at …** and a history row. Acceptance means saved, not passed.
 

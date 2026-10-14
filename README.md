@@ -1,6 +1,6 @@
 # cJudge
 
-Offline C lab judge. M0–M4 provide HTTPS, isolation, accounts, tasks, and labs. M5 adds durable C submissions, fair asynchronous judging, a configurable sandbox pool, and an admin Isolates panel. M6 adds official marks, audited deletion/restoration, rejudge history, and atomic task corrections. M7 adds sandboxed Python/C test generation and Python checkers. M8 adds Stop now, release-gated student details, CSV sheets, verified ZIP archives, and guarded permanent deletion.
+Offline C/C++ lab judge. M0–M4 provide HTTPS, isolation, accounts, tasks, and labs. M5 adds durable submissions, fair asynchronous judging, a configurable sandbox pool, and an admin Isolates panel. M6 adds official marks, audited deletion/restoration, rejudge history, and atomic task corrections. M7 adds sandboxed test generation and Python checkers. M8 adds Stop now, release-gated student details, CSV sheets, verified ZIP archives, and guarded permanent deletion. M26 adds C++17 and independent generator/reference languages.
 
 ## Repository layout
 
@@ -202,7 +202,7 @@ Rebuild API/web/worker, stop API/worker, run `docker compose run --rm api alembi
 
 Admin → Task Library → draft: select Python checker and save source. `read_input()`, `read_output()`, `read_answer()` return bytes; call `accept()` or `reject()`. Print output, exceptions, missing verdicts, and resource failures block judging instead of awarding zero. Review shows the retained checker source; publication freezes it.
 
-In Generate cases, paste Python/C generator and reference C source, choose starting seed/count, and start generation. Each invocation receives seed in `argv[1]`; Python `random` is seeded automatically. Generator stdout is reference stdin; reference stdout is the answer. Keep author programs deterministic. Sources/configuration, seeds, SHA-256 hashes, diagnostics, and checkpoints are retained. Sources are bounded to 64 KiB, inputs/answers to 1 MiB each, combined cases to 16 MiB.
+In Generate cases, choose Python/C11/C++17 for the generator and C11/C++17 for the reference, paste sources, choose starting seed/count, and start generation. Each invocation receives seed in `argv[1]`; Python `random` is seeded automatically. Generator stdout is reference stdin; reference stdout is the answer. Keep author programs deterministic. Sources/configuration, seeds, SHA-256 hashes, diagnostics, and checkpoints are retained. Sources are bounded to 64 KiB, inputs/answers to 1 MiB each, combined cases to 16 MiB.
 
 Review generated input/answer previews, then Apply reviewed cases to append to existing draft cases. Publish separately. Editing the draft during generation prevents applying stale results; discard and generate again. One unresolved job per task; failed jobs support retry/discard. Existing manually reviewed cases remain publishable while generation runs. Applied/discarded evidence stays retained; automatic authoring-file cleanup is not implemented.
 
@@ -318,3 +318,11 @@ Apply migration `20261013_ta_reviews` before restarting the API. Admin → Lab �
 Apply migration `20261014_source_restrictions` before restarting API and worker images. Admin → Tasks accepts up to 100 distinct, case-sensitive ASCII identifiers, one per line, on each draft. Publishing fixes the list for that revision; an empty list skips scanning. The judge and admin tester scan submitted C source before compilation. The first banned identifier gives **Restricted source**, its name and line, zero automatic marks, and no execution. Students see the list on the task page and the rejection reason even when compiler feedback is disabled. The scanner reads direct source tokens; macro expansion and token pasting can bypass this teaching rule. New archives use format v4 and preserve older receipt verification.
 
 Run the disposable database gate with `docker compose run --rm -v ./tests:/app/tests:ro api python tests/ta_review_gate.py`. Run API contract tests with the project development dependencies and a disposable PostgreSQL server. See [TA guide](docs/guides/ta.md).
+
+## M26 C++17 Support
+
+Rebuild API/web/worker/judge images, stop API/worker, apply migration `20261014_cpp17`, then restart services. Existing records and tasks default to C11. In Task Library → Edit draft, select C11, C++17, or both under **Permitted languages** and publish. Student uploads select the compiler by extension: `.c` or `.cpp`; source remains limited to 64 KiB. Tester ZIPs may mix both only when permitted. Language appears in submission/tester details and remains fixed through retries and rejudging. Corrections cannot remove a language used by any retained submission, including deleted/cancelled evidence.
+
+Generators independently support Python/C11/C++17; references support C11/C++17. GCC/g++ run inside isolate with the existing compiler limits (CPU 10 s, wall 30 s, 512 MiB). Task exports now use ZIP v2; v1 imports remain C11. Lab archives use v5 with correct source extensions and preserve v1–v4 receipt verification. Updated [task-authoring skill](context/lab-task-authoring/SKILL.md) and [ZIP builder](context/lab-task-authoring/references/task-zip.md) cover both languages.
+
+Run `docker compose run --rm judge python tests/cpp17_gate.py` for real isolated C++17 checks, and `docker compose run --rm -v ./migrations:/app/migrations:ro -v ./alembic.ini:/app/alembic.ini:ro worker python tests/tester_gate.py --sandbox --cpp` for its disposable-database tester gate. API contracts are `tests/test_cpp17_api.py` with development dependencies and `CJUDGE_TA_GATE_URL` pointing to PostgreSQL where temporary databases may be created.
