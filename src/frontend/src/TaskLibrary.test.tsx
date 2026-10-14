@@ -57,3 +57,25 @@ test("admin creates draft, adds case, reviews and publishes once", async () => {
     body: JSON.stringify({ version: 2 }),
   }));
 });
+
+test("optional banned identifiers save on draft and appear in review", async () => {
+  vi.stubGlobal("EventSource", class extends EventTarget { close = vi.fn(); });
+  let config = { title: "No printf", statement: "", scoring: "partial", banned_identifiers: [] as string[],
+    checker: { kind: "exact", ignore_final_newline: false, ignore_case: false, absolute_tolerance: "0", relative_tolerance: "0" },
+    cpu_seconds: 2, wall_seconds: 6, memory_mib: 256, stack_mib: 8, stdout_mib: 10 };
+  const fetchMock = vi.fn(async (path: string, options?: RequestInit) => {
+    if (path === "/api/admin/tasks/task" && options?.method === "PUT") config = JSON.parse(String(options.body)).config;
+    return { ok: true, status: 200, json: async () => path.endsWith("/generation") ? null :
+      { id: "task", version: 1, config, case_count: 0, cases: [], revisions: [] } };
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  renderRoute(<TaskLibrary csrf="csrf" />, "/admin/tasks/task");
+  fireEvent.change(await screen.findByLabelText("Banned identifiers (optional, one per line)"),
+    { target: { value: "printf\nscanf\n" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  expect(await screen.findByText("Draft saved.")).toBeTruthy();
+  expect(fetchMock.mock.calls.some(([path, options]) => path === "/api/admin/tasks/task" && options?.method === "PUT" &&
+    JSON.parse(String(options.body)).config.banned_identifiers.join(",") === "printf,scanf")).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Review draft" }));
+  expect(await screen.findByText("Banned identifiers: printf, scanf")).toBeTruthy();
+});

@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api } from "./api";
 import { useAdminEvents } from "./Isolates";
+import RestrictionNotice, { type Restriction } from "./RestrictionNotice";
 
 type Source = { id: string; filename: string; state: string; progress: number; passed: number;
-  total: number; verdict: string; percentage: number | null; compiler_feedback: string;
+  total: number; verdict: string; percentage: number | null; restriction?: Restriction; compiler_feedback: string;
   compiler_truncated: boolean; diagnostic: string };
 type Batch = { id: string; revision_id: string; created_at: string; sources: Source[] };
 type Case = { number: number; verdict: string; cpu_seconds: number; wall_seconds: number; memory_kib: number };
@@ -116,6 +117,7 @@ export default function TaskTester({ csrf }: { csrf: string }) {
     {detail && <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">{detail.source.filename}</h2>
       <p><span className="case-result rounded border px-1" data-verdict={detail.source.verdict}>{detail.source.verdict}</span> · {detail.source.passed}/{detail.source.total} passed
         {detail.source.percentage !== null && ` · ${detail.source.percentage}%`}</p>
+      <RestrictionNotice restriction={detail.source.restriction} />
       {detail.source.diagnostic && <p role="alert" className="notice notice-danger">{detail.source.diagnostic}</p>}
       <details><summary>Source code</summary><pre className="max-h-96 overflow-auto whitespace-pre-wrap break-all text-sm">{detail.code}</pre></details>
       {(detail.source.compiler_feedback || detail.source.compiler_truncated) && <details><summary>Compiler feedback{detail.source.compiler_truncated ? " (truncated)" : ""}</summary>

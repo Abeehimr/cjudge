@@ -3,9 +3,10 @@ import { Link, useSearchParams } from "react-router";
 import { api } from "./api";
 import { useAdminEvents } from "./Isolates";
 import { useOffset, useUnsaved } from "./navigation";
+import RestrictionNotice, { type Restriction } from "./RestrictionNotice";
 
 type Submission = { id: string; revision_id: string; filename: string; accepted_at: string; status: string;
-  compiler_feedback: string | null; compiler_truncated: boolean; best_for_review?: boolean };
+  compiler_feedback: string | null; compiler_truncated: boolean; restriction?: Restriction; best_for_review?: boolean };
 type AdminSubmission = Submission & { account_id: string; roll_number: string; name: string; attempt_count: number; fault: string | null;
   client_ip: string; client_mac: string | null; passed: number | null; total: number | null; marks: string | null; maximum_marks: string | null;
   deleted_at: string | null; delete_reason: string | null; rejudge_status: string | null; ip_changed: boolean; mac_changed: boolean };
@@ -76,7 +77,7 @@ export function AdminSubmissions({ labId, csrf, tasks, students, accountId, revi
           {row.deleted_at && <p className="text-red-800">Deleted · {row.delete_reason}</p>}
           {row.marks != null && <p>Passed tests: {row.passed}/{row.total} · Marks: {row.marks}{' '}<strong>/</strong>{' '}{row.maximum_marks}</p>}
           {row.rejudge_status && <p className="text-amber-800">Rejudge: {row.rejudge_status}</p>}
-          {row.compiler_feedback && <details><summary>Compiler feedback</summary><pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></details>}
+          <RestrictionNotice restriction={row.restriction} />{row.compiler_feedback && <details><summary>Compiler feedback</summary><pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></details>}
           {row.compiler_truncated && <p>Compiler feedback truncated.</p>}</td>
         <td>{row.attempt_count}</td><td>{row.client_ip}<br />{row.client_mac || "MAC unavailable"}{(row.ip_changed || row.mac_changed) && <p className="text-amber-800">Possible PC switch · {row.ip_changed && 'IP changed'}{row.ip_changed && row.mac_changed && ', '}{row.mac_changed && 'MAC changed'}</p>}</td><td>{row.fault || "—"}
           {(row.status === "Judging delayed" || row.rejudge_status === 'delayed') && <button onClick={() => { void retry(row); }}>Retry judging</button>}</td></tr>)}</tbody>
@@ -138,7 +139,7 @@ export function AdminSubmissionDetail({ labId, submissionId, csrf, released, arc
       <h3 className="font-semibold">Source: {row.filename} ({row.size} bytes)</h3>
       <a download href={`/api/admin/labs/${labId}/submissions/${row.id}/source`}>Download original source</a>
       <pre className="overflow-x-auto rounded border bg-slate-50 p-3"><code>{row.source}</code></pre>
-      {row.compiler_feedback && <><h3 className="font-semibold">Compiler feedback</h3><pre className="overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></>}
+      <RestrictionNotice restriction={row.restriction} />{row.compiler_feedback && <><h3 className="font-semibold">Compiler feedback</h3><pre className="overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre></>}
       {row.compiler_truncated && <p>Compiler feedback truncated.</p>}
       <h3 className="font-semibold">Case results</h3>
       {!row.cases.length && <p>No case results available.</p>}

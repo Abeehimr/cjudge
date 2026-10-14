@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "./api";
+import RestrictionNotice, { type Restriction } from "./RestrictionNotice";
 
 type Case = { number: number; verdict: string; cpu_seconds: number; wall_seconds: number; memory_kib: number;
   stdin: string | null; expected: string | null; stdout: string | null; stderr: string | null;
   stdin_truncated: boolean; expected_truncated: boolean; stdout_truncated: boolean; stderr_truncated: boolean };
 type Detail = { id: string; task_title: string; filename: string; source: string; status: string; accepted_at: string;
   marks: string | null; maximum_marks: string | null; official_marks: string | null; passed: number | null; total: number | null; grading_pending: boolean;
-  deleted_at: string | null; delete_reason: string | null; official_run_id: string | null; compiler_feedback: string | null; compiler_truncated: boolean;
+  deleted_at: string | null; delete_reason: string | null; official_run_id: string | null; compiler_feedback: string | null; compiler_truncated: boolean; restriction?: Restriction;
   history: { id: string; verdict: string; finished_at: string }[]; cases: Case[] };
 
 export default function SubmissionDetail({ labId, submissionId, visible, refreshKey, basePath }: {
@@ -33,6 +34,7 @@ export default function SubmissionDetail({ labId, submissionId, visible, refresh
     {!row && !error && <p>Loading submission…</p>}
     {row && <><h3 className="font-semibold">Question: {row.task_title}</h3>
       <p><span className="submission-status" data-status={row.status}>{row.status}</span> · Accepted {new Date(row.accepted_at).toLocaleString()}</p>
+      <RestrictionNotice restriction={row.restriction} />
       {row.deleted_at && <p className="notice notice-danger">Deleted · {row.delete_reason} · Excluded from lab marks.</p>}
       <p>Official marks: {row.official_marks ?? "Pending"}</p>
       {row.grading_pending && <p className="notice notice-warning">Grading in progress. Previous official marks remain visible.</p>}

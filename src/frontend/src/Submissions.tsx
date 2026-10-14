@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "./api";
 import { useOffset } from "./navigation";
+import RestrictionNotice, { type Restriction } from "./RestrictionNotice";
 
 type Submission = { id: string; revision_id: string; filename: string; accepted_at: string; status: string;
-  compiler_feedback: string | null; compiler_truncated: boolean; best_for_review?: boolean; deleted_at?: string | null; delete_reason?: string | null;
+  compiler_feedback: string | null; compiler_truncated: boolean; restriction?: Restriction; best_for_review?: boolean; deleted_at?: string | null; delete_reason?: string | null;
   early_feedback?: { passed: number; total: number; marks: string; maximum_marks: string; provisional: boolean } | null };
 type Admission = { allowed: boolean; reason: string; code: string; pending: number; retry_at: string | null; server_time: string };
 type Task = { revision_id: string; title: string };
@@ -16,7 +17,7 @@ function History({ rows, tasks, labId, visible, earlyFeedback }: { rows: Submiss
   </tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-t align-top" data-best={visible && row.best_for_review || undefined} data-deleted={!!row.deleted_at || undefined}>
     <td>{new Date(row.accepted_at).toLocaleString()}</td><td><Link to={`/labs/${labId}/tasks/${row.revision_id}`}>{tasks.find((task) => task.revision_id === row.revision_id)?.title || row.revision_id}</Link></td>
     <td>{visible ? <Link to={`/labs/${labId}/submissions/${row.id}`}>{row.filename}</Link> : row.filename}{visible && row.best_for_review && <span className="block text-green-800">Best for review</span>}</td><td><span className="submission-status" data-status={row.status}>{row.status}</span>{row.deleted_at && <p className="text-red-800">Deleted · {row.delete_reason} · Excluded from marks</p>}{(earlyFeedback || visible) && row.early_feedback && <p>Passed tests: {row.early_feedback.passed}/{row.early_feedback.total} · Marks: {row.early_feedback.marks}{' '}<strong>/</strong>{' '}{row.early_feedback.maximum_marks}{row.early_feedback.provisional && ' · Provisional during rejudge'}</p>}{earlyFeedback && !row.early_feedback && ['Queued', 'Judging', 'Judging delayed'].includes(row.status) && <p>Passed tests: Pending</p>}{row.compiler_feedback && <pre className="max-w-xl overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre>}
-      {row.compiler_truncated && <p>Compiler feedback truncated.</p>}</td>
+      <RestrictionNotice restriction={row.restriction} />{row.compiler_truncated && <p>Compiler feedback truncated.</p>}</td>
   </tr>)}</tbody></table>{!rows.length && <p>No submissions.</p>}</div>;
 }
 

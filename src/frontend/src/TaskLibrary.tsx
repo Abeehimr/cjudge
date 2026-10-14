@@ -8,7 +8,7 @@ import { NotFound, useOffset, useUnsaved } from "./navigation";
 type Checker = { kind: "exact" | "tokens" | "python"; source?: string; ignore_final_newline: boolean; ignore_case: boolean;
   absolute_tolerance: string; relative_tolerance: string };
 type Config = { title: string; statement: string; scoring: "partial" | "all_or_nothing";
-  checker: Checker; cpu_seconds: number; wall_seconds: number; memory_mib: number; stack_mib: number; stdout_mib: number };
+  checker: Checker; banned_identifiers?: string[]; cpu_seconds: number; wall_seconds: number; memory_mib: number; stack_mib: number; stdout_mib: number };
 type Case = { number: number; input_bytes: number; answer_bytes: number };
 type Revision = { id: string; number: number; draft_version: number; created_at: string };
 type Task = { id: string; version: number; config: Config; case_count: number };
@@ -22,6 +22,7 @@ function Summary({ config }: { config: Config }) {
     <p>Checker: {c.kind}; {c.kind === "exact" ? (c.ignore_final_newline ? "ignore one final LF/CRLF" : "all bytes must match")
       : c.kind === "python" ? "Python helpers; explicit accept/reject" : `${c.ignore_case ? "ASCII case-insensitive" : "case-sensitive"}; absolute tolerance ${c.absolute_tolerance}; relative tolerance ${c.relative_tolerance}`}</p>
     <p>CPU {config.cpu_seconds}s · Wall {config.wall_seconds}s · Memory {config.memory_mib} MiB · Stack {config.stack_mib} MiB · Output {config.stdout_mib} MiB</p>
+    {!!config.banned_identifiers?.length && <p>Banned identifiers: {config.banned_identifiers.join(", ")}</p>}
     {c.kind === "python" && <pre className="max-h-64 overflow-auto whitespace-pre-wrap border p-2">{c.source}</pre>}
     <Statement text={config.statement} />
   </div>;
@@ -50,7 +51,8 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
   function showError(text: string) { setMessageError(true); setMessageText(text); }
   const [busy, setBusy] = useState(false);
   const [generationDirty, setGenerationDirty] = useState(false);
-  const dirty = !!draft && JSON.stringify(config) !== JSON.stringify(draft.config);
+  const [restrictionText, setRestrictionText] = useState("");
+  const dirty = !!draft && (JSON.stringify(config) !== JSON.stringify(draft.config) || restrictionText !== (draft.config.banned_identifiers || []).join("\n"));
 
   useUnsaved(generationDirty || dirty || !!input || !!answer || !!title, true);
   useEffect(() => { if (created) { navigate(`/admin/tasks/${created}`); setCreated(null); } }, [created]);
@@ -81,6 +83,7 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
   }
   function accept(next: Detail) {
     setDraft(next); setConfig(next.config); setPublished(null); setReview(false); setPreview(null);
+    setRestrictionText((next.config.banned_identifiers || []).join("\n"));
   }
   function change<K extends keyof Config>(key: K, value: Config[K]) {
     setConfig((current) => current && { ...current, [key]: value });
@@ -103,7 +106,8 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
   async function save(event: FormEvent) {
     event.preventDefault();
     await perform(async () => {
-      accept(await api<Detail>(`/admin/tasks/${draft!.id}`, { method: "PUT", body: JSON.stringify({ version: draft!.version, config }) }, csrf));
+      accept(await api<Detail>(`/admin/tasks/${draft!.id}`, { method: "PUT", body: JSON.stringify({ version: draft!.version,
+        config: { ...config, banned_identifiers: restrictionText.split(/\r?\n/).map((name) => name.trim()).filter(Boolean) } }) }, csrf));
       await refresh(); setMessage("Draft saved.");
     });
   }
@@ -192,6 +196,8 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
           <label className="block">Statement (optional Markdown)<textarea className="mt-1 block w-full font-mono" rows={6} maxLength={65536}
             value={config.statement} onChange={(e) => change("statement", e.target.value)} /></label>
           <Statement text={config.statement} />
+          <label className="block">Banned identifiers (optional, one per line)<textarea className="mt-1 block w-full font-mono" rows={4}
+            value={restrictionText} onChange={(event) => setRestrictionText(event.target.value)} /></label>
           <div className="flex flex-wrap gap-3">
             <label>Scoring <select value={config.scoring} onChange={(e) => change("scoring", e.target.value as Config["scoring"])}>
               <option value="partial">Partial</option><option value="all_or_nothing">All or nothing</option></select></label>

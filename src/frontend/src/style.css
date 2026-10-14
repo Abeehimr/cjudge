@@ -58,6 +58,7 @@ a[download] {
 .submission-status { @apply inline-block whitespace-nowrap rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700; }
 .submission-status[data-status="Passed"] { @apply border-green-200 bg-green-50 text-green-800; }
 .submission-status[data-status="Failed"],
+.submission-status[data-status="Restricted source"],
 .submission-status[data-status="Compile error"] { @apply border-red-200 bg-red-50 text-red-800; }
 .submission-status[data-status="Queued"],
 .submission-status[data-status="Partial pass"],
@@ -66,6 +67,7 @@ a[download] {
 .case-result[data-verdict="AC"] { @apply border-green-200 bg-green-50 text-green-900; }
 .case-result[data-verdict="WA"], .case-result[data-verdict="RE"] { @apply border-red-200 bg-red-50 text-red-900; }
 .case-result[data-verdict="Failed"], .case-result[data-verdict="CE"] { @apply border-red-200 bg-red-50 text-red-900; }
+.case-result[data-verdict="Restricted source"] { @apply border-red-200 bg-red-50 text-red-900; }
 .case-result[data-verdict="queued"], .case-result[data-verdict="testing"] { @apply border-blue-200 bg-blue-50 text-blue-900; }
 .case-result[data-verdict="Partial"] { @apply border-amber-200 bg-amber-50 text-amber-900; }
 .case-result[data-verdict="TLE"], .case-result[data-verdict="MLE"], .case-result[data-verdict="OLE"] { @apply border-amber-200 bg-amber-50 text-amber-900; }
