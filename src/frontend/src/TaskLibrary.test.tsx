@@ -46,6 +46,8 @@ test("admin creates draft, adds case, reviews and publishes once", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Publish reviewed draft" }));
   expect(await screen.findByText("Revision 1 published.")).toBeTruthy();
   expect(await screen.findByRole("heading", { name: "Revision 1 (read-only)" })).toBeTruthy();
+  expect((screen.getByRole("link", { name: "Export task ZIP" }) as HTMLAnchorElement).getAttribute("href"))
+    .toBe("/api/admin/tasks/task/revisions/revision/export");
   expectAbove(screen.getByRole("heading", { name: "Published revisions" }),
     screen.getByText("1 cases. Review case inputs and answers below."));
   cleanup();
@@ -55,6 +57,24 @@ test("admin creates draft, adds case, reviews and publishes once", async () => {
   expect(fetchMock).toHaveBeenCalledWith("/api/admin/tasks/task/publish", expect.objectContaining({
     headers: expect.objectContaining({ "X-CSRF-Token": "csrf" }),
     body: JSON.stringify({ version: 2 }),
+  }));
+});
+
+test("import task ZIP creates and opens a draft", async () => {
+  vi.stubGlobal("EventSource", class extends EventTarget { close = vi.fn(); });
+  const detail = { id: "imported", version: 1, case_count: 1, cases: [{ number: 1, input_bytes: 1, answer_bytes: 1 }], revisions: [],
+    config: { title: "Imported", statement: "", scoring: "partial", checker: { kind: "exact", ignore_final_newline: false,
+      ignore_case: false, absolute_tolerance: "0", relative_tolerance: "0" }, cpu_seconds: 2, wall_seconds: 6,
+      memory_mib: 256, stack_mib: 8, stdout_mib: 10 } };
+  const fetchMock = vi.fn(async (path: string) => ({ ok: true, status: path.endsWith("/import") ? 201 : 200,
+    json: async () => path.endsWith("/generation") ? null : path.includes("?offset=") ? [] : detail }));
+  vi.stubGlobal("fetch", fetchMock);
+  renderRoute(<TaskLibrary csrf="csrf" />, "/admin/tasks");
+  const file = new File(["bundle"], "task.zip", { type: "application/zip" });
+  fireEvent.change(screen.getByLabelText("Import task ZIP"), { target: { files: [file] } });
+  expect(await screen.findByText("Draft version 1")).toBeTruthy();
+  expect(fetchMock).toHaveBeenCalledWith("/api/admin/tasks/import", expect.objectContaining({
+    method: "POST", body: file, headers: expect.objectContaining({ "Content-Type": "application/zip", "X-CSRF-Token": "csrf" }),
   }));
 });
 

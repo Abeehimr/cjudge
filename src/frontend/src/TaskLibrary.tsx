@@ -103,6 +103,15 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
       setTitle(""); setCreated(result.id);
     });
   }
+  async function importBundle(file?: File) {
+    if (!file) return;
+    if (file.size > 17 * 1024 * 1024) { showError("Task ZIP exceeds 17 MiB."); return; }
+    await perform(async () => {
+      const result = await api<Detail>("/admin/tasks/import", { method: "POST", body: file,
+        headers: { "Content-Type": "application/zip" } }, csrf);
+      setCreated(result.id);
+    });
+  }
   async function save(event: FormEvent) {
     event.preventDefault();
     await perform(async () => {
@@ -159,6 +168,10 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
       <label>New task title <input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
       <button disabled={busy}>Create draft</button>
     </form>
+    <div className="rounded border bg-white p-4"><label>Import task ZIP
+      <input className="ml-2" type="file" accept=".zip,application/zip" disabled={busy} onChange={(event) => {
+        void importBundle(event.target.files?.[0]); event.target.value = "";
+      }} /></label><p className="text-sm">Creates a new draft with settings and cases. Review before publishing.</p></div>
     <div className="overflow-x-auto rounded border bg-white p-4">
       <table className="w-full text-left text-sm"><thead><tr><th>Title</th><th>Draft version</th><th>Cases</th></tr></thead>
         <tbody>{rows.map((row) => <tr className="border-t" key={row.id}>
@@ -175,6 +188,7 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-semibold">{published ? `Revision ${published.number} (read-only)` : `Draft version ${draft.version}`}</h2>
         {published && <Link to={`/admin/tasks/${draft.id}/tester?revision=${published.id}`}>Test this revision</Link>}
+        {published && <a className="underline" href={`/api/admin/tasks/${draft.id}/revisions/${published.id}/export`}>Export task ZIP</a>}
         <button disabled={busy} onClick={() => setParams({})}>Edit draft</button>
         <button disabled={busy || dirty} onClick={() => setParams({ view: "review" })}>Review draft</button>
         <button disabled={busy} onClick={() => select(draft.id)}>Reload draft</button>
