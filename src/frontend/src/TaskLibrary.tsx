@@ -187,8 +187,8 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
     {draft && config && (!revisionId || published) && <>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-semibold">{published ? `Revision ${published.number} (read-only)` : `Draft version ${draft.version}`}</h2>
-        {published && <Link to={`/admin/tasks/${draft.id}/tester?revision=${published.id}`}>Test this revision</Link>}
-        {published && <a className="underline" href={`/api/admin/tasks/${draft.id}/revisions/${published.id}/export`}>Export task ZIP</a>}
+        {published && <Link className="nav-link" to={`/admin/tasks/${draft.id}/tester?revision=${published.id}`}>Test this revision</Link>}
+        {published && <a className="nav-link" href={`/api/admin/tasks/${draft.id}/revisions/${published.id}/export`}>Export task ZIP</a>}
         <button disabled={busy} onClick={() => setParams({})}>Edit draft</button>
         <button disabled={busy || dirty} onClick={() => setParams({ view: "review" })}>Review draft</button>
         <button disabled={busy} onClick={() => select(draft.id)}>Reload draft</button>
