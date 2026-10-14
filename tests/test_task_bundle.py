@@ -39,6 +39,7 @@ def test_task_bundle_round_trip():
     lambda m, e: m.update(version=2),
     lambda m, e: m.update(case_count=2),
     lambda m, e: m.update(config={'title': 'Bad', 'checker': {'kind': 'python', 'source': ''}}),
+    lambda m, e: m.update(config={'title': 'Bad', 'maximum_marks': 5}),
     lambda m, e: e.append(('cases/1.in', b'duplicate')),
     lambda m, e: e.append(('../secret', b'x')),
     lambda m, e: e.pop(),
@@ -56,4 +57,16 @@ def test_reject_large_expansion_and_unknown_type():
     manifest = json.dumps({'format': 'cjudge-task', 'version': 1, 'config': {'title': 'A'}, 'case_count': 1})
     with pytest.raises(ValueError):
         parse(make_zip([('manifest.json', manifest), ('cases/1.in', b'x' * (1024 * 1024 + 1)), ('cases/1.out', b'')]))
+    with pytest.raises(ValueError):
+        parse(make_zip([('manifest.json', manifest + ' ' * (1024 * 1024)), ('cases/1.in', b''), ('cases/1.out', b'')]))
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, 'w') as archive:
+        archive.writestr('manifest.json', manifest)
+        link = zipfile.ZipInfo('cases/1.in')
+        link.create_system = 3
+        link.external_attr = 0o120777 << 16
+        archive.writestr(link, b'')
+        archive.writestr('cases/1.out', b'')
+    with pytest.raises(ValueError):
+        parse(output.getvalue())
     assert parse(make_zip([('manifest.json', manifest), ('cases/1.in', b''), ('cases/1.out', b'')]))[1] == [(b'', b'')]

@@ -71,7 +71,12 @@ def parse(payload: bytes) -> tuple[dict, list[tuple[bytes, bytes]]]:
                 if len(content) != entry.file_size or len(content) > limit:
                     raise ValueError('Invalid ZIP entry size')
                 files[entry.filename] = content
-            manifest = Manifest.model_validate_json(files.pop('manifest.json'))
+            manifest_data = json.loads(files.pop('manifest.json'))
+            if not isinstance(manifest_data, dict) or not isinstance(manifest_data.get('config'), dict):
+                raise ValueError('Invalid task manifest')
+            if 'maximum_marks' in manifest_data['config']:
+                raise ValueError('Task ZIP must not contain lab marks')
+            manifest = Manifest.model_validate(manifest_data)
             if manifest.format != 'cjudge-task' or manifest.version != 1:
                 raise ValueError('Unsupported task ZIP format/version')
             expected = {f'cases/{number}.{part}' for number in range(1, manifest.case_count + 1)
