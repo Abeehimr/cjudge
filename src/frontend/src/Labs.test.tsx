@@ -369,6 +369,23 @@ const rosterMembers = [
 function rosterLab() { return { ...summary, phase: 'Draft', starts_at: null, ends_at: null, version: 1, strict_ip: false,
   first_released_at: null, tasks: [], pdfs: [], students: rosterMembers, announcements: [] }; }
 
+test('CSV roster reports reservation conflicts and closes enrollment after first release', async () => {
+  live(); let lab: Omit<ReturnType<typeof rosterLab>, 'first_released_at'> & { first_released_at: string | null } = rosterLab();
+  const fetchMock = vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
+    json: async () => path.includes('/students/import') ? { created: [], existing: ['A'], name_mismatches: [],
+      enrolled: [], already_enrolled: ['A'], skipped: [{ roll_number: 'B', lab_id: 'other', lab_title: 'Other lab', phase: 'Running' }] }
+      : path === '/api/admin/students' ? [] : lab }));
+  vi.stubGlobal('fetch', fetchMock);
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students');
+  fireEvent.change(await screen.findByLabelText(/Import roster CSV/), { target: {
+    files: [new File(['roll_number,name\nA,Ada\nB,Grace\n'], 'roster.csv', { type: 'text/csv' })] } });
+  expect(await screen.findByText(/B: Other lab \(Running\)/)).toBeTruthy();
+  lab = { ...lab, phase: 'Results released', first_released_at: '2026-10-14T00:00:00Z' };
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh lab' }));
+  await waitFor(() => expect((screen.getByLabelText(/Import roster CSV/) as HTMLInputElement).disabled).toBe(true));
+  expect((screen.getByRole('button', { name: 'Find or create and enroll' }).closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true);
+});
+
 test('bulk enrollment removal preserves selection across filters and requires confirmation', async () => {
   live(); let lab = rosterLab();
   const fetchMock = vi.fn().mockImplementation((path: string, options: RequestInit) => {

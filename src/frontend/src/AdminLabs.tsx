@@ -53,7 +53,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     setSelectedRoster((old) => old.includes(id) ? old.filter((key) => key !== id) : [...old, id]);
   }
   async function removeRoster(ids: string[], version: number) {
-    if (!lab || !ids.length || !confirm(`Remove ${ids.length} student(s) from this lab? Global accounts and other labs are kept.`)) return;
+    if (!lab || !ids.length || !confirm(`Remove ${ids.length} student(s) from this lab? Global accounts and other labs are kept.${lab.phase === 'Scheduled' && ids.length === lab.students.length ? ' This removes the schedule and returns the lab to Draft.' : ''}`)) return;
     await perform(async () => {
       await mutate('/students/remove', 'POST', { version, ids });
       setSelectedRoster([]); setRemovalPreview(null); setMessage(`${ids.length} enrollment(s) removed.`);
@@ -287,21 +287,21 @@ export function AdminLabs({ csrf }: { csrf: string }) {
         <form onSubmit={(e) => { e.preventDefault(); void perform(async () => setStudents(await api<Student[]>(`/admin/students?search=${encodeURIComponent(search)}`))); }} className="flex flex-wrap gap-2">
           <label>Find student <input value={search} onChange={(e) => setSearch(e.target.value)} maxLength={64} /></label><button disabled={busy || !!lab?.archived_at}>Search students</button>
         </form>
-        <fieldset disabled={busy || !!lab?.archived_at} className="flex flex-wrap gap-2"><label>Existing student <select value={selectedStudentId} onChange={(e) => setStudentId(e.target.value)}>
+        <fieldset disabled={busy || !!lab?.first_released_at || !!lab?.archived_at} className="flex flex-wrap gap-2"><label>Existing student <select value={selectedStudentId} onChange={(e) => setStudentId(e.target.value)}>
           <option value="">Select student</option>{students.filter((s) => !lab.students.some((m) => m.id === s.id)).map((s) => <option key={s.id} value={s.id}>{s.roll_number} · {s.name}</option>)}</select></label>
           <button disabled={!selectedStudentId} onClick={() => perform(async () => { await mutate("/students", "POST", { version: lab.version, ids: [selectedStudentId] }); setStudentId(""); })}>Enroll selected student</button>
         </fieldset>
         <form onSubmit={(e) => { e.preventDefault(); void perform(async () => {
           await mutate("/students/manual", "POST", { version: lab.version, roll_number: roll, name }); setRoll(""); setName("");
-        }); }}><fieldset disabled={busy || !!lab?.archived_at} className="flex flex-wrap gap-2">
+        }); }}><fieldset disabled={busy || !!lab?.first_released_at || !!lab?.archived_at} className="flex flex-wrap gap-2">
           <label>Student roll number <input required maxLength={64} value={roll} onChange={(e) => setRoll(e.target.value)} /></label>
           <label>Student name <input required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></label><button>Find or create and enroll</button>
         </fieldset></form>
-        <label>Import roster CSV (roll_number,name)<input type="file" accept=".csv,text/csv" disabled={busy || !!lab?.archived_at} className="mt-1 block" onChange={(e) => {
+        <label>Import roster CSV (roll_number,name)<input type="file" accept=".csv,text/csv" disabled={busy || !!lab?.first_released_at || !!lab?.archived_at} className="mt-1 block" onChange={(e) => {
           const file = e.target.files?.[0]; e.target.value = "";
           if (file) void perform(async () => {
-            const result = await api<{ created: string[]; existing: string[]; name_mismatches: string[] }>(`/admin/labs/${lab.id}/students/import?version=${lab.version}`, { method: "POST", body: file }, csrf);
-            await reload(); setMessage(`${result.created.length} created; ${result.existing.length} existing. Name mismatches: ${result.name_mismatches.join(", ") || "none"}.`);
+            const result = await api<{ created: string[]; existing: string[]; name_mismatches: string[]; enrolled: string[]; already_enrolled: string[]; skipped: { roll_number: string; lab_id: string; lab_title: string; phase: string }[] }>(`/admin/labs/${lab.id}/students/import?version=${lab.version}`, { method: "POST", body: file }, csrf);
+            await reload(); setMessage(`${result.enrolled.length} enrolled; ${result.already_enrolled.length} already enrolled; ${result.skipped.length} skipped. Name mismatches: ${result.name_mismatches.join(", ") || "none"}. ${result.skipped.map((row) => `${row.roll_number}: ${row.lab_title} (${row.phase})`).join('; ')}`);
           });
         }} /></label>
         {setupOpen && <section className="space-y-2 rounded border p-3" aria-label="Remove enrollments">
@@ -330,7 +330,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
               <button disabled={busy || !!lab?.archived_at} onClick={() => rosterAction(member, "freeze")}>{member.frozen ? "Unfreeze" : "Freeze"} {member.roll_number}</button>
               <button disabled={busy || !!lab?.archived_at} onClick={() => { void cancellation(member); }}>{member.cancelled ? 'Reinstate' : 'Cancel'} {member.roll_number}</button>
               <button disabled={busy || !member.bound_at} onClick={() => rosterAction(member, "release")}>Release browser {member.roll_number}</button>
-              {setupOpen && <button disabled={busy || !!lab?.archived_at} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?`)) void perform(async () => { await mutate(`/students/${member.id}?version=${lab.version}`, "DELETE"); if (studentId) setDestination(`/admin/labs/${lab.id}/students`); }); }}>Remove student</button>}
+              {setupOpen && <button disabled={busy || !!lab?.archived_at} onClick={() => { if (confirm(`Remove ${member.roll_number} from enrollment?${lab.phase === 'Scheduled' && lab.students.length === 1 ? ' This removes the schedule and returns the lab to Draft.' : ''}`)) void perform(async () => { await mutate(`/students/${member.id}?version=${lab.version}`, "DELETE"); if (studentId) setDestination(`/admin/labs/${lab.id}/students`); }); }}>Remove student</button>}
             </div></td></tr>)}</tbody></table></div>
       </section>
       </>}
