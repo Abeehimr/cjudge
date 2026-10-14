@@ -112,7 +112,7 @@ Admin-guide capture: Scoreboard navigation, participant toggle off/on, sorted to
 
 ## Planned Improvements
 
-M11–M15 are implemented; M16 remains planned and independent. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
+M11–M16 code is implemented; M16 concurrent judging performance remains pending. Work one module at a time; make small tested commits and stop at each gate for review. Requirements: [product](product-requirements.md#planned-improvements--m11m16), [technical](technical-requirements.md#planned-interfaces-and-constraints--m11m16).
 
 ## M11 — Roster and Credentials · requires M2, M4
 
@@ -181,7 +181,7 @@ Integration when applicable: verify deactivation plus cancellation, credential r
 
 ## Improvements v2 — M17–M27
 
-M17–M26 are complete; M19 code is complete pending physical network checks. M27 remains planned. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
+M17–M27 code is implemented; M19 physical network and M27 live browser acceptance remain pending. Agreed decisions: [improvements_v2.md](improvements_v2.md). Preserve pending M16 and the outstanding M9 physical LAN/offline gate. Include migrations/API/UI/docs where needed; make small tested commits and stop at each module gate. Modules with completed prerequisites may proceed independently.
 
 ## M17 — Architecture Documentation · independent
 
@@ -284,12 +284,16 @@ Evidence: disposable PostgreSQL/API tests, real worker startup/student judging, 
 
 ## M27 — Focused UI Improvements · requires M4, M5, M15
 
-- [ ] Add independent frozen/cancelled filters to admin roster only; preserve search/URL state.
-- [ ] Add student top-bar quick-submit dialog with task/file selection; reuse upload/idempotency/error handling.
-- [ ] a proper big timer or a loading bar for remaining time
-- [ ] adding a task should ask for task only then revision separatly.
-- [ ] when a row has a checkbox the whole row should be clickable to select/deselect the checkbox.
-- [ ] the error messages should be at top or almost at top of page (for example Student reserved by unreleased was shown in the bottom)
-- [ ] **Gate:** mobile/keyboard use, cooldown, binding loss, freeze/cancellation, deadline, safe retries.
+- [x] Add independent All/Yes/No frozen/cancelled roster filters; preserve search/URL state and selection.
+- [x] Add student quick-submit dialog with shared drafts, admission checks, and original retry keys; open all submissions after acceptance.
+- [x] Show large countdown and muted elapsed-time bar on admin/student/TA lab pages.
+- [x] Select task then revision; default to latest, support older revisions and pagination.
+- [x] Make selectable student rows clickable and keyboard accessible; keep assigned TA row detail navigation.
+- [x] Place action errors and notices above page/panel controls.
+- [x] **Automated gate:** URL filters, row keyboard/control behavior, latest/older revision selection, dialog close/request guards, shared drafts, correction/deadline retry, acceptance navigation, timer boundaries/extensions, existing admission/access tests.
+- [x] **Chromium browser gate:** centered 390px mobile layout, modal task focus, keyboard background isolation, Escape focus restoration, and acceptance navigation with temporary test data.
+- [ ] **Live browser gate:** Firefox styling/focus and real LAN participant flow.
+
+Evidence: 86 frontend tests, frontend build, 58 backend tests (6 environment-dependent skipped), disposable PostgreSQL/API lab gate, and headless Chromium mobile check. No M27 migration or new dependency. M16 real concurrent judging performance remains pending.
 
 Integration when applicable: test TA reviews with maximum changes, cancellations, corrections and archives; test tester/ZIP/source restrictions with C++. Refresh M17 diagrams as modules land. Higher capacity remains unverified.

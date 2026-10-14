@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15 and M17–M26 are implemented; M19 code is complete pending physical network checks. M16 and M27 remain planned. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M27 code is implemented; M16 concurrent judging performance, M19 physical network checks, and M27 live browser acceptance remain pending. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -59,6 +59,8 @@ Navigation uses browser URLs, breadcrumbs, and lab sections. Refresh and Back/Fo
 
 Reuse the lab SSE connection for participants and admin SSE for admins. Acceptance, judging and review changes invalidate visible standings; SSE transmits no scores or private evidence. Manual refresh and reconnect fetch authoritative snapshots without periodic polling.
 
+M27 uses a native quick-submit modal on student lab pages. It shares in-memory upload drafts with task pages and opens the full submissions table after confirmed acceptance. Lab task assignment selects a task and then a published revision, defaulting to latest. Admin roster filters preserve URL state and selections. All roles share a large countdown with a muted elapsed-time bar; action errors appear above their owning controls.
+
 ### UI Acceptance Checks
 
 - Student: login → lab PDFs / optional task statement → upload → result; verify multiple PDFs and tasks without Markdown.
@@ -96,7 +98,7 @@ SSE prompts state refresh. Reconnect by fetching authoritative state; a dropped 
 - **Lab pages:** keep the newest announcement visible with older messages collapsed. Add early-feedback settings to overview and cancellation/reinstatement controls to student detail. Show status text with muted row/verdict colors; retain task-box grading colors.
 - **Data:** add account activity, enrollment cancellation metadata, and a default-off early-feedback setting. Preserve immutable submissions and independent freeze/deletion states. Cancelled scoreboard rows remain visible but unranked; reasons never enter public standings.
 - **Flows:** cancellation excludes participation from counting and publication gates without deleting evidence. Reinstatement reconciles current grading before final results. Account deactivation independently revokes access and preserves marks.
-- **Scheduling:** replace global overlap exclusion with per-student conflict checks across every enrollment/schedule mutation. Keep one shared sandbox pool and fair queue; no additional service or queue partition.
+- **Scheduling:** allow overlapping labs with disjoint unreleased rosters. Serialize enrollment transactions; reserve students from Draft enrollment until first results release or pre-start unenrollment. CSV skips reservation conflicts. Keep one shared sandbox pool and fair queue.
 
 ## Delivery Order
 

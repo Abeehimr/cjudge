@@ -1,6 +1,6 @@
 # Improvements v2 — Agreed Plan
 
-Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M17–M26 are complete; M19 still needs physical network checks. M16 and M27 remain planned. Work one module at a time with small tested commits and review at each gate.
+Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M16–M27 code is implemented; M16 concurrent judging performance, M19 physical network checks, and M27 live browser acceptance remain pending. Work one module at a time with small tested commits and review at each gate.
 
 ## Documentation — M17
 
@@ -54,7 +54,7 @@ Task revisions allow C11, C++17, or both; existing tasks default C11. Infer and 
 
 ## UI — M27
 
-Add independent frozen/cancelled filters to admin roster only, preserving search/URL state. Add student top-bar quick-submit dialog with task/file selection, reusing upload retries, idempotency, cooldown, deadline, binding, freeze, and cancellation checks. Preserve mobile/keyboard accessibility.
+Admin roster has independent All/Yes/No frozen/cancelled filters and clickable checkbox rows; filters preserve search/URL state. Assigned TA rows retain detail navigation. Student quick submit reuses drafts and retry keys, preserves admission checks, and opens the full submissions table after acceptance. Task assignment selects a task then its revision, defaulting to latest. All roles share a large lab countdown and muted elapsed-time bar. Errors appear near the top of their page or panel. Preserve mobile/keyboard accessibility.
 
 ## Acceptance
 
