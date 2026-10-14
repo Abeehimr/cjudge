@@ -287,6 +287,9 @@ Evidence: disposable PostgreSQL/API tests, real worker startup/student judging, 
 - [ ] Add independent frozen/cancelled filters to admin roster only; preserve search/URL state.
 - [ ] Add student top-bar quick-submit dialog with task/file selection; reuse upload/idempotency/error handling.
 - [ ] a proper big timer or a loading bar for remaining time
+- [ ] adding a task should ask for task only then revision separatly.
+- [ ] when a row has a checkbox the whole row should be clickable to select/deselect the checkbox.
+- [ ] the error messages should be at top or almost at top of page (for example Student reserved by unreleased was shown in the bottom)
 - [ ] **Gate:** mobile/keyboard use, cooldown, binding loss, freeze/cancellation, deadline, safe retries.
 
 Integration when applicable: test TA reviews with maximum changes, cancellations, corrections and archives; test tester/ZIP/source restrictions with C++. Refresh M17 diagrams as modules land. Higher capacity remains unverified.
