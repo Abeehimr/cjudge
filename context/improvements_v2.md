@@ -1,6 +1,6 @@
 # Improvements v2 — Agreed Plan
 
-Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M17–M20 and M22–M25 are complete; M19 still needs physical network checks. M16, M21, and M26–M27 remain planned. Work one module at a time with small tested commits and review at each gate.
+Checklist: [todo.md](todo.md#m17--architecture-documentation--independent). M17–M25 are complete; M19 still needs physical network checks. M16 and M26–M27 remain planned. Work one module at a time with small tested commits and review at each gate.
 
 ## Documentation — M17
 
@@ -24,7 +24,7 @@ Until archive, admin may change maxima with an audited reason and announcement. 
 
 ## Task Transfer and Tester — M21–M22
 
-Export one selected published revision in a versioned task ZIP: statement, configuration, cases, and associated generator/reference/checker scripts. Import into a new draft without overwriting tasks, transferring lab/student data, or automatically executing imported scripts.
+Export one selected published revision in a versioned task ZIP: statement, configuration, checker source, restrictions, and cases. Import into a new draft without overwriting tasks, transferring lab/student data, or executing imported code. Generator/reference scripts stay outside the bundle; the task-authoring skill documents isolated generation and exact ZIP packaging.
 
 Admin tests published revisions using one source or a ZIP batch, without labs/student submissions or student cooldown. Reuse isolated workers; show source, diagnostics, case streams, verdicts, and pass counts/percentages. Default batch cap: 20 sources, 16 MiB compressed, existing per-source limits; bound expanded archives and outstanding work. Keep separate tester history until explicit admin deletion. Tester work never affects marks, scoreboards, or lab exports.
 

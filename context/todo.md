@@ -220,10 +220,12 @@ Evidence: 36 backend tests and 64 frontend tests pass; Docker web/API builds and
 
 ## M21 — Whole-Task ZIP Transfer · requires M3, M7
 
-- [ ] Define versioned bundle; export one published revision with statement/configuration/cases/associated scripts.
-- [ ] Import into a new draft; no overwrite, lab/student data, or automatic script execution.
-- [ ] Add import/export controls and validation errors.
-- [ ] **Gate:** round-trip fidelity, missing assets, unsupported format, duplicates, traversal, entry types, expanded-size limits.
+- [x] Define v1 task ZIP; export one published revision with statement, settings, checker, restrictions, and cases.
+- [x] Import into a new draft; preserve existing tasks and exclude lab/student data and generator/reference scripts.
+- [x] Add import/export controls and exact ZIP instructions to the task-authoring skill.
+- [x] **Gate:** round-trip fidelity, missing assets, unsupported format, duplicates, traversal, entry types, size limits, isolated generation.
+
+Evidence: bundle tests, disposable task API/database gate, isolated script run, frontend tests/build, skill validation. Live browser acceptance remains.
 
 ## M22 — Admin Task Tester · requires M1, M3, M5
 

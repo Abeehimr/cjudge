@@ -1,6 +1,6 @@
 # Design
 
-Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15, M17–M18, M20, and M22–M25 are implemented; M19 code is complete pending physical network checks. M16, M21, and M26–M27 remain planned. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
+Organization for the requirements in [product-requirements.md](product-requirements.md). M0–M15 and M17–M25 are implemented; M19 code is complete pending physical network checks. M16 and M26–M27 remain planned. Physical LAN/offline/mobile acceptance remains. Technical constraints and unresolved contracts live in [technical-requirements.md](technical-requirements.md).
 
 ## System
 
@@ -104,7 +104,7 @@ Follow [todo.md](todo.md) for module dependencies, milestones, and per-module te
 
 Agreed decisions: [improvements_v2.md](improvements_v2.md); implementation gates: [todo.md](todo.md#m17--architecture-documentation--independent). The system diagram above describes current architecture.
 
-Reuse existing web/API/PostgreSQL/artifact storage and isolate workers. M17 adds linked schema, Docker and network documents under `docs/`; M19 supports validated localhost/multiple LAN addresses. M20 moves current automatic maxima into lab assignments while preserving historical evidence. M21 transfers task assets and M22 adds separate admin tester jobs/history through the existing pool. M23 adds assigned-lab TA authorization, mobile student lookup, and operation ownership. M24 adds review claims/marks while student responses and scoreboard remain automatic-only. M25–M26 extend immutable task policy and sandbox language profiles. M18/M27 extend access and existing interface flows.
+Reuse existing web/API/PostgreSQL/artifact storage and isolate workers. M17 adds linked schema, Docker and network documents under `docs/`; M19 supports validated localhost/multiple LAN addresses. M20 moves current automatic maxima into lab assignments while preserving historical evidence. M21 transfers published task settings/checker/cases through bounded ZIPs; M22 adds separate admin tester jobs/history through the existing pool. M23 adds assigned-lab TA authorization, mobile student lookup, and operation ownership. M24 adds review claims/marks while student responses and scoreboard remain automatic-only. M25–M26 extend immutable task policy and sandbox language profiles. M18/M27 extend access and existing interface flows.
 
 No new runtime services, polling, or student-program host execution. Refresh diagrams as modules land; planned features must not appear as deployed components.
 
