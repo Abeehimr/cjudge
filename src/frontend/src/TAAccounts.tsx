@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "./api";
+import PasswordField from "./PasswordField";
 
 export type TA = { id: string; username: string; name: string; active: boolean };
 
@@ -28,7 +29,7 @@ export default function TAAccounts({ csrf }: { csrf: string }) {
     <form onSubmit={(e) => { void create(e); }} className="grid gap-3 rounded border bg-white p-4 sm:grid-cols-2">
       <label className="block">Username<input className="mt-1 block w-full" required maxLength={64} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
       <label className="block">Name<input className="mt-1 block w-full" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></label>
-      <label className="block">Password<input className="mt-1 block w-full" required type="password" minLength={6} maxLength={128} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+      <PasswordField required minLength={6} maxLength={128} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       <button disabled={busy}>Create TA</button>
     </form>
     <section className="rounded border bg-white p-4"><h2 className="font-semibold">Accounts</h2>
@@ -42,7 +43,7 @@ export default function TAAccounts({ csrf }: { csrf: string }) {
         {resetId === row.id && <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); void act(async () => {
           await api(`/admin/tas/${row.id}/password`, { method: "POST", body: JSON.stringify({ password: resetPassword }) }, csrf);
           setResetId(""); setResetPassword(""); setMessage("Password reset; existing TA sessions ended.");
-        }); }}><label className="min-w-48 flex-1">New password<input className="mt-1 block w-full" required type="password" minLength={6} maxLength={128} autoComplete="new-password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} /></label>
+        }); }}><PasswordField className="min-w-48 flex-1" label="New password" key={resetId} required minLength={6} maxLength={128} autoComplete="new-password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} />
           <button disabled={busy}>Save password</button><button type="button" onClick={() => { setResetId(""); setResetPassword(""); }}>Cancel</button></form>}
       </li>)}</ul>
     </section>
