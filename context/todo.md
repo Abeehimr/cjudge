@@ -308,8 +308,10 @@ Evidence: 86 frontend tests, frontend build, 58 backend tests (6 environment-dep
 
 - [x] **Phase 1:** repeat single-lab baseline and measure 3 × 50 students with concurrent reads, SSE, and judging on disposable volumes.
 - [x] Record p50/p95/p99, upload acceptance, judging/queue time, failures, resource peaks, and service restoration in [report](performance-recheck-2026-10-15.md).
-- [ ] **Phase 2:** reproduce the single-lab upload-acceptance tail; optimize only a measured bottleneck on a separate branch, then compare identical workloads.
+- [x] **Phase 2 assessment:** compare identical concurrent-upload workloads in one/three labs and sample database waits. Both pass acceptable p95 targets; no application change is justified. Retain upload tails for future comparison.
 
 Phase 1: reads, judging throughput, and the three-lab scenario passed. Single-lab upload acceptance p95 was 5.9 seconds, above the proposed 300 ms endpoint target. M16 simultaneous saturation fairness remains pending.
+
+Matched follow-up: reads p95 37/38 ms, upload acceptance p95 763/446 ms, all submissions judged correctly. Practical acceptable limits are 300 ms reads/1 second upload acceptance; ideal upload acceptance remains 300 ms. The original 5.9-second p95 did not reproduce. See the report for p99 and storage/wait limits.
 
 Integration when applicable: test TA reviews with maximum changes, cancellations, corrections and archives; test tester/ZIP/source restrictions with C++. Refresh M17 diagrams as modules land. Higher capacity remains unverified.

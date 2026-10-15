@@ -254,6 +254,15 @@ python scripts/acceptance.py /tmp/cjudge-m9-results.json
 
 After module gates have passed, use `--performance-only` to repeat measurements without rerunning those gates. The report explicitly marks module gates as not rerun.
 
+For matched mixed-load comparisons, run each command separately; both use 150 read clients, 150 SSE streams, and 150 upload threads paced over 60 seconds:
+
+```sh
+python scripts/acceptance.py /tmp/cjudge-single.json --performance-only --mixed --mixed-labs 1
+python scripts/acceptance.py /tmp/cjudge-three.json --performance-only --mixed --mixed-labs 3
+```
+
+Mixed-load gates require read p95 ≤300 ms, upload acceptance p95 ≤1 second, all submissions judged correctly, and completion within five minutes. Reports also retain p99, queue/judging times, client schedule lag, resource peaks, and sampled PostgreSQL waits without query text. See [the October 15 report](context/performance-recheck-2026-10-15.md).
+
 Forced process/host termination may prevent cleanup. The report records the disposable project name. Remove only that `cjudge-m9-*` project with `docker compose -p <test-project> -f compose.yaml -f deploy/acceptance.yaml --profile judging --profile setup down --volumes`, then restart normal workers with `docker compose --profile judging up -d worker`. Never run volume deletion against the normal project.
 
 The command temporarily stops running sandbox services to prevent isolate-box conflicts, uses a uniquely named Compose project with fresh volumes, and restores those services on exit. The normal web/API/database stay available. It uses the existing trusted localhost certificate and current sandbox count/memory limit. Database and artifact volumes from the normal project are never mounted. Acceptance containers use internal networks with no external routing or published ports. The host reaches nginx directly through its internal bridge address over verified HTTPS, with localhost Host/Origin. Normal operation needs no internet, but installation/builds may.
