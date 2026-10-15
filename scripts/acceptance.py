@@ -261,7 +261,7 @@ def benchmark(state: dict, report: dict, restart: Callable[[], None]) -> None:
 
 def mixed_benchmark(state: dict, report: dict) -> None:
     labs = state['student_labs']
-    assert len(state['lab_ids']) == 3 and [labs.count(lab) for lab in state['lab_ids']] == [50, 50, 50]
+    assert len(state['lab_ids']) == 3 and [labs[:150].count(lab) for lab in state['lab_ids']] == [50, 50, 50]
     readers = [Client(cookie, state['csrf']) for cookie in state['students'][:150]]
     uploaders = [Client(cookie, state['csrf']) for cookie in state['students'][:150]]
     admin = Client(state['admin_cookie'], state['csrf'])
