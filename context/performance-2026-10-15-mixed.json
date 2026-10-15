@@ -1,0 +1,181 @@
+{
+  "timestamp": "2026-10-15T14:29:06.581423+00:00",
+  "platform": "Linux-7.2.5-3-omarchy-x86_64-with-glibc2.44",
+  "cpu_count": 12,
+  "load_average": [
+    1.7236328125,
+    2.64892578125,
+    2.9140625
+  ],
+  "python_version": "3.14.7",
+  "docker_version": "29.7.2",
+  "workers": 3,
+  "worker_memory_bytes": "3221225472",
+  "fixtures": [
+    "Arithmetic",
+    "Arrays",
+    "Strings",
+    "Sorting",
+    "Matrices"
+  ],
+  "cases_per_task": 10,
+  "container_networks_internal": true,
+  "physical_lan_offline_check": "pending",
+  "passed": true,
+  "scenario": "3 labs \u00d7 50 mixed",
+  "cpu_model": "AMD Ryzen 5 7430U with Radeon Graphics",
+  "memory": "MemTotal:       15750288 kB",
+  "commit": "e7d4adaaafd3ce526e2cfa994863c61810192378",
+  "tracked_changes": false,
+  "project": "cjudge-m9-8e810122bd",
+  "images": {
+    "api": "sha256:28f1473015ded7ec0b764be440891f7adc09398a7074cf803c39d14f7e040a4d",
+    "web": "sha256:1d82641471778fc2dfa70750fcd8df2fbb19b930fbfaab08ca22b73e7aaf9c53",
+    "worker": "sha256:c4dae80871c9c0ff0399eafdb767bb3dbc48682c532068f291e3685d151580e8"
+  },
+  "api_command": [
+    "uvicorn",
+    "cjudge.api:app",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8000",
+    "--workers",
+    "4",
+    "--no-proxy-headers"
+  ],
+  "transport": "HTTPS to internal nginx bridge, verified localhost certificate/Host/Origin",
+  "module_gates_passed": null,
+  "fixture_hashes": [
+    {
+      "title": "Arithmetic",
+      "source_sha256": "8648fc412c68c567e25420fbb3ed18d01ab38369844042d1ef9a6fd81e8b846c",
+      "cases_sha256": "49d7a246507b9ec026aa922aea6ec47b904be1aa0ba51c2bde0877369fc916f3"
+    },
+    {
+      "title": "Arrays",
+      "source_sha256": "2d6a1d4f344b6909d588d2417aa50e2b5277b79a24d8f11bfe04640c2b847665",
+      "cases_sha256": "fb6872e60b7dcbec7a75b5864107247fca4b07e7e1f62ed646e7c30970aada63"
+    },
+    {
+      "title": "Strings",
+      "source_sha256": "4bd2a1ef402b9472bd98cee21f70e2c6cbf429b33a706ed031a5ac3de67c0a3e",
+      "cases_sha256": "91cd9ec374ea10042a8da63e2bdb7f666d6b483bedfe0aeff3d87fe2810990af"
+    },
+    {
+      "title": "Sorting",
+      "source_sha256": "901bf0137aa46e48c9f1867d61833a6f34bd21966ab2e729c910a45223f342ec",
+      "cases_sha256": "e9fa93a3233920bf5fe4adcd88aa61c959b518d38affe90ab35a8b8a95cc4d3b"
+    },
+    {
+      "title": "Matrices",
+      "source_sha256": "d9bed2370a7878818bb641662f87ee29225b5ea8f9970255540f9f106b22950b",
+      "cases_sha256": "e3e41b5fc8a4350076c4bbc47c0e058a393266f14a5fc3baefebc9cd2934b206"
+    }
+  ],
+  "grading_limits": {
+    "cpu_seconds": 0.2,
+    "wall_seconds": 1,
+    "memory_mib": 64,
+    "stack_mib": 8,
+    "stdout_mib": 1
+  },
+  "sse_connections": 150,
+  "api": {
+    "lab": {
+      "requests": 4500,
+      "p50_ms": 26.254,
+      "p95_ms": 34.903,
+      "p99_ms": 40.982
+    },
+    "task_history": {
+      "requests": 4500,
+      "p50_ms": 28.244,
+      "p95_ms": 38.919,
+      "p99_ms": 75.865
+    },
+    "history": {
+      "requests": 4500,
+      "p50_ms": 27.638,
+      "p95_ms": 35.974,
+      "p99_ms": 43.984
+    },
+    "status": {
+      "requests": 4500,
+      "p50_ms": 23.506,
+      "p95_ms": 30.407,
+      "p99_ms": 38.846
+    },
+    "overall": {
+      "requests": 18000,
+      "p50_ms": 26.497,
+      "p95_ms": 35.776,
+      "p99_ms": 46.424
+    }
+  },
+  "read_failures": {
+    "count": 0,
+    "types": []
+  },
+  "mixed": {
+    "submissions": 150,
+    "acceptance": {
+      "requests": 150,
+      "p50_ms": 67.882,
+      "p95_ms": 111.875,
+      "p99_ms": 178.096
+    },
+    "completion_seconds": 60.434,
+    "queue_delay": {
+      "requests": 150,
+      "p50_ms": 35.172,
+      "p95_ms": 44.827,
+      "p99_ms": 59.556
+    },
+    "judging_duration": {
+      "requests": 150,
+      "p50_ms": 299.209,
+      "p95_ms": 323.632,
+      "p99_ms": 345.431
+    },
+    "labs": [
+      {
+        "submissions": 50,
+        "completion_seconds": 20.014
+      },
+      {
+        "submissions": 50,
+        "completion_seconds": 20.092
+      },
+      {
+        "submissions": 50,
+        "completion_seconds": 20.214
+      }
+    ]
+  },
+  "resource_peaks": {
+    "worker": {
+      "cpu_percent": 247.33,
+      "memory_bytes": 231840154
+    },
+    "web": {
+      "cpu_percent": 27.44,
+      "memory_bytes": 42823844
+    },
+    "api": {
+      "cpu_percent": 234.01,
+      "memory_bytes": 370042470
+    },
+    "db": {
+      "cpu_percent": 191.06,
+      "memory_bytes": 185493094
+    }
+  },
+  "load_average_after": [
+    5.76025390625,
+    4.78466796875,
+    3.779296875
+  ],
+  "disposable_cleanup_complete": true,
+  "normal_services_restored": true
+}
