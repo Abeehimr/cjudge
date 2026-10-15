@@ -90,6 +90,12 @@ def memory_bytes(value: str) -> int:
 
 
 def sample_resources(project: str, stop: threading.Event, peaks: dict) -> None:
+    sql = """SELECT coalesce(json_agg(s), '[]') FROM (
+        SELECT state, coalesce(wait_event_type || ':' || wait_event, 'CPU') AS event,
+          count(*) AS connections, count(*) FILTER (WHERE cardinality(pg_blocking_pids(pid)) > 0) AS blocked,
+          max(extract(epoch FROM clock_timestamp() - query_start) * 1000) AS query_age_ms
+        FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()
+          AND state <> 'idle' GROUP BY state, event) s"""
     while not stop.is_set():
         try:
             result = subprocess.run(['docker', 'stats', '--no-stream', '--format', '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}'],
@@ -102,6 +108,16 @@ def sample_resources(project: str, stop: threading.Event, peaks: dict) -> None:
                         item = peaks.setdefault(service, dict(cpu_percent=0.0, memory_bytes=0))
                         item['cpu_percent'] = max(item['cpu_percent'], float(cpu.strip('%')))
                         item['memory_bytes'] = max(item['memory_bytes'], memory_bytes(usage.split(' / ')[0]))
+            activity = subprocess.run(['docker', 'exec', project + '-db-1', 'psql', '-U', 'cjudge', '-d', 'cjudge',
+                '-Atc', sql], capture_output=True, text=True, timeout=15)
+            if activity.returncode == 0:
+                for row in json.loads(activity.stdout):
+                    item = peaks.setdefault('database_activity', {}).setdefault(row['state'] + '/' + row['event'],
+                        dict(samples=0, blocked_samples=0, max_connections=0, max_query_age_ms=0))
+                    item['samples'] += 1
+                    item['blocked_samples'] += int(row['blocked'] > 0)
+                    item['max_connections'] = max(item['max_connections'], row['connections'])
+                    item['max_query_age_ms'] = round(max(item['max_query_age_ms'], row['query_age_ms']), 3)
         except (OSError, ValueError, AttributeError, subprocess.TimeoutExpired):
             peaks['sampling_error'] = True
         stop.wait(5)
@@ -261,7 +277,8 @@ def benchmark(state: dict, report: dict, restart: Callable[[], None]) -> None:
 
 def mixed_benchmark(state: dict, report: dict) -> None:
     labs = state['student_labs']
-    assert len(state['lab_ids']) == 3 and [labs[:150].count(lab) for lab in state['lab_ids']] == [50, 50, 50]
+    lab_count = len(state['lab_ids'])
+    assert lab_count in (1, 3) and [labs[:150].count(lab) for lab in state['lab_ids']] == [150 // lab_count] * lab_count
     readers = [Client(cookie, state['csrf']) for cookie in state['students'][:150]]
     uploaders = [Client(cookie, state['csrf']) for cookie in state['students'][:150]]
     admin = Client(state['admin_cookie'], state['csrf'])
@@ -329,16 +346,20 @@ def mixed_benchmark(state: dict, report: dict) -> None:
                     readers[index].connection = Connection()
             return samples
 
-        accepted: list[dict] = []
-        acceptance_latency: list[float] = []
+        def paced_submit(index: int) -> tuple[dict, float, float]:
+            scheduled = start + 35 + index * 60 / 149
+            time.sleep(max(0, scheduled - time.monotonic()))
+            lag = (time.monotonic() - scheduled) * 1000
+            row, elapsed = submit(index)
+            return row, elapsed, lag
+
         with ThreadPoolExecutor(150) as executor:
             futures = [executor.submit(reader, index) for index in range(150)]
-            for index in range(150):
-                time.sleep(max(0, start + 35 + index * 60 / 149 - time.monotonic()))
-                row, elapsed = submit(index)
-                accepted.append(row)
-                acceptance_latency.append(elapsed)
+            with ThreadPoolExecutor(150) as uploads:
+                uploaded = list(uploads.map(paced_submit, range(150)))
             samples = [future.result() for future in futures]
+        accepted = [row for row, _, _ in uploaded]
+        acceptance_latency = [elapsed for _, elapsed, _ in uploaded]
         merged = {name: [value for sample in samples for value in sample[name]] for name in samples[0]}
         report['api'] = {name: metrics(values) for name, values in merged.items()}
         report['api']['overall'] = metrics([value for values in merged.values() for value in values])
@@ -346,7 +367,7 @@ def mixed_benchmark(state: dict, report: dict) -> None:
         completed(accepted)
 
         per_lab: dict[str, dict] = {}
-        queue_delays, judging_durations = [], []
+        queue_delays, judging_durations, turnaround = [], [], []
         first = min(datetime.fromisoformat(row['accepted_at']).timestamp() for row in accepted)
         last_finished = first
         for index, row in enumerate(accepted):
@@ -358,6 +379,7 @@ def mixed_benchmark(state: dict, report: dict) -> None:
             finished_at = datetime.fromisoformat(detail['history'][0]['finished_at']).timestamp()
             queue_delays.append((started_at - accepted_at) * 1000)
             judging_durations.append((finished_at - started_at) * 1000)
+            turnaround.append((finished_at - accepted_at) * 1000)
             last_finished = max(last_finished, finished_at)
             item = per_lab.setdefault(labs[index], dict(submissions=0, first_accepted=accepted_at, last_finished=finished_at))
             item['submissions'] += 1
@@ -365,11 +387,18 @@ def mixed_benchmark(state: dict, report: dict) -> None:
             item['last_finished'] = max(item['last_finished'], finished_at)
         report['mixed'] = dict(submissions=len(accepted), acceptance=metrics(acceptance_latency),
             completion_seconds=round(last_finished - first, 3), queue_delay=metrics(queue_delays),
-            judging_duration=metrics(judging_durations),
+            judging_duration=metrics(judging_durations), turnaround=metrics(turnaround),
+            schedule_lag=metrics([lag for _, _, lag in uploaded]), upload_threads=150,
+            arrival_seconds=round(max(datetime.fromisoformat(row['accepted_at']).timestamp() for row in accepted) - first, 3),
+            upload_samples=[dict(student=index, lab=state['lab_ids'].index(labs[index]) + 1,
+                acceptance_ms=round(elapsed, 3), schedule_lag_ms=round(lag, 3),
+                accepted_after_first_seconds=round(datetime.fromisoformat(row['accepted_at']).timestamp() - first, 3))
+                for index, (row, elapsed, lag) in enumerate(uploaded)],
             labs=[dict(submissions=item['submissions'], completion_seconds=round(item['last_finished'] - item['first_accepted'], 3))
                 for item in per_lab.values()])
         report['passed'] = (len(accepted) == 150 and not errors and len(streams) == 150 and
             all(item['p95_ms'] <= 300 for item in report['api'].values()) and
+            report['mixed']['acceptance']['p95_ms'] <= 1000 and
             report['mixed']['completion_seconds'] <= 300)
     finally:
         for connection, response in streams:
@@ -386,13 +415,14 @@ def main() -> None:
     parser.add_argument('result', nargs='?', default='/tmp/cjudge-m9-results.json')
     parser.add_argument('--performance-only', action='store_true', help='Repeat performance after module gates have already passed')
     parser.add_argument('--mixed', action='store_true', help='Measure 3 labs with 50 students each during read, SSE, and submission load')
+    parser.add_argument('--mixed-labs', type=int, choices=(1, 3), default=3, help='Lab count for matched mixed-load runs')
     options = parser.parse_args()
     normal = ['docker', 'compose']
     config = json.loads(command(normal + ['--profile', 'judging', 'config', '--format', 'json'], capture=True))
     running = command(normal + ['ps', '--services', '--status', 'running'], capture=True).split()
     stopped = [name for name in running if name in ('worker', 'judge')]
     env = dict(os.environ, CJUDGE_BIND_ADDRESS='127.0.0.1', CJUDGE_ALLOWED_HOSTS='localhost,127.0.0.1',
-        CJUDGE_ACCEPTANCE_LABS='3' if options.mixed else '1')
+        CJUDGE_ACCEPTANCE_LABS=str(options.mixed_labs) if options.mixed else '1')
     project = 'cjudge-m9-' + uuid4().hex[:10]
     compose = normal + ['-p', project, '-f', 'compose.yaml', '-f', 'deploy/acceptance.yaml']
     report = dict(timestamp=datetime.now(timezone.utc).isoformat(), platform=platform.platform(), cpu_count=os.cpu_count(),
@@ -402,12 +432,14 @@ def main() -> None:
         worker_memory_bytes=config['services']['worker'].get('mem_limit'),
         fixtures=['Arithmetic', 'Arrays', 'Strings', 'Sorting', 'Matrices'], cases_per_task=10,
         container_networks_internal=True, physical_lan_offline_check='pending', passed=False,
-        scenario='3 labs × 50 mixed' if options.mixed else '1 lab × 150 baseline')
+        scenario=f'{options.mixed_labs} labs × {150 // options.mixed_labs} mixed' if options.mixed else '1 lab × 150 baseline')
     for line in Path('/proc/cpuinfo').read_text().splitlines():
         if line.startswith('model name'):
             report['cpu_model'] = line.split(':', 1)[1].strip()
             break
     report['memory'] = Path('/proc/meminfo').read_text().splitlines()[0]
+    report['targets'] = dict(read_p95_ms=300, upload_acceptance_p95_ms=1000, upload_ideal_p95_ms=300,
+        burst_completion_seconds=300)
     report['commit'] = command(['git', 'rev-parse', 'HEAD'], capture=True).strip()
     report['tracked_changes'] = subprocess.run(['git', 'diff', '--quiet']).returncode != 0
     destination = Path(options.result)

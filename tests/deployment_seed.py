@@ -27,7 +27,7 @@ with identity.engine().begin() as conn:
             starts_at=timestamp - timedelta(minutes=1), ends_at=timestamp + timedelta(hours=2)))
     students, student_labs, programs = [], [], []
     for index in range(170):
-        current_lab = lab_ids[index // 50] if lab_count == 3 and index < 150 else lab_id
+        current_lab = lab_ids[index % lab_count] if index < 150 else lab_id
         account, session, binding = uuid4(), secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         conn.execute(sa.insert(identity.accounts).values(id=account, role='student', name=f'Acceptance {index}',
             roll_number=f'M9-{index:03}', password_hash='unused', encrypted_password=b'unused'))

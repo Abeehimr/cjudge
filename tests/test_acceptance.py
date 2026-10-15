@@ -2,6 +2,7 @@ import http.client
 import runpy
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 
 import pytest
 
@@ -34,3 +35,17 @@ def test_performance_summary_uses_nearest_rank_and_memory_units() -> None:
     assert namespace['metrics'](list(range(1, 101))) == {
         'requests': 100, 'p50_ms': 50, 'p95_ms': 95, 'p99_ms': 99}
     assert namespace['memory_bytes']('1.5GiB') == 1610612736
+
+
+def test_resource_sampler_records_database_waits_without_query_text() -> None:
+    with patch('ssl.create_default_context'):
+        namespace = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/acceptance.py'))
+    stop, peaks = MagicMock(), {}
+    stop.is_set.side_effect = [False, True]
+    results = [SimpleNamespace(returncode=0, stdout='test-api-1|125.0%|1MiB / 1GiB\n'),
+        SimpleNamespace(returncode=0, stdout='[{"state":"active","event":"Lock:transactionid",'
+            '"connections":2,"blocked":1,"query_age_ms":1200}]')]
+    with patch('subprocess.run', side_effect=results):
+        namespace['sample_resources']('test', stop, peaks)
+    assert peaks['api'] == {'cpu_percent': 125, 'memory_bytes': 1048576}
+    assert peaks['database_activity']['active/Lock:transactionid']['blocked_samples'] == 1
