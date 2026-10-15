@@ -50,11 +50,11 @@ class NameInput(StrictModel):
 class TAInput(StrictModel):
     username: str
     name: str
-    password: str = Field(min_length=12, max_length=128)
+    password: str = Field(min_length=6, max_length=128)
 
 
 class TAPasswordInput(StrictModel):
-    password: str = Field(min_length=12, max_length=128)
+    password: str = Field(min_length=6, max_length=128)
 
 
 class TAStateInput(StrictModel):

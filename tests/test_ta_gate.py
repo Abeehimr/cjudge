@@ -223,3 +223,13 @@ def test_ta_accounts_lab_scope_ownership_and_archive(ta_database, tmp_path, monk
             assert login(fresh_ta, 'helper2', 'M23-new-ta-password')['role'] == 'ta'
         assert write(admin, f'/api/admin/tas/{created[0]}/state', {'active': False}, csrf, 'put').status_code == 200
         assert ta_one.get('/api/auth/session').status_code == 401
+        assert write(admin, '/api/admin/tas', {'username': 'short5', 'name': 'Short',
+            'password': 'abcde'}, csrf).status_code == 422
+        short = write(admin, '/api/admin/tas', {'username': 'short6', 'name': 'Short',
+            'password': 'abcdef'}, csrf)
+        assert short.status_code == 201
+        short_id = short.json()['id']
+        assert write(admin, f'/api/admin/tas/{short_id}/password', {'password': 'abcde'}, csrf).status_code == 422
+        assert write(admin, f'/api/admin/tas/{short_id}/password', {'password': 'uvwxyz'}, csrf).status_code == 200
+        with TestClient(app, base_url=ORIGIN) as short_ta:
+            assert login(short_ta, 'short6', 'uvwxyz')['role'] == 'ta'

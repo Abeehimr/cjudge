@@ -26,9 +26,9 @@ export default function TAAccounts({ csrf }: { csrf: string }) {
     {message && <p role="status" className="notice notice-warning">{message}</p>}
     <h1 className="text-xl font-semibold">TA accounts</h1>
     <form onSubmit={(e) => { void create(e); }} className="grid gap-3 rounded border bg-white p-4 sm:grid-cols-2">
-      <label>Username<input required maxLength={64} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
-      <label>Name<input required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></label>
-      <label>Password<input required type="password" minLength={12} maxLength={128} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+      <label className="block">Username<input className="mt-1 block w-full" required maxLength={64} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
+      <label className="block">Name<input className="mt-1 block w-full" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <label className="block">Password<input className="mt-1 block w-full" required type="password" minLength={6} maxLength={128} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
       <button disabled={busy}>Create TA</button>
     </form>
     <section className="rounded border bg-white p-4"><h2 className="font-semibold">Accounts</h2>
@@ -39,10 +39,10 @@ export default function TAAccounts({ csrf }: { csrf: string }) {
           <button disabled={busy} onClick={() => { if (confirm(`${row.active ? "Deactivate" : "Reactivate"} ${row.username}? Their sessions will end.`)) void act(async () => { await api(`/admin/tas/${row.id}/state`, { method: "PUT", body: JSON.stringify({ active: !row.active }) }, csrf); }); }}>{row.active ? "Deactivate" : "Reactivate"}</button>
           <button disabled={busy} onClick={() => { setResetId(row.id); setResetPassword(""); }}>Reset password</button>
         </div>
-        {resetId === row.id && <form className="flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); void act(async () => {
+        {resetId === row.id && <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); void act(async () => {
           await api(`/admin/tas/${row.id}/password`, { method: "POST", body: JSON.stringify({ password: resetPassword }) }, csrf);
           setResetId(""); setResetPassword(""); setMessage("Password reset; existing TA sessions ended.");
-        }); }}><label>New password <input required type="password" minLength={12} maxLength={128} autoComplete="new-password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} /></label>
+        }); }}><label className="min-w-48 flex-1">New password<input className="mt-1 block w-full" required type="password" minLength={6} maxLength={128} autoComplete="new-password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} /></label>
           <button disabled={busy}>Save password</button><button type="button" onClick={() => { setResetId(""); setResetPassword(""); }}>Cancel</button></form>}
       </li>)}</ul>
     </section>
