@@ -296,4 +296,12 @@ Evidence: disposable PostgreSQL/API tests, real worker startup/student judging, 
 
 Evidence: 86 frontend tests, frontend build, 58 backend tests (6 environment-dependent skipped), disposable PostgreSQL/API lab gate, and headless Chromium mobile check. No M27 migration or new dependency. M16 real concurrent judging performance remains pending.
 
+## M28 — Lab and TA UI Cleanup · requires M23, M27
+
+- [x] Replace two roster flags with one All/Frozen/Cancelled filter; preserve search, URL state, and selection.
+- [x] Space TA account/reset labels and inputs; accept 6–128 character TA passwords in UI and API.
+- [x] Group lab overview result, archive, and ZIP buttons with consistent gaps.
+- [x] **Automated gate:** roster status/search/selection, TA password boundaries, frontend tests and build.
+- [ ] **Live browser gate:** confirm desktop/mobile spacing and status filter in a real lab.
+
 Integration when applicable: test TA reviews with maximum changes, cancellations, corrections and archives; test tester/ZIP/source restrictions with C++. Refresh M17 diagrams as modules land. Higher capacity remains unverified.
