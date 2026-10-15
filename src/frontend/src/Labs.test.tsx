@@ -488,20 +488,33 @@ const rosterMembers = [
 function rosterLab() { return { ...summary, phase: 'Draft', starts_at: null, ends_at: null, version: 1, strict_ip: false,
   first_released_at: null, tasks: [], pdfs: [], students: rosterMembers, announcements: [] }; }
 
-test('roster combines URL filters and row selection without selecting through links', async () => {
-  live(); const lab = { ...rosterLab(), students: [rosterMembers[0], { ...rosterMembers[1], frozen: true, cancelled: true }] };
+test('roster status filter follows displayed status and keeps selection through search', async () => {
+  live(); const lab = { ...rosterLab(), students: [rosterMembers[0], { ...rosterMembers[1], frozen: true },
+    { ...rosterMembers[1], id: 'linus', roll_number: 'C', name: 'Linus', cancelled: true },
+    { ...rosterMembers[1], id: 'both', roll_number: 'D', name: 'Both', frozen: true, cancelled: true }] };
   vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string) => Promise.resolve({ ok: true, status: 200,
     json: async () => path === '/api/admin/students' ? [] : lab })));
-  const { router } = renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students?frozen=yes&cancelled=yes');
+  const { router } = renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/students?status=frozen');
   const row = (await screen.findByLabelText('Select B')).closest('tr')!;
   expect(screen.queryByLabelText('Select A')).toBeNull();
+  expect(screen.queryByLabelText('Select D')).toBeNull();
   fireEvent.click(screen.getByText('Grace'));
   expect((screen.getByLabelText('Select B') as HTMLInputElement).checked).toBe(true);
   fireEvent.keyDown(row, { key: ' ' });
   expect((screen.getByLabelText('Select B') as HTMLInputElement).checked).toBe(false);
+  fireEvent.click(screen.getByText('Grace'));
   fireEvent.change(screen.getByLabelText('Filter roster'), { target: { value: 'Grace' } });
-  expect(router.state.location.search).toContain('frozen=yes');
-  expect(router.state.location.search).toContain('cancelled=yes');
+  expect(router.state.location.search).toContain('status=frozen');
+  fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'cancelled' } });
+  expect(screen.queryByLabelText('Select B')).toBeNull();
+  expect(screen.queryByLabelText('Select C')).toBeNull();
+  fireEvent.change(screen.getByLabelText('Filter roster'), { target: { value: '' } });
+  expect(screen.getByLabelText('Select C')).toBeTruthy();
+  expect(screen.getByLabelText('Select D')).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Status'), { target: { value: '' } });
+  expect((screen.getByLabelText('Select B') as HTMLInputElement).checked).toBe(true);
+  expect(screen.getByLabelText('Select A')).toBeTruthy();
+  expect(router.state.location.search).not.toContain('status=');
   fireEvent.click(screen.getByRole('link', { name: 'B' }));
   expect(router.state.location.pathname).toBe('/admin/labs/lab/students/grace');
 });
