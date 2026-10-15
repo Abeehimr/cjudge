@@ -19,6 +19,7 @@ import signal
 import re
 import socket
 import ipaddress
+import threading
 from collections.abc import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,8 +74,37 @@ class Client:
         self.connection.close()
 
 
-def percentile(values: list[float]) -> float:
-    return sorted(values)[math.ceil(len(values) * .95) - 1]
+def percentile(values: list[float], quantile: float = .95) -> float:
+    return sorted(values)[math.ceil(len(values) * quantile) - 1]
+
+
+def metrics(values: list[float]) -> dict:
+    return dict(requests=len(values), p50_ms=round(percentile(values, .5), 3),
+        p95_ms=round(percentile(values), 3), p99_ms=round(percentile(values, .99), 3))
+
+
+def memory_bytes(value: str) -> int:
+    number, unit = re.fullmatch(r'([0-9.]+)([KMG]?i?B)', value).groups()
+    return round(float(number) * {'B': 1, 'kB': 1000, 'MB': 1000**2, 'GB': 1000**3,
+        'KiB': 1024, 'MiB': 1024**2, 'GiB': 1024**3}[unit])
+
+
+def sample_resources(project: str, stop: threading.Event, peaks: dict) -> None:
+    while not stop.is_set():
+        try:
+            result = subprocess.run(['docker', 'stats', '--no-stream', '--format', '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}'],
+                capture_output=True, text=True, timeout=15)
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    name, cpu, usage = line.split('|')
+                    if name.startswith(project + '-'):
+                        service = name[len(project) + 1:].rsplit('-', 1)[0]
+                        item = peaks.setdefault(service, dict(cpu_percent=0.0, memory_bytes=0))
+                        item['cpu_percent'] = max(item['cpu_percent'], float(cpu.strip('%')))
+                        item['memory_bytes'] = max(item['memory_bytes'], memory_bytes(usage.split(' / ')[0]))
+        except (OSError, ValueError, AttributeError, subprocess.TimeoutExpired):
+            peaks['sampling_error'] = True
+        stop.wait(5)
 
 
 def wait(predicate: Callable[[], bool], seconds: float = 60) -> None:
@@ -103,11 +133,14 @@ def benchmark(state: dict, report: dict, restart: Callable[[], None]) -> None:
         wait(healthy)
         report.pop('last_readiness_error', None)
 
-        def submit(index: int, source: str | None = None) -> dict:
+        def submit(index: int, source: str | None = None, samples: list[float] | None = None) -> dict:
             program = programs[index % 5]
             query = urlencode({'revision_id': program['revision_id'], 'filename': 'main.c'})
-            return clients[index].call(f'/labs/{lab}/submissions?{query}', 'POST',
-                (source or program['source']).encode(), {'Content-Type': 'application/octet-stream', 'Idempotency-Key': str(uuid4())})[0]
+            row, elapsed = clients[index].call(f'/labs/{lab}/submissions?{query}', 'POST',
+                (source or program['source']).encode(), {'Content-Type': 'application/octet-stream', 'Idempotency-Key': str(uuid4())})
+            if samples is not None:
+                samples.append(elapsed)
+            return row
 
         def completed(rows: list[dict], indices: range | list[int], expected: str = 'Passed', seconds: float = 300,
                       samples: list[float] | None = None) -> None:
@@ -161,23 +194,25 @@ def benchmark(state: dict, report: dict, restart: Callable[[], None]) -> None:
         with ThreadPoolExecutor(150) as executor:
             samples = list(executor.map(reader, range(150)))
         merged = {name: [value for sample in samples for value in sample[name]] for name in samples[0]}
-        report['api'] = {name: dict(requests=len(values), p95_ms=round(percentile(values), 3)) for name, values in merged.items()}
+        report['api'] = {name: metrics(values) for name, values in merged.items()}
         all_values = [value for values in merged.values() for value in values]
-        report['api']['overall'] = dict(requests=len(all_values), p95_ms=round(percentile(all_values), 3))
+        report['api']['overall'] = metrics(all_values)
         print(f'API measurements complete: overall p95={report["api"]["overall"]["p95_ms"]} ms', file=sys.stderr)
 
         start = time.monotonic()
         wall_start = time.time()
+        acceptance_latency = []
         def paced(index: int) -> dict:
             time.sleep(max(0, start + index * 60 / 149 - time.monotonic()))
-            return submit(index)
+            return submit(index, samples=acceptance_latency)
         with ThreadPoolExecutor(150) as executor:
             rows = list(executor.map(paced, range(150)))
         completed(rows, range(150))
         first = min(datetime.fromisoformat(row['accepted_at']).timestamp() for row in rows)
         last = max(datetime.fromisoformat(row['accepted_at']).timestamp() for row in rows)
         report['burst'] = dict(submissions=150, arrival_seconds=round(last - first, 3),
-            completion_seconds=round(time.monotonic() - start - (first - wall_start), 3), passed=150)
+            completion_seconds=round(time.monotonic() - start - (first - wall_start), 3), passed=150,
+            acceptance=metrics(acceptance_latency))
 
         start = time.monotonic()
         with ThreadPoolExecutor(15) as executor:
@@ -224,17 +259,140 @@ def benchmark(state: dict, report: dict, restart: Callable[[], None]) -> None:
             client.close()
 
 
+def mixed_benchmark(state: dict, report: dict) -> None:
+    labs = state['student_labs']
+    assert len(state['lab_ids']) == 3 and [labs.count(lab) for lab in state['lab_ids']] == [50, 50, 50]
+    readers = [Client(cookie, state['csrf']) for cookie in state['students'][:150]]
+    uploaders = [Client(cookie, state['csrf']) for cookie in state['students'][:150]]
+    admin = Client(state['admin_cookie'], state['csrf'])
+    streams: list[tuple[Connection, http.client.HTTPResponse]] = []
+    programs = state['programs']
+
+    def submit(index: int) -> tuple[dict, float]:
+        program = programs[index % 5]
+        query = urlencode({'revision_id': program['revision_id'], 'filename': 'main.c'})
+        return uploaders[index].call(f'/labs/{labs[index]}/submissions?{query}', 'POST',
+            program['source'].encode(), {'Content-Type': 'application/octet-stream', 'Idempotency-Key': str(uuid4())})
+
+    def completed(rows: list[dict], seconds: float = 300) -> None:
+        pending = dict(enumerate(rows))
+        deadline = time.monotonic() + seconds
+        while pending:
+            for index, row in list(pending.items()):
+                value, _ = readers[index].call(f'/labs/{labs[index]}/submissions/{row["id"]}')
+                if value['status'] == 'Passed':
+                    del pending[index]
+                elif value['status'] in ('Judging delayed', 'Compile error', 'Partial pass', 'Failed'):
+                    raise RuntimeError(f'Unexpected mixed judging status: {value["status"]}')
+            if pending and time.monotonic() >= deadline:
+                raise TimeoutError(f'{len(pending)} mixed submissions remain unresolved')
+            if pending:
+                time.sleep(.5)
+
+    def open_stream(index: int) -> tuple[Connection, http.client.HTTPResponse]:
+        connection = Connection(timeout=20)
+        connection.request('GET', f'/api/labs/{labs[index]}/events', headers={'Cookie': state['students'][index]})
+        response = connection.getresponse()
+        if response.status != 200 or response.readline() != b'event: refresh\n':
+            response.close()
+            connection.close()
+            raise RuntimeError('Mixed SSE connection failed')
+        return connection, response
+
+    try:
+        wait(lambda: admin.call('/admin/isolates')[0]['healthy'] == report['workers'])
+        with ThreadPoolExecutor(30) as executor:
+            warm = [row for row, _ in executor.map(submit, range(150))]
+        completed(warm)
+        with ThreadPoolExecutor(30) as executor:
+            streams = list(executor.map(open_stream, range(150)))
+        report['sse_connections'] = len(streams)
+        print('Mixed warm-up and 150 SSE connections complete', file=sys.stderr)
+
+        start = time.monotonic() + 2
+        errors: list[str] = []
+        def reader(index: int) -> dict[str, list[float]]:
+            lab = labs[index]
+            paths = [f'/labs/{lab}', f'/labs/{lab}/submissions?revision_id={programs[index % 5]["revision_id"]}',
+                f'/labs/{lab}/submissions', f'/labs/{lab}/submissions/{warm[index]["id"]}']
+            samples = {name: [] for name in ('lab', 'task_history', 'history', 'status')}
+            names = list(samples)
+            for number in range(125):
+                time.sleep(max(0, start + index / 150 + number - time.monotonic()))
+                try:
+                    _, elapsed = readers[index].call(paths[number % 4])
+                    if number >= 5:
+                        samples[names[number % 4]].append(elapsed)
+                except (OSError, RuntimeError, http.client.HTTPException) as error:
+                    errors.append(type(error).__name__)
+                    readers[index].close()
+                    readers[index].connection = Connection()
+            return samples
+
+        accepted: list[dict] = []
+        acceptance_latency: list[float] = []
+        with ThreadPoolExecutor(150) as executor:
+            futures = [executor.submit(reader, index) for index in range(150)]
+            for index in range(150):
+                time.sleep(max(0, start + 35 + index * 60 / 149 - time.monotonic()))
+                row, elapsed = submit(index)
+                accepted.append(row)
+                acceptance_latency.append(elapsed)
+            samples = [future.result() for future in futures]
+        merged = {name: [value for sample in samples for value in sample[name]] for name in samples[0]}
+        report['api'] = {name: metrics(values) for name, values in merged.items()}
+        report['api']['overall'] = metrics([value for values in merged.values() for value in values])
+        report['read_failures'] = dict(count=len(errors), types=sorted(set(errors)))
+        completed(accepted)
+
+        per_lab: dict[str, dict] = {}
+        queue_delays, judging_durations = [], []
+        first = min(datetime.fromisoformat(row['accepted_at']).timestamp() for row in accepted)
+        last_finished = first
+        for index, row in enumerate(accepted):
+            detail = admin.call(f'/admin/labs/{labs[index]}/submissions/{row["id"]}')[0]
+            if len(detail['cases']) != 10 or any(case['verdict'] != 'AC' for case in detail['cases']):
+                raise RuntimeError('Mixed submission has unexpected case verdicts')
+            accepted_at = datetime.fromisoformat(row['accepted_at']).timestamp()
+            started_at = datetime.fromisoformat(detail['attempts'][0]['started_at']).timestamp()
+            finished_at = datetime.fromisoformat(detail['history'][0]['finished_at']).timestamp()
+            queue_delays.append((started_at - accepted_at) * 1000)
+            judging_durations.append((finished_at - started_at) * 1000)
+            last_finished = max(last_finished, finished_at)
+            item = per_lab.setdefault(labs[index], dict(submissions=0, first_accepted=accepted_at, last_finished=finished_at))
+            item['submissions'] += 1
+            item['first_accepted'] = min(item['first_accepted'], accepted_at)
+            item['last_finished'] = max(item['last_finished'], finished_at)
+        report['mixed'] = dict(submissions=len(accepted), acceptance=metrics(acceptance_latency),
+            completion_seconds=round(last_finished - first, 3), queue_delay=metrics(queue_delays),
+            judging_duration=metrics(judging_durations),
+            labs=[dict(submissions=item['submissions'], completion_seconds=round(item['last_finished'] - item['first_accepted'], 3))
+                for item in per_lab.values()])
+        report['passed'] = (len(accepted) == 150 and not errors and len(streams) == 150 and
+            all(item['p95_ms'] <= 300 for item in report['api'].values()) and
+            report['mixed']['completion_seconds'] <= 300)
+    finally:
+        for connection, response in streams:
+            response.close()
+            connection.close()
+        admin.close()
+        for client in readers + uploaders:
+            client.close()
+
+
 def main() -> None:
     global WEB_ADDRESS
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('result', nargs='?', default='/tmp/cjudge-m9-results.json')
     parser.add_argument('--performance-only', action='store_true', help='Repeat performance after module gates have already passed')
+    parser.add_argument('--mixed', action='store_true', help='Measure 3 labs with 50 students each during read, SSE, and submission load')
     options = parser.parse_args()
     normal = ['docker', 'compose']
     config = json.loads(command(normal + ['--profile', 'judging', 'config', '--format', 'json'], capture=True))
     running = command(normal + ['ps', '--services', '--status', 'running'], capture=True).split()
     stopped = [name for name in running if name in ('worker', 'judge')]
-    env = dict(os.environ, CJUDGE_BIND_ADDRESS='127.0.0.1', CJUDGE_ALLOWED_HOSTS='localhost,127.0.0.1')
+    env = dict(os.environ, CJUDGE_BIND_ADDRESS='127.0.0.1', CJUDGE_ALLOWED_HOSTS='localhost,127.0.0.1',
+        CJUDGE_ACCEPTANCE_LABS='3' if options.mixed else '1')
     project = 'cjudge-m9-' + uuid4().hex[:10]
     compose = normal + ['-p', project, '-f', 'compose.yaml', '-f', 'deploy/acceptance.yaml']
     report = dict(timestamp=datetime.now(timezone.utc).isoformat(), platform=platform.platform(), cpu_count=os.cpu_count(),
@@ -243,7 +401,8 @@ def main() -> None:
         workers=int(config['services']['worker']['environment']['CJUDGE_SANDBOX_INSTANCES']),
         worker_memory_bytes=config['services']['worker'].get('mem_limit'),
         fixtures=['Arithmetic', 'Arrays', 'Strings', 'Sorting', 'Matrices'], cases_per_task=10,
-        container_networks_internal=True, physical_lan_offline_check='pending', passed=False)
+        container_networks_internal=True, physical_lan_offline_check='pending', passed=False,
+        scenario='3 labs × 50 mixed' if options.mixed else '1 lab × 150 baseline')
     for line in Path('/proc/cpuinfo').read_text().splitlines():
         if line.startswith('model name'):
             report['cpu_model'] = line.split(':', 1)[1].strip()
@@ -298,7 +457,20 @@ def main() -> None:
             dc('restart', 'api', 'web', 'worker')
             WEB_ADDRESS = str(ipaddress.ip_address(dc('exec', '-T', 'api', 'python', '-c',
                 'import socket; print(socket.gethostbyname("web"))', capture=True).strip()))
-        benchmark(state, report, restart)
+        stop_samples = threading.Event()
+        peaks: dict = {}
+        sampler = threading.Thread(target=sample_resources, args=(project, stop_samples, peaks), daemon=True)
+        sampler.start()
+        try:
+            if options.mixed:
+                mixed_benchmark(state, report)
+            else:
+                benchmark(state, report, restart)
+        finally:
+            stop_samples.set()
+            sampler.join(timeout=20)
+            report['resource_peaks'] = peaks
+            report['load_average_after'] = os.getloadavg()
     except Exception as error:
         report['error'] = str(error)
         logs = dc('logs', '--tail', '200', 'api', capture=True)

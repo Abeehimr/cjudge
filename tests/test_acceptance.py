@@ -26,3 +26,11 @@ def test_idle_connection_retry_requires_safe_request() -> None:
                     client.call('/test', method, b'body', headers)
                 fresh.request.assert_not_called()
             stale.close.assert_called_once()
+
+
+def test_performance_summary_uses_nearest_rank_and_memory_units() -> None:
+    with patch('ssl.create_default_context'):
+        namespace = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/acceptance.py'))
+    assert namespace['metrics'](list(range(1, 101))) == {
+        'requests': 100, 'p50_ms': 50, 'p95_ms': 95, 'p99_ms': 99}
+    assert namespace['memory_bytes']('1.5GiB') == 1610612736
