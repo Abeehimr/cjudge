@@ -4,6 +4,7 @@ services:
     image: cjudge-api
     environment:
       CJUDGE_ACCEPTANCE: '1'
+      CJUDGE_ACCEPTANCE_LABS: ${CJUDGE_ACCEPTANCE_LABS:-1}
     volumes:
       - ./tests:/app/tests:ro
   web:
