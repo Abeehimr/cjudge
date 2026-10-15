@@ -55,10 +55,12 @@ export default function Release({ lab, csrf, accept, deleted }: { lab: AdminLab;
   return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Results and archive</h2>
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
     <p>{lab.first_released_at ? `First release: ${new Date(lab.first_released_at).toLocaleString()}` : "Results not released."} · Student details {lab.reveal_results ? "visible" : "hidden"}.</p>
-    {(lab.phase === "Ended" || !!lab.first_released_at) && <button disabled={busy} onClick={() => { void change("results"); }}>{lab.reveal_results ? "Hide results" : lab.first_released_at ? "Reveal results" : "Release results"}</button>}
-    {lab.first_released_at && !lab.archived_at && <button disabled={busy} onClick={() => { void change("archive"); }}>Archive lab</button>}
+    <div className="flex flex-wrap gap-2">
+      {(lab.phase === "Ended" || !!lab.first_released_at) && <button disabled={busy} onClick={() => { void change("results"); }}>{lab.reveal_results ? "Hide results" : lab.first_released_at ? "Reveal results" : "Release results"}</button>}
+      {lab.first_released_at && !lab.archived_at && <button disabled={busy} onClick={() => { void change("archive"); }}>Archive lab</button>}
+      {["Ended", "Results released", "Archived"].includes(lab.phase) && <button disabled={busy} onClick={() => { void exportZip(); }}>Generate lab ZIP</button>}
+    </div>
     {lab.archived_at && <p>Archived · lab and grading edits are locked.</p>}
-    {["Ended", "Results released", "Archived"].includes(lab.phase) && <button disabled={busy} onClick={() => { void exportZip(); }}>Generate lab ZIP</button>}
     {receipt && <><p>Verified archive · {receipt.size} bytes</p><p className="break-all text-sm">SHA-256: {receipt.sha256}</p>
       <a download href={`/api/admin/labs/${lab.id}/exports/${receipt.id}`}>Download lab ZIP</a>
       {lab.archived_at && <fieldset disabled={busy} className="space-y-2 rounded border p-3">
