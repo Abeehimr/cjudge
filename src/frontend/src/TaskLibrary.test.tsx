@@ -78,7 +78,7 @@ test("import task ZIP creates and opens a draft", async () => {
   }));
 });
 
-test("optional banned identifiers save on draft and appear in review", async () => {
+test("optional banned identifiers and operators save on draft and appear in review", async () => {
   vi.stubGlobal("EventSource", class extends EventTarget { close = vi.fn(); });
   let config = { title: "No printf", statement: "", scoring: "partial", banned_identifiers: [] as string[],
     checker: { kind: "exact", ignore_final_newline: false, ignore_case: false, absolute_tolerance: "0", relative_tolerance: "0" },
@@ -90,14 +90,14 @@ test("optional banned identifiers save on draft and appear in review", async () 
   });
   vi.stubGlobal("fetch", fetchMock);
   renderRoute(<TaskLibrary csrf="csrf" />, "/admin/tasks/task");
-  fireEvent.change(await screen.findByLabelText("Banned identifiers (optional, one per line)"),
-    { target: { value: "printf\nscanf\n" } });
+  fireEvent.change(await screen.findByLabelText("Banned identifiers and operators (optional, one per line)"),
+    { target: { value: "for\n+\n-\n*\n/\n" } });
   fireEvent.change(screen.getByLabelText("Permitted languages"), { target: { value: "cpp17" } });
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
   expect(await screen.findByText("Draft saved.")).toBeTruthy();
   expect(fetchMock.mock.calls.some(([path, options]) => path === "/api/admin/tasks/task" && options?.method === "PUT" &&
-    JSON.parse(String(options.body)).config.banned_identifiers.join(",") === "printf,scanf")).toBe(true);
+    JSON.parse(String(options.body)).config.banned_identifiers.join(",") === "for,+,-,*,/")).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Review draft" }));
-  expect((await screen.findByText("printf, scanf")).className).toContain("text-red-900");
+  expect((await screen.findByText("for, +, -, *, /")).className).toContain("text-red-900");
   expect(await screen.findByText("Languages: C++17")).toBeTruthy();
 });

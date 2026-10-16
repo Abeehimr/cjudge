@@ -266,6 +266,7 @@ Evidence: backend/frontend tests and build, disposable PostgreSQL service/API ga
 ## M25 — Restricted Source Identifiers · requires M3, M5
 
 - [x] Add optional revisioned case-sensitive banned identifiers; empty lists skip scanning.
+- [x] Accept `+`, `-`, `*`, `/` in the same list; reject compound/unary/pointer uses while skipping comments, literals, and header names.
 - [x] Retain rejection as Restricted source, matched identifier/line, zero automatic marks; do not compile/run.
 - [x] Apply to student judging/rejudging and tester; show rules and reasons; document bypass limits.
 - [x] **Gate:** token boundaries, escapes/comments/literals/malformed source, correction/history, no execution after rejection.

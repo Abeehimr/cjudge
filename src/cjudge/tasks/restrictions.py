@@ -1,4 +1,4 @@
-"""Bounded lexical scan of source identifiers; teaching policy, not C preprocessing."""
+"""Bounded lexical scan of identifiers/operators; teaching policy, not C preprocessing."""
 from bisect import bisect_left
 
 
@@ -96,6 +96,8 @@ def first_banned(source: bytes, names: list[str], language: str = 'c11') -> tupl
                 return token.decode('ascii'), line_numbers[start]
             line_start = False
         else:
+            if data[index:index + 1] in banned:
+                return chr(char), line_numbers[index]
             line_start = False
             index += 1
     return None
