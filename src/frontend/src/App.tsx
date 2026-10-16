@@ -10,6 +10,7 @@ import Isolates from "./Isolates";
 import TAAccounts from "./TAAccounts";
 import TALabs from "./TALabs";
 import { NotFound } from "./navigation";
+import PasswordField from "./PasswordField";
 
 type Session = { id: string; role: "admin" | "student" | "ta"; username?: string; roll_number: string | null; name: string; csrf_token: string };
 
@@ -62,7 +63,7 @@ function Screen() {
       {loading ? <p role="status">Loading…</p> : !session ? <section className="mx-auto max-w-sm rounded border bg-white p-6">
         <h1 className="text-xl font-semibold">Sign in</h1><form className="mt-4 grid gap-3" onSubmit={login}>
           <label>Username or roll number<input className="mt-1 w-full" required autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} /></label>
-          <label>Password<input className="mt-1 w-full" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          <PasswordField required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
           <button disabled={signingIn}>{signingIn ? "Signing in…" : "Sign in"}</button>
         </form></section> : <div key={session.id}>
         <nav aria-label={session.role === "admin" ? "Admin navigation" : session.role === "ta" ? "TA navigation" : "Student navigation"} className="no-print mb-4 flex flex-wrap gap-2">
