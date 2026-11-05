@@ -62,14 +62,14 @@ test('assigned TA marks view links submissions and distinguishes unmarked from s
     ...row.ta_review, reviewer_name: 'Former TA', finalized: true, provisional: false, needs_recheck: true } };
   const finalized = renderRoute(<MarksTable rows={[saved]} tasks={saved.tasks} labId="lab" />, "/admin/labs/lab");
   expect(screen.queryByText(/Not marked/)).toBeNull();
-  expect(screen.getByText('Reviewed by: Former TA')).toBeTruthy();
+  expect(screen.getByText('Former TA')).toBeTruthy();
   expect(screen.getByText('Needs recheck')).toBeTruthy();
   expect(screen.getByText('Provisional')).toBeTruthy();
   finalized.unmount();
   const reopened = { ...saved, ta_review: { ...saved.ta_review, owner_name: 'New TA', finalized: false, provisional: true } };
   renderRoute(<MarksTable rows={[reopened]} tasks={reopened.tasks} labId="lab" taskId="task" />, "/admin/labs/lab/tasks/r");
   expect(screen.getByText('Assigned to: New TA')).toBeTruthy();
-  expect(screen.queryByText('Reviewed by: Former TA')).toBeNull();
+  expect(screen.queryByText('Former TA')).toBeNull();
   expect(screen.getByText('Provisional review')).toBeTruthy();
 });
 

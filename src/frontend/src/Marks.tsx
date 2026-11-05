@@ -49,7 +49,7 @@ export function MarksTable({ rows, tasks, labId, taskId, taStudentId }: {
               {task.maximum_marks && <><strong> / </strong>{task.maximum_marks}</>}
               {task.pending && <span className="block text-amber-800">Provisional · judging pending</span>}
             </>}</td>)}
-          {hasTA && <td rowSpan={2}>{row.ta_review?.finalized && row.ta_review.reviewer_name ? `Reviewed by: ${row.ta_review.reviewer_name}`
+          {hasTA && <td rowSpan={2}>{row.ta_review?.finalized && row.ta_review.reviewer_name ? row.ta_review.reviewer_name
             : row.ta_review?.owner_name ? `Assigned to: ${row.ta_review.owner_name}` : 'Unassigned'}
             {!row.cancelled && row.ta_review?.provisional && <span className="block text-amber-800">Provisional review</span>}
             {row.ta_review?.needs_recheck && <span className="block text-amber-800">Needs recheck</span>}</td>}
