@@ -4,8 +4,11 @@ import { api } from "./api";
 import { useAdminEvents } from "./Isolates";
 import type { AdminLab, Task } from "./Lab";
 
-type Mark = { task_id: string; revision_id: string; title: string; marks: string | null; pending: boolean; best_submission_id: string | null };
-export type StudentMarks = { id: string; roll_number: string; name: string; cancelled: boolean; tasks: Mark[]; total: string | null; pending: boolean; submission_count: number };
+type Mark = { task_id: string; revision_id: string; title: string; marks: string | null; pending: boolean; best_submission_id: string | null;
+  maximum_marks?: string; ta_maximum?: string; ta_marks?: string | null };
+export type StudentMarks = { id: string; roll_number: string; name: string; cancelled: boolean; tasks: Mark[]; total: string | null; pending: boolean; submission_count: number;
+  ta_total?: string | null; combined_total?: string | null;
+  ta_review?: { owner_name: string | null; reviewer_name: string | null; finalized: boolean; needs_recheck: boolean; provisional: boolean } };
 type Batch = { id: string; task_id: string; state: string; revision_id: string; created_at: string; total: number; completed: number; delayed: number };
 
 export function Marks({ labId, accountId, taskId }: { labId: string; accountId?: string; taskId?: string }) {
@@ -33,14 +36,26 @@ export function MarksTable({ rows, tasks, labId, taskId, taStudentId }: {
   rows: StudentMarks[]; tasks: Mark[]; labId: string; taskId?: string; taStudentId?: string;
 }) {
   const studentPath = taStudentId ? `/ta/labs/${labId}/students/${taStudentId}` : `/admin/labs/${labId}/students`;
+  const hasTA = tasks.some((task) => Number(task.ta_maximum || 0) > 0);
   return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Student</th>
-      {tasks.map((task) => <th key={task.task_id}>{task.title}</th>)}{!taskId && <><th>Total</th><th>Active submissions</th></>}</tr></thead>
+      {tasks.map((task) => <th key={task.task_id}>{task.title}</th>)}{hasTA && <th>TA review</th>}{!taskId && <><th>Total</th><th>Active submissions</th></>}</tr></thead>
       <tbody>{rows.map((row) => <tr className="border-t" data-cancelled={row.cancelled || undefined} key={row.id}>
         <td>{taStudentId ? `${row.roll_number} · ${row.name}` : <Link to={`${studentPath}/${row.id}`}>{row.roll_number} · {row.name}</Link>}{row.cancelled && ' · Cancelled'}</td>
         {row.tasks.filter((task) => !taskId || task.task_id === taskId).map((task) => <td key={task.task_id}>
-          {row.cancelled ? '—' : task.best_submission_id ? <Link to={taStudentId ? `${studentPath}/submissions/${task.best_submission_id}` : `/admin/labs/${labId}/submissions/${task.best_submission_id}`}>{task.marks}</Link> : task.marks || "Pending"}
-          {task.pending && task.marks !== null && <span className="block text-amber-800">Provisional · judging pending</span>}</td>)}
-        {!taskId && <><td>{row.cancelled ? '—' : row.total}{row.pending && " (provisional)"}</td><td>{row.submission_count}</td></>}
+          {row.cancelled ? '—' : <>
+            <div>{hasTA && 'Automatic: '}{task.best_submission_id ? <Link to={taStudentId ? `${studentPath}/submissions/${task.best_submission_id}` : `/admin/labs/${labId}/submissions/${task.best_submission_id}`}>{task.marks}</Link> : task.marks ?? "Pending"}
+              {task.maximum_marks && <><strong> / </strong>{task.maximum_marks}</>}</div>
+            {Number(task.ta_maximum || 0) > 0 && <div>TA: {task.ta_marks ?? 'Not marked'}<strong> / </strong>{task.ta_maximum}</div>}
+            {task.pending && <span className="block text-amber-800">Provisional · judging pending</span>}
+          </>}</td>)}
+        {hasTA && <td>{row.ta_review?.finalized && row.ta_review.reviewer_name ? `Reviewed by: ${row.ta_review.reviewer_name}`
+          : row.ta_review?.owner_name ? `Assigned TA: ${row.ta_review.owner_name}` : 'Unassigned'}
+          {!row.cancelled && row.ta_review?.provisional && <span className="block text-amber-800">Provisional review</span>}
+          {row.ta_review?.needs_recheck && <span className="block text-amber-800">Needs recheck</span>}</td>}
+        {!taskId && <><td>{row.cancelled ? '—' : hasTA ? <>
+          <div>Automatic: {row.total}</div><div>TA: {row.ta_total}</div><strong className="block">Combined: {row.combined_total}</strong>
+          {(row.pending || row.ta_review?.provisional || row.ta_review?.needs_recheck) && <span className="block text-amber-800">Provisional</span>}
+        </> : <>{row.total}{row.pending && " (provisional)"}</>}</td><td>{row.submission_count}</td></>}
       </tr>)}</tbody></table>{!rows.length && <p>No enrolled students.</p>}</div>;
 }
 

@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { renderRoute } from './testRouter';
-import { Marks, Corrections } from './Marks';
+import { Marks, MarksTable, Corrections, type StudentMarks } from './Marks';
 import { AdminSubmissionDetail } from './AdminSubmissions';
 import type { AdminLab } from './Lab';
 import { useState } from 'react';
@@ -22,7 +22,7 @@ test('marks distinguish pending from zero and link the best submission', async (
   expect((await screen.findByRole('link', { name: '2.33' })).getAttribute('href')).toBe('/admin/labs/lab/submissions/best');
   expect(screen.getByText('Pending')).toBeTruthy();
   expect(screen.getByText('0.00')).toBeTruthy();
-  expect(screen.getByText('Provisional · judging pending')).toBeTruthy();
+  expect(screen.getAllByText('Provisional · judging pending').length).toBeGreaterThan(0);
 });
 
 const lab: AdminLab = { id: 'lab', title: 'Lab', phase: 'Ended', version: 3, strict_ip: false,
@@ -30,6 +30,65 @@ const lab: AdminLab = { id: 'lab', title: 'Lab', phase: 'Ended', version: 3, str
   server_time: '2026-09-30T00:00:00Z', students: [], pdfs: [], announcements: [],
   tasks: [{ position: 1, revision_id: 'old', task_id: 'task', number: 1,
     maximum_marks: '7', ta_maximum: '0.00', config: { title: 'Sum', statement: '', cpu_seconds: 2, wall_seconds: 6, memory_mib: 256 } }] };
+
+const staff: StudentMarks = { id: 'a', roll_number: '001', name: 'Ada', cancelled: false, total: '4.00',
+  pending: false, submission_count: 2, ta_total: '2.50', combined_total: '6.50',
+  ta_review: { owner_name: 'Helper', reviewer_name: null, finalized: false, provisional: true, needs_recheck: false },
+  tasks: [{ task_id: 'task', revision_id: 'r', title: 'Sum', marks: '4.00', maximum_marks: '5.00',
+    ta_marks: '2.50', ta_maximum: '10.00', pending: false, best_submission_id: 'best' }] };
+
+test('staff marks show both maxima, totals and current owner with the best submission link', () => {
+  renderRoute(<MarksTable rows={[staff]} tasks={staff.tasks} labId="lab" />, "/admin/labs/lab");
+  expect(screen.getByRole('link', { name: '4.00' }).getAttribute('href')).toBe('/admin/labs/lab/submissions/best');
+  expect(screen.getByRole('link', { name: '4.00' }).closest('td')?.textContent).toContain('TA: 2.50 / 10.00');
+  expect(screen.getByText('Combined: 6.50')).toBeTruthy();
+  expect(screen.getByText('Assigned TA: Helper')).toBeTruthy();
+  expect(screen.getByText('Provisional')).toBeTruthy();
+});
+
+test('assigned TA marks view links submissions and distinguishes unmarked from saved zero', () => {
+  const row = { ...staff, tasks: [{ ...staff.tasks[0], ta_marks: null }], ta_total: '0.00', combined_total: '4.00',
+    ta_review: { ...staff.ta_review!, owner_name: null } };
+  const view = renderRoute(<MarksTable rows={[row]} tasks={row.tasks} labId="lab" taStudentId="a" />, "/ta/labs/lab/students/a");
+  expect(screen.getByRole('link', { name: '4.00' }).getAttribute('href')).toBe('/ta/labs/lab/students/a/submissions/best');
+  expect(screen.getByText(/Not marked/)).toBeTruthy();
+  expect(screen.getByText('Unassigned')).toBeTruthy();
+  view.unmount();
+  const saved = { ...row, tasks: [{ ...row.tasks[0], ta_marks: '0.00' }], ta_review: {
+    ...row.ta_review, reviewer_name: 'Former TA', finalized: true, provisional: false, needs_recheck: true } };
+  const finalized = renderRoute(<MarksTable rows={[saved]} tasks={saved.tasks} labId="lab" />, "/admin/labs/lab");
+  expect(screen.queryByText(/Not marked/)).toBeNull();
+  expect(screen.getByText('Reviewed by: Former TA')).toBeTruthy();
+  expect(screen.getByText('Needs recheck')).toBeTruthy();
+  expect(screen.getByText('Provisional')).toBeTruthy();
+  finalized.unmount();
+  const reopened = { ...saved, ta_review: { ...saved.ta_review, owner_name: 'New TA', finalized: false, provisional: true } };
+  renderRoute(<MarksTable rows={[reopened]} tasks={reopened.tasks} labId="lab" taskId="task" />, "/admin/labs/lab/tasks/r");
+  expect(screen.getByText('Assigned TA: New TA')).toBeTruthy();
+  expect(screen.queryByText('Reviewed by: Former TA')).toBeNull();
+  expect(screen.getByText('Provisional review')).toBeTruthy();
+});
+
+test('task-filtered marks omit totals and disabled TA marking keeps the simple table', () => {
+  const automatic = { ...staff.tasks[0], task_id: 'other', title: 'Other', ta_maximum: '0.00' };
+  const row = { ...staff, tasks: [...staff.tasks, automatic] };
+  renderRoute(<MarksTable rows={[row]} tasks={[automatic]} labId="lab" taskId="other" />, "/admin/labs/lab/tasks/other");
+  expect(screen.queryByText('Sum')).toBeNull();
+  expect(screen.queryByText('TA review')).toBeNull();
+  expect(screen.queryByText(/Combined:/)).toBeNull();
+  expect(screen.getAllByRole('link')).toHaveLength(2);
+});
+
+test('cancelled marks exclude grades while pending automatic judging remains visible', () => {
+  const cancelled = { ...staff, cancelled: true, total: null, ta_total: null, combined_total: null };
+  const pending = { ...staff, id: 'b', roll_number: '002', name: 'Ben', pending: true,
+    tasks: [{ ...staff.tasks[0], marks: null, best_submission_id: null, pending: true, ta_marks: null }] };
+  renderRoute(<MarksTable rows={[cancelled, pending]} tasks={staff.tasks} labId="lab" />, "/admin/labs/lab");
+  expect(screen.getByText(/Cancelled/).closest('tr')?.getAttribute('data-cancelled')).toBe('true');
+  expect(screen.getAllByText('—')).toHaveLength(2);
+  expect(screen.getByText(/^Automatic: Pending/)).toBeTruthy();
+  expect(screen.getAllByText('Provisional · judging pending').length).toBeGreaterThan(0);
+});
 
 test('correction warns after release and submits a reason with the current lab version', async () => {
   live(); const confirm = vi.fn().mockReturnValue(true); vi.stubGlobal('confirm', confirm);
