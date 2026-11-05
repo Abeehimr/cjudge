@@ -488,6 +488,33 @@ const rosterMembers = [
 function rosterLab() { return { ...summary, phase: 'Draft', starts_at: null, ends_at: null, version: 1, strict_ip: false,
   first_released_at: null, tasks: [], pdfs: [], students: rosterMembers, announcements: [] }; }
 
+test('saved pre-start revision opens its assigned URL and survives a page reload', async () => {
+  live(); const confirm = vi.fn().mockReturnValue(false); vi.stubGlobal('confirm', confirm);
+  const task = { position: 1, task_id: 'task', revision_id: 'old', number: 1, maximum_marks: '5.00', ta_maximum: '2.00',
+    config: { title: 'Sum', statement: 'Add numbers.', cpu_seconds: 2, wall_seconds: 6, memory_mib: 256 } };
+  let current = { ...rosterLab(), tasks: [task] };
+  const fetchMock = vi.fn().mockImplementation((path: string, options: RequestInit) => {
+    if (path === '/api/admin/labs/lab/tasks' && options.method === 'PUT') {
+      current = { ...current, version: 2, tasks: [{ ...task, revision_id: 'new', number: 2 }] };
+    }
+    return Promise.resolve({ ok: true, status: 200, json: async () => path === '/api/admin/labs/lab' || options.method === 'PUT'
+      ? current : path === '/api/admin/tasks/task' ? { revisions: [{ id: 'old', number: 1 }, { id: 'new', number: 2 }] } : [] });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const view = renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/tasks/old');
+  await screen.findByRole('option', { name: 'Revision 2' });
+  fireEvent.change(screen.getByLabelText('Published revision'), { target: { value: 'new' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Change revision' }));
+  await waitFor(() => expect(view.router.state.location.pathname).toBe('/admin/labs/lab/tasks/new'));
+  expect(screen.queryByText('Page not found')).toBeNull();
+  expect(screen.getByRole('link', { name: 'View library revision and cases' }).getAttribute('href')).toContain('revision=new');
+  expect(confirm).not.toHaveBeenCalled();
+  view.unmount();
+  renderRoute(<AdminLabs csrf="csrf" />, '/admin/labs/lab/tasks/new');
+  expect(await screen.findByText('Revision 2')).toBeTruthy();
+  expect(screen.queryByText('Page not found')).toBeNull();
+});
+
 test('roster status filter follows displayed status and keeps selection through search', async () => {
   live(); const lab = { ...rosterLab(), students: [rosterMembers[0], { ...rosterMembers[1], frozen: true },
     { ...rosterMembers[1], id: 'linus', roll_number: 'C', name: 'Linus', cancelled: true },

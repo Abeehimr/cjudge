@@ -204,7 +204,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
     start !== dateInput(lab.starts_at, 5) || end !== dateInput(lab.ends_at, 125) || !!reason || !!announcement) ||
     section === 'tasks' && !revisionId && JSON.stringify(taskIds) !== JSON.stringify(lab.tasks.map((t) => t.revision_id)) ||
     section === 'students' && (!!roll || !!name)));
-  useUnsaved(dirty);
+  useUnsaved(dirty && !destination);
   if ((!route && !listRoute) || parts.length > 2 || !['overview', 'students', 'tasks', 'submissions', 'scoreboard', 'tas', 'reviews'].includes(section) ||
       section === 'overview' && parts.length > 0 || section === 'scoreboard' && parts.length !== 1 || [404, 422].includes(failure) || lab && (studentId && !member || revisionId && !task)) return <NotFound />;
   return <div className="space-y-4">
@@ -260,7 +260,7 @@ export function AdminLabs({ csrf }: { csrf: string }) {
           <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Order</th><th>Task</th><th>Revision</th><th>Automatic maximum</th><th>TA maximum</th><th>Actions</th></tr></thead>
             <tbody>{taskIds.map((id, index) => { const item = options.find((o) => o.revision_id === id) || lab.tasks.find((t) => t.revision_id === id);
               return <tr className="border-t" key={id}><td>{index + 1}</td><td><Link to={`/admin/labs/${lab.id}/tasks/${id}`}>{item?.config.title || id}</Link></td>
-                <td>{item?.number}</td><td>{taskMarks[id]}</td><td>{taskTAMarks[id] || '0.00'}</td><td>
+                <td>{item && `Revision ${item.number}`}</td><td>{taskMarks[id]}</td><td>{taskTAMarks[id] || '0.00'}</td><td>
                 <button disabled={!index} onClick={() => move(index, -1)} aria-label={`Move task ${index + 1} up`}>↑</button>
                 <button disabled={index === taskIds.length - 1} onClick={() => move(index, 1)} aria-label={`Move task ${index + 1} down`}>↓</button>
                 <button onClick={() => setTaskIds(taskIds.filter((value) => value !== id))}>Remove task {index + 1}</button></td></tr>; })}</tbody></table></div>
@@ -404,8 +404,14 @@ export function AdminLabs({ csrf }: { csrf: string }) {
         </form>}
         <Statement text={task.config.statement} /><p><Link to={`/admin/tasks/${task.task_id}?revision=${task.revision_id}`}>View library revision and cases</Link></p>
       </section>}
+      {task && <Corrections key={task.task_id} lab={lab} task={task} csrf={csrf} refreshLab={() => reload()} onDirty={setCorrectionDirty}
+        onSaved={(next) => {
+          if (currentLab.current !== next.id) return;
+          const assigned = next.tasks.find((item) => item.task_id === task.task_id);
+          accept(next, true); setCorrectionDirty(false);
+          setDestination(assigned ? `/admin/labs/${next.id}/tasks/${assigned.revision_id}` : `/admin/labs/${next.id}/tasks`);
+        }} />}
       {(section === 'overview' || studentId || task) && <Marks labId={lab.id} accountId={studentId} taskId={task?.task_id} />}
-      {task && !lab.archived_at && <Corrections key={task.task_id} lab={lab} task={task} csrf={csrf} refreshLab={() => reload()} onDirty={setCorrectionDirty} />}
       {submissionId && <AdminSubmissionDetail key={submissionId} labId={lab.id} submissionId={submissionId} csrf={csrf} released={!!lab.first_released_at} archived={!!lab.archived_at} />}
       {(!submissionId && section === 'submissions' || studentId || revisionId) && <AdminSubmissions key={`${lab.id}/${studentId || revisionId || 'all'}`} labId={lab.id} csrf={csrf}
         tasks={lab.tasks.map((t) => ({ revision_id: t.revision_id, title: t.config.title }))} students={lab.students} accountId={studentId} revisionId={revisionId} />}

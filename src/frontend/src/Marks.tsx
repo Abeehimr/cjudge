@@ -44,8 +44,8 @@ export function MarksTable({ rows, tasks, labId, taskId, taStudentId }: {
       </tr>)}</tbody></table>{!rows.length && <p>No enrolled students.</p>}</div>;
 }
 
-export function Corrections({ lab, task, csrf, refreshLab, onDirty }: { lab: AdminLab; task: Task; csrf: string;
-  refreshLab: () => Promise<void>; onDirty: (dirty: boolean) => void }) {
+export function Corrections({ lab, task, csrf, refreshLab, onDirty, onSaved }: { lab: AdminLab; task: Task; csrf: string;
+  refreshLab: () => Promise<void>; onDirty: (dirty: boolean) => void; onSaved: (lab: AdminLab) => void }) {
   const [options, setOptions] = useState<{ id: string; number: number }[]>([]), [batches, setBatches] = useState<Batch[]>([]);
   const [revision, setRevision] = useState(""), [reason, setReason] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const latest = useRef(0);
@@ -53,7 +53,7 @@ export function Corrections({ lab, task, csrf, refreshLab, onDirty }: { lab: Adm
     const request = ++latest.current;
     try { const [values, library] = await Promise.all([api<Batch[]>(`/admin/labs/${lab.id}/corrections`),
         api<{ revisions: { id: string; number: number }[] }>(`/admin/tasks/${task.task_id}`)]);
-      if (request === latest.current) { setBatches(values); setOptions(library.revisions); setError(""); } }
+      if (request === latest.current) { setBatches(values); setOptions(library.revisions); } }
     catch (e) { if (request === latest.current) setError((e as Error).message); }
   }
   useAdminEvents(refresh);
@@ -64,34 +64,58 @@ export function Corrections({ lab, task, csrf, refreshLab, onDirty }: { lab: Adm
   useEffect(() => { onDirty(busy || !!revision || !!reason); }, [busy, revision, reason]);
   useEffect(() => () => onDirty(false), []);
   const history = batches.filter((batch) => batch.task_id === task.task_id), active = history.some((batch) => batch.state === 'judging');
+  const beforeStart = ['Draft', 'Scheduled'].includes(lab.phase);
+  const editable = !lab.archived_at && ['Draft', 'Scheduled', 'Running', 'Ended', 'Results released'].includes(lab.phase);
   async function correct() {
+    if (busy || active || !editable || !revision || revision === task.revision_id || !beforeStart && !reason.trim()) return;
     const warning = lab.first_released_at ? "Results have already been released. This changes current marks and keeps the lab closed. " : "";
-    if (!confirm(`${warning}Rejudge every active submission for this task using the selected revision? Previous official results stay visible until the batch completes.`)) return;
-    setBusy(true);
+    if (!beforeStart && !confirm(`${warning}Rejudge every active submission for this task using the selected revision? Previous official results stay visible until the batch completes.`)) return;
+    setBusy(true); setError("");
     try {
-      let acknowledge = false;
-      if (lab.reveal_results) {
-        const warnings = await api<{ title: string }[]>(`/admin/labs/${lab.id}/release-warnings?revision_id=${encodeURIComponent(revision)}`);
-        if (warnings.length) {
-          acknowledge = confirm(`This correction reveals tests reused by scheduled labs: ${warnings.map((row) => row.title).join(", ")}. Continue?`);
-          if (!acknowledge) return;
+      let updated: AdminLab;
+      if (beforeStart) {
+        updated = await api<AdminLab>(`/admin/labs/${lab.id}/tasks`, { method: 'PUT', body: JSON.stringify({
+          version: lab.version, assignments: lab.tasks.map((item) => ({
+            revision_id: item.task_id === task.task_id ? revision : item.revision_id,
+            maximum_marks: item.maximum_marks, ta_maximum: item.ta_maximum,
+          })),
+        }) }, csrf);
+      } else {
+        let acknowledge = false;
+        if (lab.reveal_results) {
+          const warnings = await api<{ title: string }[]>(`/admin/labs/${lab.id}/release-warnings?revision_id=${encodeURIComponent(revision)}`);
+          if (warnings.length) {
+            acknowledge = confirm(`This correction reveals tests reused by scheduled labs: ${warnings.map((row) => row.title).join(", ")}. Continue?`);
+            if (!acknowledge) return;
+          }
         }
+        await api(`/admin/labs/${lab.id}/tasks/${task.task_id}/corrections`, { method: 'POST',
+          body: JSON.stringify({ version: lab.version, revision_id: revision, reason, acknowledge_reuse: acknowledge }) }, csrf);
+        updated = await api<AdminLab>(`/admin/labs/${lab.id}`);
       }
-      await api(`/admin/labs/${lab.id}/tasks/${task.task_id}/corrections`, { method: 'POST',
-      body: JSON.stringify({ version: lab.version, revision_id: revision, reason, acknowledge_reuse: acknowledge }) }, csrf);
-      setRevision(""); setReason(""); await refreshLab(); await refresh(); }
-    catch (e) { setError((e as Error).message); }
+      setRevision(""); setReason(""); onSaved(updated); await refresh(); }
+    catch (e) {
+      let message = (e as Error).message;
+      if ((e as Error & { status?: number }).status === 409) {
+        try { await refreshLab(); await refresh(); }
+        catch (refreshError) { message += ` · ${(refreshError as Error).message}`; }
+      }
+      setError(message);
+    }
     finally { setBusy(false); }
   }
-  return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Task corrections</h2>
+  return <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">Task revision</h2>
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
-    <p>Publish a correction in the task library, then select its revision here.</p>
-    <button onClick={() => { void refresh(); }}>Refresh corrections</button>
-    <form onSubmit={(e) => { e.preventDefault(); void correct(); }}><fieldset disabled={busy || active || !['Running', 'Ended', 'Results released'].includes(lab.phase)} className="flex flex-wrap items-center gap-3">
-      <label>Corrected revision <select required value={revision} onChange={(e) => setRevision(e.target.value)}>
+    <p>Assigned revision: <strong>Revision {task.number}</strong></p>
+    <p>{lab.archived_at ? 'Archived lab: revision changes are locked.' : beforeStart
+      ? 'Before start, change the assigned revision without rejudging. Task order and marks are preserved.'
+      : 'After start, changing revision requires a reason and rejudges all active submissions.'} Publish revisions in the task library before selecting them here.</p>
+    <button disabled={busy} onClick={() => { setError(""); void refresh(); }}>Refresh revisions</button>
+    <form onSubmit={(e) => { e.preventDefault(); void correct(); }}><fieldset disabled={busy || active || !editable} className="flex flex-wrap items-center gap-3">
+      <label>Published revision <select required value={revision} onChange={(e) => setRevision(e.target.value)}>
         <option value="">Select revision</option>{options.filter((row) => row.id !== task.revision_id).map((row) => <option key={row.id} value={row.id}>Revision {row.number}</option>)}</select></label>
-      <label>Correction reason <input required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-      <button>Start correction batch</button>
+      {!beforeStart && <label>Correction reason <input required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></label>}
+      <button disabled={!revision || revision === task.revision_id || !beforeStart && !reason.trim()}>{beforeStart ? 'Change revision' : 'Change revision and rejudge'}</button>
     </fieldset></form>
     {history.map((batch) => <p className={batch.delayed ? 'notice notice-warning' : ''} key={batch.id}>{batch.state === 'published' ? 'Published' : 'Judging'} · {batch.completed}/{batch.total} active submissions completed
       {batch.delayed > 0 && ` · ${batch.delayed} delayed: retry from submission pages`} · {new Date(batch.created_at).toLocaleString()}</p>)}
