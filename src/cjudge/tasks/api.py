@@ -195,6 +195,30 @@ def get_task(task_id: UUID, response: Response) -> dict:
         return detail(conn, find_task(conn, task_id))
 
 
+@router.put('/{task_id}/import', response_model=DetailOutput)
+async def replace_task(task_id: UUID, request: Request, version: int, actor: dict = Depends(admin_write)) -> dict:
+    if request.headers.get('content-type', '').split(';')[0] != 'application/zip':
+        raise HTTPException(415, 'ZIP required')
+    payload = await bounded_body(request)
+    def replace() -> dict:
+        try:
+            config, cases = bundle.parse(payload)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        with identity.engine().begin() as conn:
+            row = find_task(conn, task_id, version)
+            try:
+                key = store.save_cases(cases)
+            except OSError as exc:
+                raise HTTPException(503, 'Task storage unavailable') from exc
+            conn.execute(sa.update(store.tasks).where(store.tasks.c.id == task_id).values(
+                config=config, cases_key=key, case_count=len(cases), version=row['version'] + 1))
+            identity.audit(conn, 'task_draft_replaced', actor['id'],
+                detail={'task_id': str(task_id), 'count': len(cases)})
+            return detail(conn, find_task(conn, task_id))
+    return await run_in_threadpool(replace)
+
+
 @router.put('/{task_id}', response_model=DetailOutput)
 async def edit_task(task_id: UUID, request: Request, actor: dict = Depends(admin_write)) -> dict:
     body = await json_input(request, DraftInput)
