@@ -1,3 +1,4 @@
+import CaseResult, { Streams } from "./CaseResult";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "./api";
@@ -50,13 +51,10 @@ export default function SubmissionDetail({ labId, submissionId, visible, refresh
       {row.compiler_feedback && <pre className="overflow-x-auto whitespace-pre-wrap">{row.compiler_feedback}</pre>}
       {row.compiler_truncated && <p>Compiler feedback truncated.</p>}
       <h3 className="font-semibold">Case results</h3>{!row.cases.length && <p>No case results available.</p>}
-      {row.cases.map((item) => <details className="case-result rounded border p-3" data-verdict={item.verdict} key={item.number}>
-        <summary>Case {item.number}: {item.verdict} · CPU {item.cpu_seconds}s · Wall {item.wall_seconds}s · Memory {item.memory_kib} KiB</summary>
+      {row.cases.map((item) => <CaseResult item={item} key={item.number}>
         {item.stdin === null && <p>Passed case. Test streams are shown only for failed cases.</p>}
-        {(["stdin", "expected", "stdout", "stderr"] as const).map((part) => item[part] !== null && <div key={part}>
-          <h4>{{ stdin: "Standard input", expected: "Expected output", stdout: "Standard output", stderr: "Standard error" }[part]}{item[`${part}_truncated`] ? " (truncated)" : ""}</h4>
-          <pre className="overflow-x-auto whitespace-pre-wrap">{item[part] || "(empty)"}</pre></div>)}
-      </details>)}
+        <Streams item={item} />
+      </CaseResult>)}
     </>}
   </section>;
 }
