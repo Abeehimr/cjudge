@@ -140,6 +140,18 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
       }, csrf)); await refresh();
     });
   }
+  async function replaceDraft(file?: File) {
+    if (!file || !draft || busy || dirty || generationDirty || input || answer) return;
+    if (file.size > 17 * 1024 * 1024) { showError("ZIP exceeds 17 MiB."); return; }
+    if (!confirm("Replace all draft settings and cases from this task ZIP? Published revisions and assigned labs stay unchanged.")) return;
+    await perform(async () => {
+      accept(await api<Detail>(`/admin/tasks/${draft.id}/import?version=${draft.version}`, {
+        method: "PUT", body: file, headers: { "Content-Type": "application/zip" },
+      }, csrf));
+      setParams({ view: "review" });
+      setMessage("Draft replaced. Review settings and cases before publishing.");
+    });
+  }
   async function publish() {
     if (!draft || !confirm("Publish this reviewed draft as an immutable grading revision?")) return;
     await perform(async () => {
@@ -202,6 +214,14 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
           <Link to={`?revision=${revision.id}`}>Revision {revision.number}</Link> · draft {revision.draft_version} · {new Date(revision.created_at).toLocaleString()}
         </li>)}</ul> : <p>No published revisions.</p>}
       </section>
+      {!published && !review && <section className="space-y-3 rounded border bg-white p-4">
+        <label className="block">Replace draft from task ZIP
+          <input className="ml-2" type="file" accept=".zip,application/zip"
+            disabled={busy || dirty || generationDirty || !!input || !!answer} onChange={(event) => {
+              void replaceDraft(event.target.files?.[0]); event.target.value = "";
+            }} /></label>
+        <p className="text-sm">Replaces all draft settings and cases. Save or clear unsaved edits first. Review and publish separately.</p>
+      </section>}
       {published || review ? <section className="space-y-3 rounded border bg-white p-4">
         <Summary config={published?.config || draft.config} />
         <p>{published?.case_count ?? draft.case_count} cases. Review case inputs and answers below.</p>
