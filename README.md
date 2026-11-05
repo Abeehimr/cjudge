@@ -339,3 +339,10 @@ Generators independently support Python/C11/C++17; references support C11/C++17.
 Admin → Lab → Tasks shows the assigned revision number. Open a task and use **Task revision**: before start, **Change revision** updates the assignment without rejudging or changing task order/marks; after start, **Change revision and rejudge** requires a reason and starts the existing correction batch. Publish the desired revision in Task Library first. Active corrections and archived labs lock revision changes. No migration is needed; rebuild web to deploy this control.
 
 Run `docker compose run --rm judge python tests/cpp17_gate.py` for real isolated C++17 checks, and `docker compose run --rm -v ./migrations:/app/migrations:ro -v ./alembic.ini:/app/alembic.ini:ro worker python tests/tester_gate.py --sandbox --cpp` for its disposable-database tester gate. API contracts are `tests/test_cpp17_api.py` with development dependencies and `CJUDGE_TA_GATE_URL` pointing to PostgreSQL where temporary databases may be created.
+
+
+## M31 Staff Marks
+
+Admin lab/student/task marks boxes and assigned-TA student marks show automatic and TA marks with maxima, automatic/TA/combined totals, and the final reviewer or current assigned TA. Missing TA marks say **Not marked**. Unfinished reviews, pending judging, and **Needs recheck** remain visible; cancelled participation has no totals. Labs without TA marking keep the simpler table. Student results and scoreboard stay automatic-only.
+
+No migration is needed; rebuild API and web to deploy. Review with a TA-enabled lab: compare unmarked, saved-zero, unfinished, and finalized reviews; reopen/transfer a review; change a TA maximum; trigger a recheck; verify cancelled totals and best-submission links. API tests in `tests/test_ta_review_api.py` use `CJUDGE_TA_GATE_URL` and create/drop only temporary databases.

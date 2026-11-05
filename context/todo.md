@@ -323,17 +323,19 @@ Matched follow-up: reads p95 37/38 ms, upload acceptance p95 763/446 ms, all sub
 - [x] Show active correction status; retain official results until batch publication and keep archived labs locked.
 - [x] **Automated gate:** revision visibility/navigation, pre-start switching, correction publication, stale/start-boundary edits, language compatibility, and archive restrictions.
 
-Evidence: 94 frontend tests, production build, disposable PostgreSQL lab gate and existing correction/marks gate passed. No schema or API changes. Live browser acceptance remains; M31–M32 are still planned.
+Evidence: 94 frontend tests, production build, disposable PostgreSQL lab gate and existing correction/marks gate passed. No schema or API changes. Live browser acceptance remains.
 
 ## M31 — Complete Staff Marks Box · requires M20, M23, M24
 
-- [ ] Show automatic marks/maxima and TA marks/maxima beneath them for each task.
-- [ ] Show automatic, TA, and combined totals; display missing TA marks as Not marked, preserving existing total calculations.
-- [ ] Retain provisional, cancellation, and Needs recheck indicators.
-- [ ] Show the final reviewer, or label the current owner as Assigned TA while the review is unfinished; show Unassigned when neither exists.
-- [ ] Extend staff marks responses with TA totals, per-task marks, and review metadata; batch-load data and reuse the shared marks table in admin and assigned-TA views.
-- [ ] Keep student responses and scoreboard disclosure unchanged; attribution is per student review, not per-task edit history.
-- [ ] **Gate:** unmarked/partial/finalized reviews, transfer/reopening, cancellation, pending judging, totals/scaling, and staff/student permission boundaries.
+- [x] Show automatic marks/maxima and TA marks/maxima beneath them for each task.
+- [x] Show automatic, TA, and combined totals; display missing TA marks as Not marked, preserving existing total calculations.
+- [x] Retain provisional, cancellation, and Needs recheck indicators.
+- [x] Show the final reviewer, or label the current owner as Assigned TA while the review is unfinished; show Unassigned when neither exists.
+- [x] Extend staff marks responses with TA totals, per-task marks, and review metadata; batch-load data and reuse the shared marks table in admin and assigned-TA views.
+- [x] Keep student responses and scoreboard disclosure unchanged; attribution is per student review, not per-task edit history.
+- [x] **Gate:** unmarked/partial/finalized reviews, transfer/reopening, cancellation, pending judging, totals/scaling, and staff/student permission boundaries.
+
+Evidence: 98 frontend tests and production build; 62 backend tests; four disposable PostgreSQL TA/API tests, including constant query counts for 1 versus 150 students; existing correction/marks gate passed. Seven host tests require PostgreSQL; four TA/API tests ran separately above. Browser acceptance and deployment remain. No migration.
 
 ## M32 — Replace Existing Task Draft from ZIP · requires M3, M21
 

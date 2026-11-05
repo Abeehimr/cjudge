@@ -132,6 +132,10 @@ Decisions for M17–M27: [improvements_v2.md](improvements_v2.md). Atomic steps 
 
 Admin lab task lists and details show the assigned revision number. One Task revision panel switches to another published revision of the same task: before start it preserves task order and automatic/TA maxima without a rejudge; after start it requires a reason and a correction batch. Active batches and archives lock changes. Successful changes open the assigned revision URL; a start-boundary rejection refreshes the phase and requires an explicit rejudge action.
 
+## M31 — Complete Staff Marks Box
+
+Admin lab, student, and task marks boxes and assigned-TA student views show automatic marks/maxima and enabled TA marks/maxima. Missing TA marks read **Not marked**; saved zero remains zero. Show automatic, TA, and combined totals, with unfinished reviews or pending judging marked provisional. Preserve cancellation and **Needs recheck**. Finalized reviews show **Reviewed by**; unfinished reviews show **Assigned TA**, otherwise **Unassigned**. Attribution belongs to the student review. Keep best-submission links and a simpler automatic-only table when no displayed task enables TA marks. Students and scoreboard retain automatic-only results.
+
 ## Success Targets
 
 Validate on target hardware: API p95 below 300 ms at 150 concurrent users; ordinary light-load judging within 30 seconds; 150 representative submissions arriving over 60 seconds completed within five minutes of first acceptance. Measure timeout-heavy behavior separately. Correct grading, access control, isolation, and recovery are release prerequisites.

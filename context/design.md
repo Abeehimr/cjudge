@@ -20,6 +20,8 @@ M26 persists C11/C++17 source language from upload extensions. Task revision pol
 
 Suggested backend boundaries: identity, tasks, labs, submissions, judging, results, and exports. Keep scoring and timing policy separate from HTTP handlers; keep sandbox management in worker-only code.
 
+M31 enriches the existing staff marks endpoints through one shared batch loader: automatic results, task maxima, saved TA fractions, and joined review owner/reviewer names feed the shared admin/TA marks table. Saved TA marks contribute immediately to provisional combined totals; finalization determines reviewer attribution. Student and scoreboard paths keep the separate automatic-only grading model.
+
 ## Screens
 
 Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use a light theme and native form controls: consistent blue buttons, yellow notices/announcements, and red blocked states or errors. M13 changes frozen roster rows to muted yellow; M15 uses muted red for cancelled rows. Keep labels and visible focus; do not rely on color alone. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.

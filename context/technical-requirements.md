@@ -140,6 +140,10 @@ Agreed behavior: [improvements_v2.md](improvements_v2.md). Gates: [todo.md](todo
 
 Reuse `PUT /api/admin/labs/{lab_id}/tasks` before start, preserving every assignment's order and maxima, and the existing task correction POST after start. Keep database-time setup checks, lab versions/locks, retained-language validation, disclosure acknowledgments, and atomic batch publication. Refresh the lab after HTTP 409 while retaining the selected revision and displaying the error. Confirmed saves update the snapshot and navigate without an unsaved-change prompt. Archived tasks retain read-only revision visibility. No new endpoint or migration is required.
 
+## M31 — Complete Staff Marks Box
+
+Enrich existing admin and assigned-TA marks endpoints with task automatic/TA maxima, nullable saved TA marks, TA/combined totals, and review attribution/status. Batch-load marks and joined owner/reviewer names for the selected roster; query counts must not grow per student. Preserve exact fraction scaling and half-up display rounding, sum displayed marks, and exclude cancelled totals while retaining evidence. Keep the shared automatic grading model, student responses, and scoreboard unchanged. Reuse the shared table and existing SSE invalidations; no new endpoint, polling, or migration.
+
 ## Security and Operations
 
 - Argon2 password hashing, revocable sessions, HttpOnly binding cookies, HTTPS, CSRF protection, and login rate limits. Trust forwarded IPs only from configured proxies.
