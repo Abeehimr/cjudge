@@ -349,6 +349,17 @@ Evidence: 98 frontend tests and production build; 62 backend tests; four disposa
 
 Evidence: 105 frontend tests and production build; 62 backend tests; five disposable PostgreSQL replacement tests; existing task gate passed. PostgreSQL-only host tests are skipped there; M32 cases ran separately. Browser acceptance and deployment remain. No migration.
 
+## M33 — Task Tester Submission Pages · requires M22
+
+- [x] Open each tested source on a dedicated page without upload/history sections; preserve batch/revision links and browser navigation.
+- [x] Reuse the lab case layout across admin, TA, student, and tester details; show tester source code directly.
+- [x] Fetch tester streams only for expanded cases; retain all four streams, truncation notices, failed-run retry, and live updates.
+- [x] Ignore stale submission responses and abort obsolete case requests; provide loading, error, and case retry states.
+- [x] **Automated gate:** direct links, batch/back navigation, lazy streams, escaping/truncation, retries, live expansion, stale responses, existing lab disclosure tests, and frontend build.
+- [ ] **Browser gate:** verify desktop/mobile layout and real worker updates after deployment.
+
+Evidence: 109 frontend tests and production build passed. No API changes, database migration, or new dependency. Deployment and merge remain pending.
+
 M30–M32 are independently implementable. Work on a separate branch per module, make small tested commits, and stop at each gate for review; merge only on command.
 
 Integration when applicable: test TA reviews with maximum changes, cancellations, corrections and archives; test tester/ZIP/source restrictions with C++. Refresh M17 diagrams as modules land. Higher capacity remains unverified.
