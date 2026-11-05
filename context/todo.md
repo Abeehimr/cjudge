@@ -314,4 +314,33 @@ Phase 1: reads, judging throughput, and the three-lab scenario passed. Single-la
 
 Matched follow-up: reads p95 37/38 ms, upload acceptance p95 763/446 ms, all submissions judged correctly. Practical acceptable limits are 300 ms reads/1 second upload acceptance; ideal upload acceptance remains 300 ms. The original 5.9-second p95 did not reproduce. See the report for p99 and storage/wait limits.
 
+## M30 — Lab Task Revision Controls · requires M4, M8, M27
+
+- [ ] Show assigned revision numbers in the admin lab task table and task detail.
+- [ ] Allow selecting another published revision of the same task before start; preserve order and automatic/TA maxima.
+- [ ] Expose running/ended revision changes through the existing reason-required correction/rejudge flow.
+- [ ] Show active correction status; retain official results until batch publication and keep archived labs locked.
+- [ ] **Gate:** revision visibility, pre-start switching, correction publication, stale edits, language compatibility, and archive restrictions.
+
+## M31 — Complete Staff Marks Box · requires M20, M23, M24
+
+- [ ] Show automatic marks/maxima and TA marks/maxima beneath them for each task.
+- [ ] Show automatic, TA, and combined totals; display missing TA marks as Not marked, preserving existing total calculations.
+- [ ] Retain provisional, cancellation, and Needs recheck indicators.
+- [ ] Show the final reviewer, or label the current owner as Assigned TA while the review is unfinished; show Unassigned when neither exists.
+- [ ] Extend staff marks responses with TA totals, per-task marks, and review metadata; batch-load data and reuse the shared marks table in admin and assigned-TA views.
+- [ ] Keep student responses and scoreboard disclosure unchanged; attribution is per student review, not per-task edit history.
+- [ ] **Gate:** unmarked/partial/finalized reviews, transfer/reopening, cancellation, pending judging, totals/scaling, and staff/student permission boundaries.
+
+## M32 — Replace Existing Task Draft from ZIP · requires M3, M21
+
+- [ ] Add Replace draft from task ZIP on an existing library task; confirm replacement of all draft settings and cases.
+- [ ] Add an admin/CSRF-protected, version-checked whole-task ZIP replacement endpoint using the existing bounded parser.
+- [ ] Replace statement, checker, restrictions, languages, limits, scoring, and cases atomically; invalid uploads and stale versions leave the draft unchanged.
+- [ ] Preserve task identity, published revisions, assigned labs, marks, and retained results; increment draft version and invalidate stale generation application.
+- [ ] Require review and explicit publication before lab revision switching/corrections; retain the separate new-task import and cases-only replacement controls.
+- [ ] **Gate:** complete replacement, malformed/oversized ZIPs, authorization, concurrent edits, storage failures, generation invalidation, and published-history preservation.
+
+M30–M32 are independently implementable. Work on a separate branch per module, make small tested commits, and stop at each gate for review; merge only on command.
+
 Integration when applicable: test TA reviews with maximum changes, cancellations, corrections and archives; test tester/ZIP/source restrictions with C++. Refresh M17 diagrams as modules land. Higher capacity remains unverified.
