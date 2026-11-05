@@ -52,8 +52,9 @@ class TaskConfig(BaseModel):
     @classmethod
     def valid_identifiers(cls, names: list[str]) -> list[str]:
         if len(names) != len(set(names)) or any(len(name) > 128 or
+                name not in ('+', '-', '*', '/') and
                 not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name, flags=re.ASCII) for name in names):
-            raise ValueError('Use distinct ASCII C identifiers, each at most 128 characters')
+            raise ValueError('Use distinct ASCII C identifiers or +, -, *, /; each at most 128 characters')
         return names
 
     @model_validator(mode="after")

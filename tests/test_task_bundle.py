@@ -19,7 +19,7 @@ def make_zip(entries):
 
 def test_task_bundle_round_trip():
     config = {'title': 'Count', 'statement': '# Count\nSolve it.', 'scoring': 'all_or_nothing',
-        'checker': {'kind': 'python', 'source': 'accept()'}, 'banned_identifiers': ['printf'],
+        'checker': {'kind': 'python', 'source': 'accept()'}, 'banned_identifiers': ['printf', 'for', '+', '-', '*', '/'],
         'cpu_seconds': 3, 'wall_seconds': 7}
     payload = build(config, [(b'\x00\xff', b''), (b'2\n', b'2\n')])
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
@@ -30,7 +30,7 @@ def test_task_bundle_round_trip():
     restored, cases = parse(payload)
     assert restored['statement'] == config['statement']
     assert restored['checker']['source'] == 'accept()'
-    assert restored['banned_identifiers'] == ['printf']
+    assert restored['banned_identifiers'] == config['banned_identifiers']
     assert restored['cpu_seconds'] == 3
     assert cases == [(b'\x00\xff', b''), (b'2\n', b'2\n')]
 

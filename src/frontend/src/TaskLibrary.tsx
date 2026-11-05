@@ -24,7 +24,7 @@ function Summary({ config }: { config: Config }) {
       : c.kind === "python" ? "Python helpers; explicit accept/reject" : `${c.ignore_case ? "ASCII case-insensitive" : "case-sensitive"}; absolute tolerance ${c.absolute_tolerance}; relative tolerance ${c.relative_tolerance}`}</p>
     <p>CPU {config.cpu_seconds}s · Wall {config.wall_seconds}s · Memory {config.memory_mib} MiB · Stack {config.stack_mib} MiB · Output {config.stdout_mib} MiB</p>
     <p>Languages: {(config.languages || ["c11"]).map(languageName).join(", ")}</p>
-    {!!config.banned_identifiers?.length && <p className="text-lg font-semibold">Banned identifiers: <strong className="text-red-900">{config.banned_identifiers.join(", ")}</strong></p>}
+    {!!config.banned_identifiers?.length && <p className="text-lg font-semibold">Banned identifiers and operators: <strong className="text-red-900">{config.banned_identifiers.join(", ")}</strong></p>}
     {c.kind === "python" && <pre className="max-h-64 overflow-auto whitespace-pre-wrap border p-2">{c.source}</pre>}
     <Statement text={config.statement} />
   </div>;
@@ -233,8 +233,9 @@ export default function TaskLibrary({ csrf }: { csrf: string }) {
           <label className="block">Statement (optional Markdown)<textarea className="mt-1 block w-full font-mono" rows={6} maxLength={65536}
             value={config.statement} onChange={(e) => change("statement", e.target.value)} /></label>
           <Statement text={config.statement} />
-          <label className="block">Banned identifiers (optional, one per line)<textarea className="mt-1 block w-full font-mono" rows={4}
+          <label className="block">Banned identifiers and operators (optional, one per line)<textarea className="mt-1 block w-full font-mono" rows={4}
             value={restrictionText} onChange={(event) => setRestrictionText(event.target.value)} /></label>
+          <p className="text-sm">Accepts case-sensitive names such as for or while, and +, -, *, /. Symbols also block compound and unary uses, including pointer declarations with *. Comments, literals, and header names are ignored.</p>
           <div className="flex flex-wrap gap-3">
             <label>Permitted languages <select value={config.languages?.length === 2 ? "both" : config.languages?.[0] || "c11"}
               onChange={(event) => change("languages", event.target.value === "both" ? ["c11", "cpp17"] : [event.target.value as Language])}>
