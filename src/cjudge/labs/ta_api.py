@@ -224,7 +224,7 @@ def student_marks(lab_id: UUID, student_id: UUID, request: Request,
     with transaction() as conn:
         access(conn, request, account, lab_id)
         labs.enrollment(conn, lab_id, student_id, lock=False)
-        return review.marks(conn, lab_id, student_id)
+        return ta_reviews.staff_marks(conn, lab_id, student_id)
 
 
 class ReviewVersion(StrictModel):

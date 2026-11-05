@@ -8,6 +8,7 @@ from starlette.concurrency import run_in_threadpool
 from cjudge import labs
 from cjudge.identity.api import admin, admin_write, no_store, StrictModel
 from cjudge.labs.api import ReasonInput
+from cjudge.labs import ta_reviews
 from cjudge.submissions import review, reviews, batches, members, jobs, submissions
 from cjudge.submissions.api import transaction
 from cjudge.tasks.api import json_input
@@ -39,7 +40,7 @@ def reason(body: ReasonInput) -> str:
 def marks(lab_id: UUID):
     with transaction() as conn:
         labs.find(conn, lab_id, shared=True)
-        return review.marks(conn, lab_id)
+        return ta_reviews.staff_marks(conn, lab_id)
 
 
 @router.put('/submissions/{submission_id}/review', status_code=204)

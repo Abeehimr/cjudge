@@ -31,6 +31,43 @@ def current(conn: sa.Connection, lab_id: UUID, student_id: UUID) -> dict | None:
     return dict(row) if row else None
 
 
+def staff_marks(conn: sa.Connection, lab_id: UUID, student_id: UUID | None = None) -> list[dict]:
+    students = automatic.marks(conn, lab_id, student_id)
+    if not students:
+        return students
+    assigned = {task['task_id']: task for task in labs.task_rows(conn, lab_id)}
+    ids = [student['id'] for student in students]
+    saved = {(row['student_id'], row['task_id']): row for row in conn.execute(sa.select(marks).where(
+        marks.c.lab_id == lab_id, marks.c.student_id.in_(ids))).mappings()}
+    owner, reviewer = identity.accounts.alias('owner'), identity.accounts.alias('reviewer')
+    reviewed = {row['student_id']: row for row in conn.execute(sa.select(reviews,
+        owner.c.name.label('owner_name'), reviewer.c.name.label('reviewer_name'))
+        .outerjoin(owner, owner.c.id == reviews.c.owner_id)
+        .outerjoin(reviewer, reviewer.c.id == reviews.c.reviewer_id)
+        .where(reviews.c.lab_id == lab_id, reviews.c.student_id.in_(ids))).mappings()}
+    has_manual = any(task['ta_maximum'] > 0 for task in assigned.values())
+    for student in students:
+        total = Decimal(0)
+        for cell in student['tasks']:
+            task = assigned[cell['task_id']]
+            item = saved.get((student['id'], cell['task_id']))
+            value = displayed(Fraction(item['earned_numerator'], item['earned_denominator']) *
+                Fraction(task['ta_maximum'])) if item and task['ta_maximum'] > 0 else None
+            cell.update(maximum_marks=f"{task['maximum_marks']:.2f}", ta_maximum=f"{task['ta_maximum']:.2f}",
+                ta_marks=value)
+            if value is not None:
+                total += Decimal(value)
+        row = reviewed.get(student['id'])
+        finalized = bool(row and row['finalized_at'])
+        ta_total = None if student['cancelled'] else f'{total:.2f}'
+        student.update(ta_total=ta_total, combined_total=(
+            f"{Decimal(student['total']) + total:.2f}" if student['total'] is not None and ta_total is not None else None),
+            ta_review={'owner_name': row['owner_name'] if row else None,
+                'reviewer_name': row['reviewer_name'] if row else None, 'finalized': finalized,
+                'needs_recheck': bool(row and row['needs_recheck']), 'provisional': has_manual and not finalized})
+    return students
+
+
 def detail(conn: sa.Connection, lab_id: UUID, student_id: UUID, *, suggestions: bool = True) -> dict:
     enrollment = labs.enrollment(conn, lab_id, student_id, lock=False)
     row = current(conn, lab_id, student_id)
