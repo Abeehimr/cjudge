@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import CaseResult, { Streams } from "./CaseResult";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api } from "./api";
 import { useAdminEvents } from "./Isolates";
@@ -15,9 +16,31 @@ type Preview = { text: string; truncated: boolean };
 type CaseDetail = Case & { stdin: Preview; expected: Preview; stdout: Preview; stderr: Preview;
   stdout_truncated: boolean; stderr_truncated: boolean };
 
-function Stream({ label, value, truncated }: { label: string; value: Preview; truncated?: boolean }) {
-  return <details className="rounded border p-2"><summary>{label}{value.truncated || truncated ? " (truncated)" : ""}</summary>
-    <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-sm">{value.text || "(empty)"}</pre></details>;
+function TestCase({ item, path, selected, refreshKey }: { item: Case; path: string; selected: boolean; refreshKey: number }) {
+  const [open, setOpen] = useState(selected);
+  const [detail, setDetail] = useState<CaseDetail | null>(null);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  useEffect(() => { if (selected) setOpen(true); }, [selected]);
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    setDetail(null); setError("");
+    void api<CaseDetail>(path, { signal: controller.signal })
+      .then((value) => { if (!controller.signal.aborted) setDetail(value); })
+      .catch((e) => { if (!controller.signal.aborted) setError(e.message); });
+    return () => controller.abort();
+  }, [open, path, refreshKey, retry]);
+  return <CaseResult item={item} open={open} onToggle={setOpen}>
+    {open && <>{error ? <div><p role="alert" className="notice notice-danger">{error}</p>
+      <button onClick={() => setRetry((value) => value + 1)}>Retry case {item.number}</button></div>
+      : !detail ? <p role="status">Loading case…</p> : <Streams item={{
+        stdin: detail.stdin.text, expected: detail.expected.text, stdout: detail.stdout.text, stderr: detail.stderr.text,
+        stdin_truncated: detail.stdin.truncated, expected_truncated: detail.expected.truncated,
+        stdout_truncated: detail.stdout.truncated || detail.stdout_truncated,
+        stderr_truncated: detail.stderr.truncated || detail.stderr_truncated,
+      }} />}</>}
+  </CaseResult>;
 }
 
 export default function TaskTester({ csrf }: { csrf: string }) {
@@ -28,7 +51,8 @@ export default function TaskTester({ csrf }: { csrf: string }) {
   const navigate = useNavigate();
   const [batches, setBatches] = useState<Batch[]>([]);
   const [detail, setDetail] = useState<SourceDetail | null>(null);
-  const [selectedCase, setSelectedCase] = useState<CaseDetail | null>(null);
+  const latest = useRef(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -37,18 +61,25 @@ export default function TaskTester({ csrf }: { csrf: string }) {
 
   async function refresh() {
     if (!taskId) return;
+    const request = ++latest.current;
     try {
-      const next = await api<Batch[]>(`${base}${revision ? `?revision_id=${revision}` : ""}`);
-      setBatches(next);
       if (batchId && sourceId) {
-        setDetail(await api<SourceDetail>(`${base}/${batchId}/sources/${sourceId}`));
-        if (number > 0) setSelectedCase(await api<CaseDetail>(`${base}/${batchId}/sources/${sourceId}/cases/${number}`));
+        const next = await api<SourceDetail>(`${base}/${batchId}/sources/${sourceId}`);
+        if (request !== latest.current) return;
+        setDetail(next); setRefreshKey((value) => value + 1);
+      } else {
+        const next = await api<Batch[]>(`${base}${revision ? `?revision_id=${encodeURIComponent(revision)}` : ""}`);
+        if (request !== latest.current) return;
+        setBatches(next);
       }
       setError("");
-    } catch (e) { setError((e as Error).message); }
+    } catch (e) { if (request === latest.current) setError((e as Error).message); }
   }
   const connection = useAdminEvents(refresh);
-  useEffect(() => { setDetail(null); setSelectedCase(null); void refresh(); }, [taskId, batchId, sourceId, revision, number]);
+  useEffect(() => {
+    setDetail(null); setBatches([]); setError(""); void refresh();
+    return () => { latest.current++; };
+  }, [taskId, batchId, sourceId, revision]);
 
   async function upload() {
     if (!file || !revision) return;
@@ -88,12 +119,14 @@ export default function TaskTester({ csrf }: { csrf: string }) {
   const active = batches.find((batch) => batch.id === batchId);
   return <div className="space-y-4">
     <nav><Link to={`/admin/tasks/${taskId}${revision ? `?revision=${revision}` : ""}`}>Task revision</Link> / Tester</nav>
-    <h1 className="text-xl font-semibold">Task tester</h1>
+    <h1 className="text-xl font-semibold">{sourceId ? "Test submission" : "Task tester"}</h1>
+    {sourceId && <Link to={`${base}/${batchId}${revision ? `?revision=${encodeURIComponent(revision)}` : ""}`}>Back to test batch</Link>}
     <p className="text-sm">Runs against the selected published revision. These results never affect student marks.</p>
     <p className="text-sm">{connection}</p>
+    {sourceId && <button onClick={() => { void refresh(); }}>Refresh submission</button>}
     {error && <p role="alert" className="notice notice-danger">{error}</p>}
     {message && <p role="status" className="notice notice-success">{message}</p>}
-    {revision && <section className="rounded border bg-white p-4">
+    {!sourceId && <>{revision && <section className="rounded border bg-white p-4">
       <h2 className="font-semibold">New test batch</h2>
       <p className="text-sm">One .c/.cpp file or a flat ZIP of up to 20 sources in this revision's permitted languages; each source at most 64 KiB.</p>
       <input aria-label="C/C++ source or ZIP" type="file" accept=".c,.cpp,.zip" onChange={(event) => setFile(event.target.files?.[0] || null)} />
@@ -115,27 +148,25 @@ export default function TaskTester({ csrf }: { csrf: string }) {
         </li>)}</ul>}
       </div>)}
     </section>
+    </>}
+    {sourceId && !detail && !error && <p role="status">Loading submission…</p>}
     {detail && <section className="space-y-3 rounded border bg-white p-4"><h2 className="font-semibold">{detail.source.filename}</h2>
       <p><span className="case-result rounded border px-1" data-verdict={detail.source.verdict}>{detail.source.verdict}</span> · {detail.source.passed}/{detail.source.total} passed
         {detail.source.percentage !== null && ` · ${detail.source.percentage}%`}</p>
       <RestrictionNotice restriction={detail.source.restriction} />
       {detail.source.diagnostic && <p role="alert" className="notice notice-danger">{detail.source.diagnostic}</p>}
+      {detail.source.state === "failed" && <button disabled={busy} onClick={() => { void retry(detail.source); }}>Retry</button>}
+      <p>Progress: {detail.source.progress}/{detail.source.total}</p>
       <p>Language: {languageName(detail.source.language)}</p>
-      <details><summary>Source code</summary><pre className="max-h-96 overflow-auto whitespace-pre-wrap break-all text-sm">{detail.code}</pre></details>
+      <h3 className="font-semibold">Source: {detail.source.filename}</h3>
+      <pre className="overflow-x-auto rounded border bg-slate-50 p-3"><code>{detail.code}</code></pre>
       {(detail.source.compiler_feedback || detail.source.compiler_truncated) && <details><summary>Compiler feedback{detail.source.compiler_truncated ? " (truncated)" : ""}</summary>
         <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all text-sm">{detail.source.compiler_feedback}</pre></details>}
-      <h3 className="font-semibold">Cases</h3>
-      <div className="flex flex-wrap gap-2">{detail.cases.map((item) => <Link key={item.number}
-        className="case-result rounded border px-2 py-1" data-verdict={item.verdict}
-        to={`${base}/${batchId}/${sourceId}?revision=${revision}&case=${item.number}`}>
-        {item.number}: {item.verdict}</Link>)}</div>
-      {selectedCase && <div className="space-y-2"><h4 className="font-semibold">Case {selectedCase.number}: {selectedCase.verdict}</h4>
-        <p className="text-sm">CPU {selectedCase.cpu_seconds.toFixed(3)} s · Wall {selectedCase.wall_seconds.toFixed(3)} s · Memory {selectedCase.memory_kib} KiB</p>
-        <Stream label="Standard input" value={selectedCase.stdin} />
-        <Stream label="Expected output" value={selectedCase.expected} />
-        <Stream label="Standard output" value={selectedCase.stdout} truncated={selectedCase.stdout_truncated} />
-        <Stream label="Standard error" value={selectedCase.stderr} truncated={selectedCase.stderr_truncated} />
-      </div>}
+      <h3 className="font-semibold">Case results</h3>
+      {!detail.cases.length && <p>No case results available.</p>}
+      {detail.cases.map((item) => <TestCase key={`${sourceId}/${item.number}`} item={item}
+        path={`${base}/${batchId}/sources/${sourceId}/cases/${item.number}`}
+        selected={number === item.number} refreshKey={refreshKey} />)}
     </section>}
   </div>;
 }
