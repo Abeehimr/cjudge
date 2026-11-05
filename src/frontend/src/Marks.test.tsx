@@ -40,9 +40,13 @@ const staff: StudentMarks = { id: 'a', roll_number: '001', name: 'Ada', cancelle
 test('staff marks show both maxima, totals and current owner with the best submission link', () => {
   renderRoute(<MarksTable rows={[staff]} tasks={staff.tasks} labId="lab" />, "/admin/labs/lab");
   expect(screen.getByRole('link', { name: '4.00' }).getAttribute('href')).toBe('/admin/labs/lab/submissions/best');
-  expect(screen.getByRole('link', { name: '4.00' }).closest('td')?.textContent).toContain('TA: 2.50 / 10.00');
-  expect(screen.getByText('Combined: 6.50')).toBeTruthy();
-  expect(screen.getByText('Assigned TA: Helper')).toBeTruthy();
+  expect(screen.getByRole('link', { name: '4.00' }).closest('td')?.textContent).toBe('4.00 / 5.00');
+  expect(screen.getByText('10.00', { exact: false }).textContent).toBe('2.50 / 10.00');
+  expect(screen.getAllByRole('row')).toHaveLength(3);
+  expect(screen.getByRole('link', { name: /001/ }).closest('td')?.getAttribute('rowspan')).toBe('2');
+  expect(screen.queryByText(/Automatic:|TA:/)).toBeNull();
+  expect(screen.getByText('6.50')).toBeTruthy();
+  expect(screen.getByText('Assigned to: Helper')).toBeTruthy();
   expect(screen.getByText('Provisional')).toBeTruthy();
 });
 
@@ -64,7 +68,7 @@ test('assigned TA marks view links submissions and distinguishes unmarked from s
   finalized.unmount();
   const reopened = { ...saved, ta_review: { ...saved.ta_review, owner_name: 'New TA', finalized: false, provisional: true } };
   renderRoute(<MarksTable rows={[reopened]} tasks={reopened.tasks} labId="lab" taskId="task" />, "/admin/labs/lab/tasks/r");
-  expect(screen.getByText('Assigned TA: New TA')).toBeTruthy();
+  expect(screen.getByText('Assigned to: New TA')).toBeTruthy();
   expect(screen.queryByText('Reviewed by: Former TA')).toBeNull();
   expect(screen.getByText('Provisional review')).toBeTruthy();
 });
@@ -74,7 +78,7 @@ test('task-filtered marks omit totals and disabled TA marking keeps the simple t
   const row = { ...staff, tasks: [...staff.tasks, automatic] };
   renderRoute(<MarksTable rows={[row]} tasks={[automatic]} labId="lab" taskId="other" />, "/admin/labs/lab/tasks/other");
   expect(screen.queryByText('Sum')).toBeNull();
-  expect(screen.queryByText('TA review')).toBeNull();
+  expect(screen.queryByText('Review')).toBeNull();
   expect(screen.queryByText(/Combined:/)).toBeNull();
   expect(screen.getAllByRole('link')).toHaveLength(2);
 });
@@ -85,8 +89,8 @@ test('cancelled marks exclude grades while pending automatic judging remains vis
     tasks: [{ ...staff.tasks[0], marks: null, best_submission_id: null, pending: true, ta_marks: null }] };
   renderRoute(<MarksTable rows={[cancelled, pending]} tasks={staff.tasks} labId="lab" />, "/admin/labs/lab");
   expect(screen.getByText(/Cancelled/).closest('tr')?.getAttribute('data-cancelled')).toBe('true');
-  expect(screen.getAllByText('—')).toHaveLength(2);
-  expect(screen.getByText(/^Automatic: Pending/)).toBeTruthy();
+  expect(screen.getAllByText('—')).toHaveLength(5);
+  expect(screen.getByText(/^Pending/)).toBeTruthy();
   expect(screen.getAllByText('Provisional · judging pending').length).toBeGreaterThan(0);
 });
 
