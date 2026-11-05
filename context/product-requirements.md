@@ -128,6 +128,10 @@ Decisions for M17–M27: [improvements_v2.md](improvements_v2.md). Atomic steps 
 - **M27:** independent All/Yes/No frozen/cancelled roster filters preserve URL search and selection. Clickable, keyboard-accessible student rows preserve separate control actions; assigned TA rows still open details. Lab task selection separates task and revision, defaults to latest, and allows older published revisions. Student quick submit shares drafts/retry keys with task pages and opens the unfiltered submissions table after confirmed acceptance. Admin/student/TA lab pages share a large server-based countdown and muted elapsed-time bar. Errors appear above page or panel controls.
 - **M28:** one All/Frozen/Cancelled roster status filter replaces the M27 pair; cancellation takes precedence when both flags apply. TA creation and reset accept passwords of 6–128 characters, with spaced form fields. Lab overview result, archive, and ZIP actions have consistent gaps.
 
+## M30 — Lab Task Revision Controls
+
+Admin lab task lists and details show the assigned revision number. One Task revision panel switches to another published revision of the same task: before start it preserves task order and automatic/TA maxima without a rejudge; after start it requires a reason and a correction batch. Active batches and archives lock changes. Successful changes open the assigned revision URL; a start-boundary rejection refreshes the phase and requires an explicit rejudge action.
+
 ## Success Targets
 
 Validate on target hardware: API p95 below 300 ms at 150 concurrent users; ordinary light-load judging within 30 seconds; 150 representative submissions arriving over 60 seconds completed within five minutes of first acceptance. Measure timeout-heavy behavior separately. Correct grading, access control, isolation, and recovery are release prerequisites.

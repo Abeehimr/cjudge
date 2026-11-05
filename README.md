@@ -334,4 +334,8 @@ Rebuild API/web/worker/judge images, stop API/worker, apply migration `20261014_
 
 Generators independently support Python/C11/C++17; references support C11/C++17. GCC/g++ run inside isolate with the existing compiler limits (CPU 10 s, wall 30 s, 512 MiB). Workers verify both compiler/execution profiles before reporting healthy at startup. Task exports now use ZIP v2; v1 imports remain C11. Lab archives use v5 with correct source extensions and preserve v1–v4 receipt verification. The self-contained [task-authoring skill](context/lab-task-authoring/SKILL.md) covers both languages, the complete import ZIP format, and generated build/test packages with reference and wrong solutions.
 
+## M30 Lab Task Revisions
+
+Admin → Lab → Tasks shows the assigned revision number. Open a task and use **Task revision**: before start, **Change revision** updates the assignment without rejudging or changing task order/marks; after start, **Change revision and rejudge** requires a reason and starts the existing correction batch. Publish the desired revision in Task Library first. Active corrections and archived labs lock revision changes. No migration is needed; rebuild web to deploy this control.
+
 Run `docker compose run --rm judge python tests/cpp17_gate.py` for real isolated C++17 checks, and `docker compose run --rm -v ./migrations:/app/migrations:ro -v ./alembic.ini:/app/alembic.ini:ro worker python tests/tester_gate.py --sandbox --cpp` for its disposable-database tester gate. API contracts are `tests/test_cpp17_api.py` with development dependencies and `CJUDGE_TA_GATE_URL` pointing to PostgreSQL where temporary databases may be created.

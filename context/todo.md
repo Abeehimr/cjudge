@@ -316,11 +316,14 @@ Matched follow-up: reads p95 37/38 ms, upload acceptance p95 763/446 ms, all sub
 
 ## M30 — Lab Task Revision Controls · requires M4, M8, M27
 
-- [ ] Show assigned revision numbers in the admin lab task table and task detail.
-- [ ] Allow selecting another published revision of the same task before start; preserve order and automatic/TA maxima.
-- [ ] Expose running/ended revision changes through the existing reason-required correction/rejudge flow.
-- [ ] Show active correction status; retain official results until batch publication and keep archived labs locked.
-- [ ] **Gate:** revision visibility, pre-start switching, correction publication, stale edits, language compatibility, and archive restrictions.
+- [x] Show assigned revision numbers in the admin lab task table and task detail.
+- [x] Use one Task revision panel: switch without rejudge before start; preserve order and automatic/TA maxima.
+- [x] Require reason and rejudge after start through the existing correction flow; disable the bypass in both UI and server.
+- [x] Navigate to the assigned revision URL after saving; refresh phase after start-boundary/stale rejection without silently retrying.
+- [x] Show active correction status; retain official results until batch publication and keep archived labs locked.
+- [x] **Automated gate:** revision visibility/navigation, pre-start switching, correction publication, stale/start-boundary edits, language compatibility, and archive restrictions.
+
+Evidence: 94 frontend tests, production build, disposable PostgreSQL lab gate and existing correction/marks gate passed. No schema or API changes. Live browser acceptance remains; M31–M32 are still planned.
 
 ## M31 — Complete Staff Marks Box · requires M20, M23, M24
 

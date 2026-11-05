@@ -136,6 +136,10 @@ Agreed behavior: [improvements_v2.md](improvements_v2.md). Gates: [todo.md](todo
 - **M27:** roster query parameters `search`, `frozen=yes|no`, and `cancelled=yes|no` combine without clearing selection. `GET /api/admin/labs/task-options` paginates latest published revisions per task; optional `task_id` paginates that task's revisions newest first. Reuse one upload component and parent-held drafts across modal/task pages, including prior revision aliases; preserve uncertain retry keys and files. Use native modal focus/Escape behavior, prevent dismissal during requests, and navigate to unfiltered history after acceptance. Refresh cooldown once from the lab parent; clocks tick locally and refresh only at existing boundaries/visibility changes. No source persistence, new dependencies, schema migration, or weakened admission/disclosure rules.
 - **M28:** roster `status=frozen|cancelled` replaces the M27 flag pair; absent or unknown status shows all. Keep search and selected IDs, clear legacy flag parameters on status changes, and classify cancelled rows before frozen rows. Set frontend and API TA password bounds to 6–128 for creation and reset. Space TA labels/inputs and wrap lab overview action buttons with gaps.
 
+## M30 — Lab Task Revision Controls
+
+Reuse `PUT /api/admin/labs/{lab_id}/tasks` before start, preserving every assignment's order and maxima, and the existing task correction POST after start. Keep database-time setup checks, lab versions/locks, retained-language validation, disclosure acknowledgments, and atomic batch publication. Refresh the lab after HTTP 409 while retaining the selected revision and displaying the error. Confirmed saves update the snapshot and navigate without an unsaved-change prompt. Archived tasks retain read-only revision visibility. No new endpoint or migration is required.
+
 ## Security and Operations
 
 - Argon2 password hashing, revocable sessions, HttpOnly binding cookies, HTTPS, CSRF protection, and login rate limits. Trust forwarded IPs only from configured proxies.
