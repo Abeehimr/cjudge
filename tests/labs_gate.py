@@ -58,6 +58,67 @@ def core_checks():
     return admin_id, student_id, revision_id
 
 
+def revision_checks(admin_id):
+    from cjudge import submissions
+    from cjudge.submissions import review
+    with identity.engine().begin() as conn:
+        task_id, other_task = uuid4(), uuid4()
+        first, second, other = uuid4(), uuid4(), uuid4()
+        config = {'title': 'Revision check', 'statement': 'Read and print one number.'}
+        for key in (task_id, other_task):
+            conn.execute(sa.insert(tasks.tasks).values(id=key, version=1, config=config, case_count=1))
+        for key, task, number in ((first, task_id, 1), (second, task_id, 2), (other, other_task, 1)):
+            conn.execute(sa.insert(tasks.revisions).values(id=key, task_id=task, number=number,
+                draft_version=number, config={**config, 'languages': ['c11', 'cpp17'] if key == first else ['c11']},
+                case_count=1, cases_key=uuid4()))
+        student = identity.add_student(conn, 'REVISION-GATE', 'Revision student')
+        lab = labs.create(conn, 'Revision switching', False, admin_id)
+        conn.execute(sa.insert(labs.enrollments).values(lab_id=lab['id'], account_id=student))
+        def selected(revision):
+            return [dict(revision_id=revision, maximum_marks='7.00', ta_maximum='3.00'),
+                dict(revision_id=other, maximum_marks='12.00', ta_maximum='2.00')]
+        lab = labs.set_tasks(conn, lab, selected(first), admin_id)
+        old_version = lab['version']
+        lab = labs.set_tasks(conn, lab, selected(second), admin_id)
+        rows = labs.task_rows(conn, lab['id'])
+        assert [row['id'] for row in rows] == [second, other]
+        assert [(str(row['maximum_marks']), str(row['ta_maximum'])) for row in rows] == [('7.00', '3.00'), ('12.00', '2.00')]
+        try:
+            labs.find(conn, lab['id'], old_version)
+        except labs.LabError as error:
+            assert error.status == 409
+        else:
+            raise AssertionError('Stale revision edit allowed')
+        timestamp = labs.now(conn)
+        lab = labs.schedule(conn, lab, timestamp + timedelta(minutes=10), timestamp + timedelta(hours=1), admin_id)
+        lab = labs.set_tasks(conn, lab, selected(first), admin_id)
+        assert [row['id'] for row in labs.task_rows(conn, lab['id'])] == [first, other]
+        conn.execute(sa.update(labs.labs).where(labs.labs.c.id == lab['id']).values(starts_at=timestamp - timedelta(seconds=1)))
+        try:
+            labs.set_tasks(conn, labs.find(conn, lab['id'], lab['version']), selected(second), admin_id)
+        except labs.LabError as error:
+            assert error.status == 409
+        else:
+            raise AssertionError('No-rejudge revision change allowed after start')
+        savepoint = conn.begin_nested()
+        conn.execute(sa.insert(submissions.submissions).values(id=uuid4(), lab_id=lab['id'], account_id=student,
+            revision_id=first, idempotency_key=uuid4(), filename='main.cpp', language='cpp17',
+            size=1, sha256='0' * 64, client_ip='192.0.2.1', accepted_at=timestamp))
+        try:
+            review.correct(conn, labs.find(conn, lab['id']), task_id, second, admin_id, 'Narrow language')
+        except labs.LabError as error:
+            assert error.status == 409 and 'excludes cpp17' in str(error)
+        else:
+            raise AssertionError('Correction narrowed a retained submission language')
+        savepoint.rollback()
+        assert [row['id'] for row in labs.task_rows(conn, lab['id'])] == [first, other]
+        assert not conn.execute(sa.select(submissions.jobs.c.submission_id).join(submissions.submissions,
+            submissions.submissions.c.id == submissions.jobs.c.submission_id).where(
+                submissions.submissions.c.lab_id == lab['id'])).first()
+        assert not conn.execute(sa.select(submissions.batches.c.id).where(submissions.batches.c.lab_id == lab['id'])).first()
+    print('PASS: Draft/Scheduled revision switching preserves order/maxima, queues no rejudge, and rejects start-boundary/stale edits')
+
+
 def roster_checks(admin_id, student_id, revision_id):
     with identity.engine().begin() as conn:
         a = labs.create(conn, 'Roster', False, admin_id)
@@ -496,6 +557,7 @@ def main():
     try:
         command.upgrade(Config('alembic.ini'), 'head')
         actors = core_checks()
+        revision_checks(actors[0])
         roster_checks(*actors)
         binding_checks(*actors)
         pdf_checks(*actors)
