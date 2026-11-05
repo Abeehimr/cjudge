@@ -339,12 +339,14 @@ Evidence: 98 frontend tests and production build; 62 backend tests; four disposa
 
 ## M32 — Replace Existing Task Draft from ZIP · requires M3, M21
 
-- [ ] Add Replace draft from task ZIP on an existing library task; confirm replacement of all draft settings and cases.
-- [ ] Add an admin/CSRF-protected, version-checked whole-task ZIP replacement endpoint using the existing bounded parser.
-- [ ] Replace statement, checker, restrictions, languages, limits, scoring, and cases atomically; invalid uploads and stale versions leave the draft unchanged.
-- [ ] Preserve task identity, published revisions, assigned labs, marks, and retained results; increment draft version and invalidate stale generation application.
-- [ ] Require review and explicit publication before lab revision switching/corrections; retain the separate new-task import and cases-only replacement controls.
-- [ ] **Gate:** complete replacement, malformed/oversized ZIPs, authorization, concurrent edits, storage failures, generation invalidation, and published-history preservation.
+- [x] Add Replace draft from task ZIP on an existing library task; confirm replacement of all draft settings and cases.
+- [x] Add an admin/CSRF-protected, version-checked whole-task ZIP replacement endpoint using the existing bounded parser.
+- [x] Replace statement, checker, restrictions, languages, limits, scoring, and cases atomically; invalid uploads and stale versions leave the draft unchanged.
+- [x] Preserve task identity, published revisions, assigned labs, marks, and retained results; increment draft version and invalidate stale generation application.
+- [x] Require review and explicit publication before lab revision switching/corrections; retain the separate new-task import and cases-only replacement controls.
+- [x] **Automated gate:** complete replacement, malformed/oversized ZIPs, authorization, concurrent edits, storage failures, generation invalidation, and published-history preservation.
+
+Evidence: 105 frontend tests and production build; 62 backend tests; five disposable PostgreSQL replacement tests; existing task gate passed. PostgreSQL-only host tests are skipped there; M32 cases ran separately. Browser acceptance and deployment remain. No migration.
 
 M30–M32 are independently implementable. Work on a separate branch per module, make small tested commits, and stop at each gate for review; merge only on command.
 

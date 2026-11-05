@@ -144,6 +144,10 @@ Reuse `PUT /api/admin/labs/{lab_id}/tasks` before start, preserving every assign
 
 Enrich existing admin and assigned-TA marks endpoints with task automatic/TA maxima, nullable saved TA marks, TA/combined totals, and review attribution/status. Batch-load marks and joined owner/reviewer names for the selected roster; query counts must not grow per student. Preserve exact fraction scaling and half-up display rounding, sum displayed marks, and exclude cancelled totals while retaining evidence. Keep the shared automatic grading model, student responses, and scoreboard unchanged. Reuse the shared table and existing SSE invalidations; no new endpoint, polling, or migration.
 
+## M32 — Replace Existing Task Draft from ZIP
+
+`PUT /api/admin/tasks/{task_id}/import?version=N` accepts a raw task ZIP and returns existing task details. Enforce admin/CSRF and reuse bounded ZIP v1/v2 parsing. Parse before locking; under the task lock, check the version, persist immutable cases, then atomically update full configuration, cases, version, and audit record. Omitted optional configuration uses parser defaults. Failed validation/storage or stale versions leave the draft unchanged; failed transactions may leave harmless unreferenced case files under the existing storage policy. Preserve published revisions and lab/result references. The version increment blocks applying old generation jobs. No migration.
+
 ## Security and Operations
 
 - Argon2 password hashing, revocable sessions, HttpOnly binding cookies, HTTPS, CSRF protection, and login rate limits. Trust forwarded IPs only from configured proxies.

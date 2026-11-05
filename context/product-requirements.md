@@ -136,6 +136,10 @@ Admin lab task lists and details show the assigned revision number. One Task rev
 
 Admin lab, student, and task marks boxes and assigned-TA student views show automatic marks/maxima and enabled TA marks/maxima. Missing TA marks read **Not marked**; saved zero remains zero. Show automatic, TA, and combined totals, with unfinished reviews or pending judging marked provisional. Preserve cancellation and **Needs recheck**. Finalized reviews show **Reviewed by**; unfinished reviews show **Assigned TA**, otherwise **Unassigned**. Attribution belongs to the student review. Keep best-submission links and a simpler automatic-only table when no displayed task enables TA marks. Students and scoreboard retain automatic-only results.
 
+## M32 — Replace Existing Task Draft from ZIP
+
+Existing library tasks accept **Replace draft from task ZIP** in draft editing. Confirm complete replacement of settings and cases; save or clear unsaved settings, pasted cases, and generator/reference edits first. Successful uploads open draft review. Keep task identity, published history, assigned labs, and retained marks/results; publication and lab revision switching remain explicit. New-task ZIP import and cases-only replacement stay separate.
+
 ## Success Targets
 
 Validate on target hardware: API p95 below 300 ms at 150 concurrent users; ordinary light-load judging within 30 seconds; 150 representative submissions arriving over 60 seconds completed within five minutes of first acceptance. Measure timeout-heavy behavior separately. Correct grading, access control, isolation, and recovery are release prerequisites.

@@ -22,6 +22,8 @@ Suggested backend boundaries: identity, tasks, labs, submissions, judging, resul
 
 M31 enriches the existing staff marks endpoints through one shared batch loader: automatic results, task maxima, saved TA fractions, and joined review owner/reviewer names feed the shared admin/TA marks table. Saved TA marks contribute immediately to provisional combined totals; finalization determines reviewer attribution. Student and scoreboard paths keep the separate automatic-only grading model.
 
+M32 uses the existing bounded task bundle parser to replace one version-locked draft's configuration and immutable case reference. Published revisions retain their original references. Generation application uses the incremented draft version to reject stale jobs. The UI separates whole-draft replacement from new-task import and cases-only replacement, opening review before explicit publication.
+
 ## Screens
 
 Use a DOMjudge-inspired layout for both student and admin interfaces: compact navigation, dense task/submission tables, clear status labels, and a visible server-based lab countdown. Use a light theme and native form controls: consistent blue buttons, yellow notices/announcements, and red blocked states or errors. M13 changes frozen roster rows to muted yellow; M15 uses muted red for cancelled rows. Keep labels and visible focus; do not rely on color alone. DOMjudge is a layout reference; exact visual matching and source-code reuse are not required. Retain React and Tailwind without adding a UI framework.

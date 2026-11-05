@@ -346,3 +346,12 @@ Run `docker compose run --rm judge python tests/cpp17_gate.py` for real isolated
 Admin lab/student/task marks boxes and assigned-TA student marks show automatic and TA marks with maxima, automatic/TA/combined totals, and the final reviewer or current assigned TA. Missing TA marks say **Not marked**. Unfinished reviews, pending judging, and **Needs recheck** remain visible; cancelled participation has no totals. Labs without TA marking keep the simpler table. Student results and scoreboard stay automatic-only.
 
 No migration is needed; rebuild API and web to deploy. Review with a TA-enabled lab: compare unmarked, saved-zero, unfinished, and finalized reviews; reopen/transfer a review; change a TA maximum; trigger a recheck; verify cancelled totals and best-submission links. API tests in `tests/test_ta_review_api.py` use `CJUDGE_TA_GATE_URL` and create/drop only temporary databases.
+
+
+## M32 Replace a Task Draft from ZIP
+
+Task Library → open an existing task → **Edit draft** → **Replace draft from task ZIP**. Save or clear unsaved edits first, select a task ZIP, then confirm replacement of all draft settings and cases. Review the imported draft and publish explicitly. Published revisions, lab assignments, and marks stay unchanged; use the lab revision controls separately to adopt a published replacement.
+
+Use the same ZIP v1/v2 format as task import/export: `manifest.json` and consecutive `cases/N.in` / `cases/N.out` pairs, up to 17 MiB uploaded. Optional settings omitted from the ZIP reset to defaults. **Replace cases from ZIP** still accepts only flat case pairs and changes cases alone. Stale drafts return a conflict; reload before retrying. Older generated cases cannot apply after replacement.
+
+No migration is needed; rebuild API and web when deploying. API coverage is in `tests/test_task_replace_api.py`, using development dependencies and `CJUDGE_TA_GATE_URL` for disposable PostgreSQL databases.
